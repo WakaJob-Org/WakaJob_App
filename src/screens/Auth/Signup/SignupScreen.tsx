@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     StyleSheet,
     View,
@@ -10,6 +10,7 @@ import {
     Platform,
     ScrollView,
 } from 'react-native';
+import GoogleIcon from '../../../components/GoogleIcon';
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
@@ -24,19 +25,23 @@ const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 interface SignupScreenProps {
     isVisible: boolean;
     onClose: () => void;
+    onSwitchToSignin: () => void;
 }
 
-const SignupScreen: React.FC<SignupScreenProps> = ({ isVisible, onClose }) => {
+const SignupScreen: React.FC<SignupScreenProps> = ({ isVisible, onClose, onSwitchToSignin }) => {
     const translateY = useSharedValue(SCREEN_HEIGHT);
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
     useEffect(() => {
         if (isVisible) {
-            translateY.value = withSpring(0, {
-                damping: 15,
-                stiffness: 90,
+            // Use withTiming for a smooth, non-bouncy entry
+            // Slower duration for a more cinematic feel as requested
+            translateY.value = withTiming(0, {
+                duration: 800,
             });
         } else {
-            translateY.value = withTiming(SCREEN_HEIGHT, { duration: 300 });
+            translateY.value = withTiming(SCREEN_HEIGHT, { duration: 600 });
         }
     }, [isVisible]);
 
@@ -47,76 +52,94 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ isVisible, onClose }) => {
     if (!isVisible && translateY.value === SCREEN_HEIGHT) return null;
 
     return (
-        <Animated.View style={[styles.container, animatedStyle]}>
-            <View style={styles.handleContainer}>
-                <View style={styles.handle} />
-            </View>
-
-            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-                <View style={styles.header}>
-                    <View style={styles.iconContainer}>
-                        <Ionicons name="briefcase" size={32} color="#FFFFFF" />
-                    </View>
-                    <Text style={styles.title}>Wakajob</Text>
-                    <Text style={styles.subtitle}>Create an Account</Text>
-                    <Text style={styles.description}>Join thousands of professionals finding their dream jobs</Text>
+        <>
+            <Animated.View style={[styles.container, animatedStyle]}>
+                <View style={styles.handleContainer}>
+                    <View style={styles.handle} />
                 </View>
 
-                <View style={styles.form}>
-                    <View style={styles.inputWrapper}>
-                        <Text style={styles.label}>Full Name</Text>
-                        <View style={styles.inputContainer}>
-                            <Ionicons name="person-outline" size={20} color="#666" style={styles.inputIcon} />
-                            <TextInput style={styles.input} placeholder="Enter your full name" placeholderTextColor="#999" />
+                <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                    <View style={styles.header}>
+                        <View style={styles.iconContainer}>
+                            <Ionicons name="briefcase" size={32} color="#FFFFFF" />
                         </View>
+                        <Text style={styles.title}>Wakajob</Text>
+                        <Text style={styles.subtitle}>Create an Account</Text>
+                        <Text style={styles.description}>Join thousands of professionals finding their dream jobs</Text>
                     </View>
 
-                    <View style={styles.inputWrapper}>
-                        <Text style={styles.label}>Phone Number</Text>
-                        <View style={styles.inputContainer}>
-                            <Ionicons name="call-outline" size={20} color="#666" style={styles.inputIcon} />
-                            <TextInput style={styles.input} placeholder="Enter your phone number" keyboardType="phone-pad" placeholderTextColor="#999" />
+                    <View style={styles.form}>
+                        <View style={styles.inputWrapper}>
+                            <Text style={styles.label}>Full Name</Text>
+                            <View style={styles.inputContainer}>
+                                <Ionicons name="person-outline" size={20} color="#666" style={styles.inputIcon} />
+                                <TextInput style={styles.input} placeholder="Enter your full name" placeholderTextColor="#999" />
+                            </View>
                         </View>
-                    </View>
 
-                    <View style={styles.inputWrapper}>
-                        <Text style={styles.label}>Password</Text>
-                        <View style={styles.inputContainer}>
-                            <Ionicons name="lock-closed-outline" size={20} color="#666" style={styles.inputIcon} />
-                            <TextInput style={styles.input} placeholder="Create a strong password" secureTextEntry placeholderTextColor="#999" />
-                            <Ionicons name="eye-outline" size={20} color="#666" />
+                        <View style={styles.inputWrapper}>
+                            <Text style={styles.label}>Phone Number</Text>
+                            <View style={styles.inputContainer}>
+                                <Ionicons name="call-outline" size={20} color="#666" style={styles.inputIcon} />
+                                <TextInput style={styles.input} placeholder="Enter your phone number" keyboardType="phone-pad" placeholderTextColor="#999" />
+                            </View>
                         </View>
-                    </View>
 
-                    <View style={styles.inputWrapper}>
-                        <Text style={styles.label}>Confirm Password</Text>
-                        <View style={styles.inputContainer}>
-                            <Ionicons name="lock-closed-outline" size={20} color="#666" style={styles.inputIcon} />
-                            <TextInput style={styles.input} placeholder="Confirm your password" secureTextEntry placeholderTextColor="#999" />
-                            <Ionicons name="eye-outline" size={20} color="#666" />
+                        <View style={styles.inputWrapper}>
+                            <Text style={styles.label}>Password</Text>
+                            <View style={styles.inputContainer}>
+                                <Ionicons name="lock-closed-outline" size={20} color="#666" style={styles.inputIcon} />
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="Create a strong password"
+                                    secureTextEntry={!showPassword}
+                                    placeholderTextColor="#999"
+                                />
+                                <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                                    <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color="#666" />
+                                </TouchableOpacity>
+                            </View>
                         </View>
-                    </View>
 
-                    <TouchableOpacity style={styles.signupButton} activeOpacity={0.8}>
-                        <Text style={styles.signupButtonText}>Sign Up</Text>
-                    </TouchableOpacity>
+                        <View style={styles.inputWrapper}>
+                            <Text style={styles.label}>Confirm Password</Text>
+                            <View style={styles.inputContainer}>
+                                <Ionicons name="lock-closed-outline" size={20} color="#666" style={styles.inputIcon} />
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="Confirm your password"
+                                    secureTextEntry={!showConfirmPassword}
+                                    placeholderTextColor="#999"
+                                />
+                                <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
+                                    <Ionicons name={showConfirmPassword ? "eye-off-outline" : "eye-outline"} size={20} color="#666" />
+                                </TouchableOpacity>
+                            </View>
+                        </View>
 
-                    <Text style={styles.orText}>or</Text>
-
-                    <TouchableOpacity style={styles.googleButton} activeOpacity={0.8}>
-                        <Ionicons name="logo-google" size={20} color="#666" style={{ marginRight: 10 }} />
-                        <Text style={styles.googleButtonText}>SignUp with Google</Text>
-                    </TouchableOpacity>
-
-                    <View style={styles.loginContainer}>
-                        <Text style={styles.loginText}>Already have an account? </Text>
-                        <TouchableOpacity onPress={onClose}>
-                            <Text style={styles.loginLink}>Sign In</Text>
+                        <TouchableOpacity style={styles.signupButton} activeOpacity={0.8}>
+                            <Text style={styles.signupButtonText}>Sign Up</Text>
                         </TouchableOpacity>
+
+                        <Text style={styles.orText}>or</Text>
+
+                        <TouchableOpacity style={styles.googleButton} activeOpacity={0.8}>
+                            <View style={{ marginRight: 12 }}>
+                                <GoogleIcon size={20} />
+                            </View>
+                            <Text style={styles.googleButtonText}>SignUp with Google</Text>
+                        </TouchableOpacity>
+
+                        <View style={styles.loginContainer}>
+                            <Text style={styles.loginText}>Already have an account? </Text>
+                            <TouchableOpacity onPress={onSwitchToSignin}>
+                                <Text style={styles.loginLink}>Sign In</Text>
+                            </TouchableOpacity>
+                        </View>
                     </View>
-                </View>
-            </ScrollView>
-        </Animated.View>
+                </ScrollView>
+            </Animated.View>
+        </>
     );
 };
 
