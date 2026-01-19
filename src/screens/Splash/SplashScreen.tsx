@@ -12,7 +12,7 @@ import Animated, {
 
 const { width, height } = Dimensions.get('window');
 
-const SplashScreen = () => {
+const SplashScreen = ({ onGetStarted }: { onGetStarted: () => void }) => {
     // Animation values
     const logoOpacity = useSharedValue(0);
     const logoTranslateY = useSharedValue(20);
@@ -63,6 +63,7 @@ const SplashScreen = () => {
                 <TouchableOpacity
                     style={styles.button}
                     activeOpacity={0.7}
+                    onPress={onGetStarted}
                 >
                     <Text style={styles.buttonText}>Get started</Text>
                 </TouchableOpacity>
