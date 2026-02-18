@@ -7,7 +7,10 @@ import {
     TouchableOpacity,
     Dimensions,
     ScrollView,
+    Alert,
+    ActivityIndicator,
 } from 'react-native';
+import authService from '../../../services/authService';
 import GoogleIcon from '../../../components/GoogleIcon';
 import Animated, {
     useSharedValue,
@@ -22,11 +25,17 @@ interface LoginScreenProps {
     isVisible: boolean;
     onClose: () => void;
     onSwitchToSignup: () => void;
+    onLogin: () => void;
 }
 
-const LoginScreen: React.FC<LoginScreenProps> = ({ isVisible, onClose, onSwitchToSignup }) => {
+const LoginScreen: React.FC<LoginScreenProps> = ({ isVisible, onClose, onSwitchToSignup, onLogin }) => {
     const translateY = useSharedValue(SCREEN_HEIGHT);
     const [showPassword, setShowPassword] = useState(false);
+    const [loading, setLoading] = useState(false);
+
+    // Form state
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
 
     useEffect(() => {
         if (isVisible) {
@@ -42,6 +51,23 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ isVisible, onClose, onSwitchT
     const animatedStyle = useAnimatedStyle(() => ({
         transform: [{ translateY: translateY.value }],
     }));
+
+    const handleLogin = async () => {
+        if (!email || !password) {
+            Alert.alert('Error', 'Please enter both email and password');
+            return;
+        }
+
+        setLoading(true);
+        try {
+            await authService.signin({ email, password });
+            onLogin();
+        } catch (error: any) {
+            Alert.alert('Login Failed', error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     if (!isVisible && translateY.value === SCREEN_HEIGHT) return null;
 
@@ -68,14 +94,17 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ isVisible, onClose, onSwitchT
 
                     <View style={styles.form}>
                         <View style={styles.inputWrapper}>
-                            <Text style={styles.label}>Phone Number</Text>
+                            <Text style={styles.label}>Email Address</Text>
                             <View style={styles.inputContainer}>
-                                <Ionicons name="call-outline" size={20} color="#666" style={styles.inputIcon} />
+                                <Ionicons name="mail-outline" size={20} color="#666" style={styles.inputIcon} />
                                 <TextInput
                                     style={styles.input}
-                                    placeholder="Enter your phone number"
-                                    keyboardType="phone-pad"
+                                    placeholder="Enter your email"
+                                    keyboardType="email-address"
                                     placeholderTextColor="#999"
+                                    autoCapitalize="none"
+                                    value={email}
+                                    onChangeText={setEmail}
                                 />
                             </View>
                         </View>
@@ -89,6 +118,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ isVisible, onClose, onSwitchT
                                     placeholder="Enter your password"
                                     secureTextEntry={!showPassword}
                                     placeholderTextColor="#999"
+                                    value={password}
+                                    onChangeText={setPassword}
                                 />
                                 <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
                                     <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color="#666" />
@@ -99,8 +130,17 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ isVisible, onClose, onSwitchT
                             </TouchableOpacity>
                         </View>
 
-                        <TouchableOpacity style={styles.signInButton} activeOpacity={0.8}>
-                            <Text style={styles.signInButtonText}>Sign In</Text>
+                        <TouchableOpacity
+                            style={styles.signInButton}
+                            activeOpacity={0.8}
+                            onPress={handleLogin}
+                            disabled={loading}
+                        >
+                            {loading ? (
+                                <ActivityIndicator color="#FFFFFF" />
+                            ) : (
+                                <Text style={styles.signInButtonText}>Sign In</Text>
+                            )}
                         </TouchableOpacity>
 
                         <Text style={styles.orText}>or continue with</Text>

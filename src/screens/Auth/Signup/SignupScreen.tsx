@@ -19,6 +19,8 @@ import Animated, {
     runOnJS,
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
+import authService from '../../../services/authService';
+import { Alert, ActivityIndicator } from 'react-native';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -26,12 +28,20 @@ interface SignupScreenProps {
     isVisible: boolean;
     onClose: () => void;
     onSwitchToSignin: () => void;
+    onSignup: () => void;
 }
 
-const SignupScreen: React.FC<SignupScreenProps> = ({ isVisible, onClose, onSwitchToSignin }) => {
+const SignupScreen: React.FC<SignupScreenProps> = ({ isVisible, onClose, onSwitchToSignin, onSignup }) => {
     const translateY = useSharedValue(SCREEN_HEIGHT);
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+    const [loading, setLoading] = useState(false);
+
+    // Form state
+    const [fullName, setFullName] = useState('');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
 
     useEffect(() => {
         if (isVisible) {
@@ -48,6 +58,34 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ isVisible, onClose, onSwitc
     const animatedStyle = useAnimatedStyle(() => ({
         transform: [{ translateY: translateY.value }],
     }));
+
+    const handleSignup = async () => {
+        if (!fullName || !email || !password || !confirmPassword) {
+            Alert.alert('Error', 'Please fill in all fields');
+            return;
+        }
+
+        if (password !== confirmPassword) {
+            Alert.alert('Error', 'Passwords do not match');
+            return;
+        }
+
+        setLoading(true);
+        try {
+            await authService.signup({
+                full_name: fullName,
+                email,
+                password,
+                confirmPassword,
+                role: 'worker',
+            });
+            onSignup();
+        } catch (error: any) {
+            Alert.alert('Signup Failed', error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     if (!isVisible && translateY.value === SCREEN_HEIGHT) return null;
 
@@ -73,15 +111,29 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ isVisible, onClose, onSwitc
                             <Text style={styles.label}>Full Name</Text>
                             <View style={styles.inputContainer}>
                                 <Ionicons name="person-outline" size={20} color="#666" style={styles.inputIcon} />
-                                <TextInput style={styles.input} placeholder="Enter your full name" placeholderTextColor="#999" />
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="Enter your full name"
+                                    placeholderTextColor="#999"
+                                    value={fullName}
+                                    onChangeText={setFullName}
+                                />
                             </View>
                         </View>
 
                         <View style={styles.inputWrapper}>
-                            <Text style={styles.label}>Phone Number</Text>
+                            <Text style={styles.label}>Email Address</Text>
                             <View style={styles.inputContainer}>
-                                <Ionicons name="call-outline" size={20} color="#666" style={styles.inputIcon} />
-                                <TextInput style={styles.input} placeholder="Enter your phone number" keyboardType="phone-pad" placeholderTextColor="#999" />
+                                <Ionicons name="mail-outline" size={20} color="#666" style={styles.inputIcon} />
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="Enter your email"
+                                    keyboardType="email-address"
+                                    placeholderTextColor="#999"
+                                    autoCapitalize="none"
+                                    value={email}
+                                    onChangeText={setEmail}
+                                />
                             </View>
                         </View>
 
@@ -94,6 +146,8 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ isVisible, onClose, onSwitc
                                     placeholder="Create a strong password"
                                     secureTextEntry={!showPassword}
                                     placeholderTextColor="#999"
+                                    value={password}
+                                    onChangeText={setPassword}
                                 />
                                 <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
                                     <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color="#666" />
@@ -110,6 +164,8 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ isVisible, onClose, onSwitc
                                     placeholder="Confirm your password"
                                     secureTextEntry={!showConfirmPassword}
                                     placeholderTextColor="#999"
+                                    value={confirmPassword}
+                                    onChangeText={setConfirmPassword}
                                 />
                                 <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
                                     <Ionicons name={showConfirmPassword ? "eye-off-outline" : "eye-outline"} size={20} color="#666" />
@@ -117,8 +173,17 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ isVisible, onClose, onSwitc
                             </View>
                         </View>
 
-                        <TouchableOpacity style={styles.signupButton} activeOpacity={0.8}>
-                            <Text style={styles.signupButtonText}>Sign Up</Text>
+                        <TouchableOpacity
+                            style={styles.signupButton}
+                            activeOpacity={0.8}
+                            onPress={handleSignup}
+                            disabled={loading}
+                        >
+                            {loading ? (
+                                <ActivityIndicator color="#FFFFFF" />
+                            ) : (
+                                <Text style={styles.signupButtonText}>Sign Up</Text>
+                            )}
                         </TouchableOpacity>
 
                         <Text style={styles.orText}>or</Text>

@@ -12,7 +12,13 @@ import Animated, {
 
 const { width, height } = Dimensions.get('window');
 
-const SplashScreen = ({ onGetStarted }: { onGetStarted: () => void }) => {
+const SplashScreen = ({
+    onGetStarted,
+    showButton = true
+}: {
+    onGetStarted: () => void;
+    showButton?: boolean;
+}) => {
     // Animation values
     const logoOpacity = useSharedValue(0);
     const logoTranslateY = useSharedValue(20);
@@ -59,15 +65,17 @@ const SplashScreen = ({ onGetStarted }: { onGetStarted: () => void }) => {
                 </Animated.Text>
             </Animated.View>
 
-            <Animated.View style={[styles.footer, buttonStyle]}>
-                <TouchableOpacity
-                    style={styles.button}
-                    activeOpacity={0.7}
-                    onPress={onGetStarted}
-                >
-                    <Text style={styles.buttonText}>Get started</Text>
-                </TouchableOpacity>
-            </Animated.View>
+            {showButton && (
+                <Animated.View style={[styles.footer, buttonStyle]}>
+                    <TouchableOpacity
+                        style={styles.button}
+                        activeOpacity={0.7}
+                        onPress={onGetStarted}
+                    >
+                        <Text style={styles.buttonText}>Get started</Text>
+                    </TouchableOpacity>
+                </Animated.View>
+            )}
         </LinearGradient>
     );
 };
@@ -104,22 +112,23 @@ const styles = StyleSheet.create({
     },
     button: {
         backgroundColor: '#FFFFFF',
-        width: '60%',
-        height: 50,
+        width: '55%',
+        height: 48,
         alignSelf: 'center',
-        borderRadius: 25,
+        borderRadius: 24,
         justifyContent: 'center',
         alignItems: 'center',
-        elevation: 10,
+        elevation: 8,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 5 },
-        shadowOpacity: 0.2,
-        shadowRadius: 10,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 8,
     },
     buttonText: {
-        fontSize: 20,
+        fontSize: 18,
         color: '#1972ca',
-        fontWeight: '700',
+        fontWeight: '600',
+        letterSpacing: 0.5,
     },
 });
 
