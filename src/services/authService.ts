@@ -27,19 +27,34 @@ export interface AuthResponse {
 const authService = {
     signup: async (data: SignupData) => {
         try {
-            const response = await api.post<AuthResponse>('/auth/signup', data);
+            // Only send fields required by the official API spec
+            const payload = {
+                full_name: data.full_name,
+                email: data.email,
+                password: data.password,
+                role: data.role
+            };
+            console.log('Attempting signup with payload:', { ...payload, password: '***' });
+            const response = await api.post<AuthResponse>('/auth/signup', payload);
             if (response.data.token) {
                 await AsyncStorage.setItem('auth_token', response.data.token);
                 await AsyncStorage.setItem('user_data', JSON.stringify(response.data.user));
             }
             return response.data;
         } catch (error: any) {
-            throw error.response?.data?.message || 'Signup failed';
+            const errorMessage = error.response?.data?.message || error.message || 'Signup failed';
+            console.error('Signup Service Error:', {
+                status: error.response?.status,
+                data: error.response?.data,
+                message: error.message
+            });
+            throw errorMessage;
         }
     },
 
     signin: async (data: SigninData) => {
         try {
+            console.log('Attempting signin with:', { email: data.email, password: '***' });
             const response = await api.post<AuthResponse>('/auth/signin', data);
             if (response.data.token) {
                 await AsyncStorage.setItem('auth_token', response.data.token);
@@ -47,7 +62,13 @@ const authService = {
             }
             return response.data;
         } catch (error: any) {
-            throw error.response?.data?.message || 'Signin failed';
+            const errorMessage = error.response?.data?.message || error.message || 'Signin failed';
+            console.error('Signin Service Error:', {
+                status: error.response?.status,
+                data: error.response?.data,
+                message: error.message
+            });
+            throw errorMessage;
         }
     },
 

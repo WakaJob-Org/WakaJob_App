@@ -37,6 +37,12 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ isVisible, onClose, onSwitchT
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
 
+    // Error state
+    const [errors, setErrors] = useState({
+        email: '',
+        password: '',
+    });
+
     useEffect(() => {
         if (isVisible) {
             // Smooth, non-bouncy entry - slowed down for visual clarity
@@ -53,8 +59,16 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ isVisible, onClose, onSwitchT
     }));
 
     const handleLogin = async () => {
-        if (!email || !password) {
-            Alert.alert('Error', 'Please enter both email and password');
+        // Reset errors
+        const newErrors = {
+            email: !email ? 'Email address is required' : '',
+            password: !password ? 'Password is required' : '',
+        };
+
+        setErrors(newErrors);
+
+        // Check if any error exists
+        if (Object.values(newErrors).some(err => err !== '')) {
             return;
         }
 
@@ -63,7 +77,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ isVisible, onClose, onSwitchT
             await authService.signin({ email, password });
             onLogin();
         } catch (error: any) {
-            Alert.alert('Login Failed', error);
+            console.error('Login error detail:', error);
+            Alert.alert('Login Failed', error || 'Invalid email or password. Please try again.');
         } finally {
             setLoading(false);
         }
@@ -95,8 +110,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ isVisible, onClose, onSwitchT
                     <View style={styles.form}>
                         <View style={styles.inputWrapper}>
                             <Text style={styles.label}>Email Address</Text>
-                            <View style={styles.inputContainer}>
-                                <Ionicons name="mail-outline" size={20} color="#666" style={styles.inputIcon} />
+                            <View style={[styles.inputContainer, errors.email ? styles.inputError : null]}>
+                                <Ionicons name="mail-outline" size={20} color={errors.email ? "#FF3B30" : "#666"} style={styles.inputIcon} />
                                 <TextInput
                                     style={styles.input}
                                     placeholder="Enter your email"
@@ -104,27 +119,35 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ isVisible, onClose, onSwitchT
                                     placeholderTextColor="#999"
                                     autoCapitalize="none"
                                     value={email}
-                                    onChangeText={setEmail}
+                                    onChangeText={(text) => {
+                                        setEmail(text);
+                                        if (errors.email) setErrors({ ...errors, email: '' });
+                                    }}
                                 />
                             </View>
+                            {errors.email ? <Text style={styles.errorText}>{errors.email}</Text> : null}
                         </View>
 
                         <View style={styles.inputWrapper}>
                             <Text style={styles.label}>Password</Text>
-                            <View style={styles.inputContainer}>
-                                <Ionicons name="lock-closed-outline" size={20} color="#666" style={styles.inputIcon} />
+                            <View style={[styles.inputContainer, errors.password ? styles.inputError : null]}>
+                                <Ionicons name="lock-closed-outline" size={20} color={errors.password ? "#FF3B30" : "#666"} style={styles.inputIcon} />
                                 <TextInput
                                     style={styles.input}
                                     placeholder="Enter your password"
                                     secureTextEntry={!showPassword}
                                     placeholderTextColor="#999"
                                     value={password}
-                                    onChangeText={setPassword}
+                                    onChangeText={(text) => {
+                                        setPassword(text);
+                                        if (errors.password) setErrors({ ...errors, password: '' });
+                                    }}
                                 />
                                 <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
                                     <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color="#666" />
                                 </TouchableOpacity>
                             </View>
+                            {errors.password ? <Text style={styles.errorText}>{errors.password}</Text> : null}
                             <TouchableOpacity style={styles.forgotPassword}>
                                 <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
                             </TouchableOpacity>
@@ -325,6 +348,17 @@ const styles = StyleSheet.create({
         color: '#1972ca',
         fontSize: 14,
         fontWeight: 'bold',
+    },
+    errorText: {
+        color: '#FF3B30',
+        fontSize: 12,
+        marginTop: 4,
+        marginLeft: 4,
+        fontWeight: '500',
+    },
+    inputError: {
+        borderColor: '#FF3B30',
+        backgroundColor: '#FFF9F9',
     },
 });
 
