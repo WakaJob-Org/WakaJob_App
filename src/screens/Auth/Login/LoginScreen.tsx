@@ -166,15 +166,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ isVisible, onClose, onSwitchT
                             )}
                         </TouchableOpacity>
 
-                        <Text style={styles.orText}>or continue with</Text>
-
-                        <TouchableOpacity style={styles.googleButton} activeOpacity={0.8}>
-                            <View style={{ marginRight: 12 }}>
-                                <GoogleIcon size={20} />
-                            </View>
-                            <Text style={styles.googleButtonText}>continue with Google</Text>
-                        </TouchableOpacity>
-
                         <View style={styles.signupContainer}>
                             <Text style={styles.signupText}>Don't have an account? </Text>
                             <TouchableOpacity onPress={onSwitchToSignup}>

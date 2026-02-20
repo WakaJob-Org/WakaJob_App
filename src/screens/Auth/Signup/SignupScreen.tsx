@@ -42,6 +42,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ isVisible, onClose, onSwitc
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
+    const [role, setRole] = useState<'worker' | 'employer'>('worker');
 
     // Error state
     const [errors, setErrors] = useState({
@@ -94,7 +95,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ isVisible, onClose, onSwitc
                 email,
                 password,
                 confirmPassword,
-                role: 'worker',
+                role: role,
             });
             onSignup();
         } catch (error: any) {
@@ -125,6 +126,26 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ isVisible, onClose, onSwitc
                     </View>
 
                     <View style={styles.form}>
+                        <View style={styles.inputWrapper}>
+                            <Text style={styles.label}>Register as</Text>
+                            <View style={styles.roleSelector}>
+                                <TouchableOpacity
+                                    style={[styles.roleButton, role === 'worker' ? styles.roleButtonActive : null]}
+                                    onPress={() => setRole('worker')}
+                                >
+                                    <Ionicons name="person" size={20} color={role === 'worker' ? "#FFFFFF" : "#666"} />
+                                    <Text style={[styles.roleButtonText, role === 'worker' ? styles.roleButtonTextActive : null]}>Worker</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.roleButton, role === 'employer' ? styles.roleButtonActive : null]}
+                                    onPress={() => setRole('employer')}
+                                >
+                                    <Ionicons name="business" size={20} color={role === 'employer' ? "#FFFFFF" : "#666"} />
+                                    <Text style={[styles.roleButtonText, role === 'employer' ? styles.roleButtonTextActive : null]}>Employer</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+
                         <View style={styles.inputWrapper}>
                             <Text style={styles.label}>Full Name</Text>
                             <View style={styles.inputContainer}>
@@ -218,15 +239,6 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ isVisible, onClose, onSwitc
                             ) : (
                                 <Text style={styles.signupButtonText}>Sign Up</Text>
                             )}
-                        </TouchableOpacity>
-
-                        <Text style={styles.orText}>or</Text>
-
-                        <TouchableOpacity style={styles.googleButton} activeOpacity={0.8}>
-                            <View style={{ marginRight: 12 }}>
-                                <GoogleIcon size={20} />
-                            </View>
-                            <Text style={styles.googleButtonText}>SignUp with Google</Text>
                         </TouchableOpacity>
 
                         <View style={styles.loginContainer}>
@@ -395,6 +407,35 @@ const styles = StyleSheet.create({
     inputError: {
         borderColor: '#FF3B30',
         backgroundColor: '#FFF9F9',
+    },
+    roleSelector: {
+        flexDirection: 'row',
+        gap: 12,
+        marginBottom: 8,
+    },
+    roleButton: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: 48,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#E0E0E0',
+        backgroundColor: '#FAFAFA',
+        gap: 8,
+    },
+    roleButtonActive: {
+        backgroundColor: '#1972ca',
+        borderColor: '#1972ca',
+    },
+    roleButtonText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#666',
+    },
+    roleButtonTextActive: {
+        color: '#FFFFFF',
     },
 });
 

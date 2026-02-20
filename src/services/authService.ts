@@ -32,6 +32,7 @@ const authService = {
                 full_name: data.full_name,
                 email: data.email,
                 password: data.password,
+                confirm_password: data.confirmPassword,
                 role: data.role
             };
             console.log('Attempting signup with payload:', { ...payload, password: '***' });
@@ -85,6 +86,16 @@ const authService = {
     isAuthenticated: async () => {
         const token = await AsyncStorage.getItem('auth_token');
         return !!token;
+    },
+
+    wakeUp: async () => {
+        try {
+            // Use absolute URL to bypass the /api prefix in baseURL
+            await api.get('https://wakajob-backend.onrender.com/health');
+            console.log('Backend wake-up ping successful');
+        } catch (error) {
+            console.log('Backend wake-up ping (expected if cold):', error instanceof Error ? error.message : 'timeout');
+        }
     },
 };
 
