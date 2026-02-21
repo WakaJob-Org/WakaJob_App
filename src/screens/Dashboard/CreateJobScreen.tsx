@@ -10,7 +10,10 @@ import {
     SafeAreaView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import jobService from '../../services/jobService';
+import authService from '../../services/authService';
 import Header from '../../components/Header';
+import { Alert } from 'react-native';
 
 interface CreateJobScreenProps {
     isVisible: boolean;
@@ -19,6 +22,7 @@ interface CreateJobScreenProps {
 }
 
 const CreateJobScreen: React.FC<CreateJobScreenProps> = ({ isVisible, onClose, onPost }) => {
+    const [loading, setLoading] = useState(false);
     const [jobData, setJobData] = useState({
         title: '',
         company: '',
@@ -31,9 +35,39 @@ const CreateJobScreen: React.FC<CreateJobScreenProps> = ({ isVisible, onClose, o
         phone: '',
     });
 
-    const handlePost = () => {
-        onPost(jobData);
-        onClose();
+    const handlePost = async () => {
+        if (!jobData.title || !jobData.description || !jobData.location || !jobData.salary) {
+            Alert.alert("Error", "Please fill in all required fields");
+            return;
+        }
+
+        setLoading(true);
+        try {
+            const user = await authService.getUser();
+            if (!user || !user.id) {
+                Alert.alert("Error", "User session not found. Please log in again.");
+                return;
+            }
+
+            const backendData = {
+                employer_id: user.id,
+                position_vacant: jobData.title,
+                description: jobData.description,
+                location: jobData.location,
+                salary: jobData.salary,
+                category: jobData.category,
+                job_type: jobData.type.toLowerCase() as any, // backend expects full-time, part-time, contract
+                qualifications: 'None' // Default for now
+            };
+
+            const createdJob = await jobService.createJob(backendData);
+            onPost(createdJob);
+            onClose();
+        } catch (error: any) {
+            Alert.alert("Post Failed", typeof error === 'string' ? error : "Could not create job listing.");
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -46,7 +80,7 @@ const CreateJobScreen: React.FC<CreateJobScreenProps> = ({ isVisible, onClose, o
                 <Header
                     title="Post a Job"
                     showBackButton={true}
-                    onBack={onClose}
+                    onBackPress={onClose}
                     showSettings={false}
                 />
 

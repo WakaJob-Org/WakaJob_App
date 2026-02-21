@@ -103,7 +103,7 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <View style={styles.container} onLayout={onLayoutRootView}>
-        <StatusBar barStyle={authMode === 'dashboard' ? 'light-content' : 'dark-content'} />
+        <StatusBar barStyle={authMode === 'dashboard' ? 'light-content' : 'dark-content'} hidden />
 
         {authMode !== 'dashboard' && (
           <SplashScreenUI

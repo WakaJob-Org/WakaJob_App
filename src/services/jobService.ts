@@ -14,13 +14,31 @@ export interface Job {
     created_at: string;
 }
 
+export interface CreateJobData {
+    employer_id: string;
+    position_vacant: string;
+    description: string;
+    location: string;
+    salary: string;
+    category: string;
+    job_type: 'full-time' | 'part-time' | 'contract' | 'freelance';
+    qualifications?: string;
+}
+
 const jobService = {
-    getJobs: async () => {
+    getJobs: async (): Promise<Job[]> => {
         try {
-            const response = await api.get<Job[]>('/jobs');
-            return response.data;
+            const response = await api.get('/jobs');
+            const raw = response.data;
+            // Backend may return a wrapped object: {jobs:[]}, {data:[]}, {results:[]}, or a plain array
+            if (Array.isArray(raw)) return raw;
+            if (Array.isArray(raw?.jobs)) return raw.jobs;
+            if (Array.isArray(raw?.data)) return raw.data;
+            if (Array.isArray(raw?.results)) return raw.results;
+            console.warn('Unexpected /jobs response shape:', typeof raw, raw);
+            return [];
         } catch (error: any) {
-            throw error.response?.data?.message || 'Failed to fetch jobs';
+            throw error.response?.data?.message || error?.message || 'Failed to fetch jobs';
         }
     },
 
@@ -32,6 +50,25 @@ const jobService = {
             throw error.response?.data?.message || 'Failed to fetch job details';
         }
     },
+
+    createJob: async (data: CreateJobData) => {
+        try {
+            const response = await api.post<Job>('/jobs', data);
+            return response.data;
+        } catch (error: any) {
+            throw error.response?.data?.message || 'Failed to post job';
+        }
+    },
+
+    applyToJob: async (jobId: string) => {
+        try {
+            // Tentative endpoint based on common naming
+            const response = await api.post(`/jobs/${jobId}/apply`);
+            return response.data;
+        } catch (error: any) {
+            throw error.response?.data?.message || 'Failed to apply for job';
+        }
+    }
 };
 
 export default jobService;

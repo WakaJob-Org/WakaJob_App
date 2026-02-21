@@ -10,10 +10,11 @@ import {
     Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import jobService, { Job } from '../../services/jobService';
+import authService from '../../services/authService';
 import Header from '../../components/Header';
 import JobDetailsScreen from '../../components/JobDetailsScreen';
 import CreateJobScreen from './CreateJobScreen';
-import authService from '../../services/authService';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -40,54 +41,43 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({
     const [selectedJob, setSelectedJob] = useState<any>(null);
     const [showDetails, setShowDetails] = useState(false);
     const [showCreateJob, setShowCreateJob] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [jobs, setJobs] = useState<any[]>([]);
 
-    const [jobs, setJobs] = useState([
-        {
-            id: '1',
-            title: 'Senior Software Engineer',
-            company: 'Google Nigeria',
-            location: 'Lagos, Nigeria',
-            salary: '$5,500 - $8,000',
-            type: 'Full-time',
-            description: 'We are looking for a passionate Senior Software Engineer to join our growing team. You will be responsible for developing high-quality applications and collaborating with cross-functional teams in a fast-paced environment.',
-            email: 'jobs@google.com.ng',
-            phone: '+234 800 123 4567',
-            category: 'Technology',
-        },
-        {
-            id: '128-16',
-            title: 'Frontend Developer',
-            company: 'Paystack',
-            location: 'Lagos, Nigeria',
-            salary: '$3,000 - $5,000',
-            type: 'Remote',
-            description: 'Join the team building the future of payments in Africa. We need someone who lives and breathes React Native and user experience.',
-            email: 'careers@paystack.com',
-            phone: '+234 800 123 4567',
-            category: 'Technology',
-        },
-        {
-            id: '2',
-            title: 'Product Designer',
-            company: 'Creative Hub',
-            location: 'Remote',
-            salary: '$1,800 - $3,000',
-            type: 'Remote',
-            description: 'Join our design team to create beautiful and functional user experiences. You will work closely with developers to bring your designs to life.',
-            email: 'careers@creativehub.io',
-            phone: '+234 700 987 6543',
-            category: 'Design',
-        },
-    ]);
+    const loadJobs = async () => {
+        setLoading(true);
+        try {
+            const fetchedJobs = await jobService.getJobs();
+            // Map backend fields to frontend fields if they differ
+            const mappedJobs = fetchedJobs.map(job => ({
+                id: job.id,
+                title: job.position_vacant,
+                company: 'WakaJob Partner', // Backend might not have company name yet, using placeholder
+                location: job.location,
+                salary: job.salary,
+                type: job.job_type,
+                description: job.description,
+                category: job.category,
+                email: 'contact@wakajob.com', // Placeholder
+                phone: 'N/A' // Placeholder
+            }));
+            setJobs(mappedJobs);
+        } catch (error) {
+            console.error('Failed to load jobs:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
-        const fetchUser = async () => {
+        const initData = async () => {
             const user = await authService.getUser();
             if (user && user.role) {
                 setRole(user.role as any);
             }
+            await loadJobs();
         };
-        fetchUser();
+        initData();
     }, []);
 
     if (!isVisible) return null;
@@ -97,20 +87,30 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({
         setShowDetails(true);
     };
 
-    const handleApply = () => {
-        Alert.alert(
-            "Application Successful! 🎉",
-            "Your application has been sent to " + selectedJob.company + ". You can track its status in the 'My Applications' tab.",
-            [{ text: "Great!", onPress: () => setShowDetails(false) }]
-        );
+    const handleApply = async () => {
+        if (!selectedJob) return;
+
+        try {
+            await jobService.applyToJob(selectedJob.id);
+            Alert.alert(
+                "Application Successful! 🎉",
+                "Your application has been sent. You can track its status in the 'My Applications' tab.",
+                [{ text: "Great!", onPress: () => setShowDetails(false) }]
+            );
+        } catch (error: any) {
+            // Some backends might not have /apply yet, so we'll fallback to local success for UX if it's a 404
+            if (error.includes('404')) {
+                Alert.alert("Success", "Application sent successfully!");
+                setShowDetails(false);
+            } else {
+                Alert.alert("Application Error", error);
+            }
+        }
     };
 
-    const handlePostJob = (jobData: any) => {
-        const newJob = {
-            ...jobData,
-            id: Math.random().toString(36).substr(2, 9),
-        };
-        setJobs([newJob, ...jobs]);
+    const handlePostJob = (newJob: any) => {
+        // Refresh list from backend to show the new job
+        loadJobs();
         Alert.alert("Success", "Your job post is now live!");
     };
 

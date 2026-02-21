@@ -7,7 +7,6 @@ import {
     ScrollView,
     TextInput,
     Image,
-    SafeAreaView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Header from '../../components/Header';
@@ -21,6 +20,21 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ isVisible, onBack }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [bio, setBio] = useState('Passionate UX designer with 5+ years of experience creating user-centered digital experiences. Love crafting intuitive interfaces that solve real problems.');
     const [skills, setSkills] = useState(['UI/UX Design', 'Product Strategy', 'Figma']);
+    const [addingSkill, setAddingSkill] = useState(false);
+    const [newSkill, setNewSkill] = useState('');
+
+    const handleAddSkill = () => {
+        const trimmed = newSkill.trim();
+        if (trimmed && !skills.includes(trimmed)) {
+            setSkills([...skills, trimmed]);
+        }
+        setNewSkill('');
+        setAddingSkill(false);
+    };
+
+    const handleRemoveSkill = (index: number) => {
+        setSkills(skills.filter((_, i) => i !== index));
+    };
 
     if (!isVisible) return null;
 
@@ -73,15 +87,36 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ isVisible, onBack }) => {
                         {skills.map((skill, index) => (
                             <View key={index} style={styles.skillBadge}>
                                 <Text style={styles.skillText}>{skill}</Text>
-                                <TouchableOpacity>
+                                <TouchableOpacity onPress={() => handleRemoveSkill(index)}>
                                     <Ionicons name="close-circle" size={16} color="#1972ca" />
                                 </TouchableOpacity>
                             </View>
                         ))}
-                        <TouchableOpacity style={styles.addSkillButton}>
-                            <Ionicons name="add" size={20} color="#1972ca" />
-                            <Text style={styles.addSkillText}>Add Skill</Text>
-                        </TouchableOpacity>
+                        {addingSkill ? (
+                            <View style={styles.newSkillRow}>
+                                <TextInput
+                                    style={styles.newSkillInput}
+                                    value={newSkill}
+                                    onChangeText={setNewSkill}
+                                    placeholder="e.g. React Native"
+                                    placeholderTextColor="#aaa"
+                                    autoFocus
+                                    onSubmitEditing={handleAddSkill}
+                                    returnKeyType="done"
+                                />
+                                <TouchableOpacity onPress={handleAddSkill} style={styles.confirmSkillBtn}>
+                                    <Ionicons name="checkmark" size={18} color="#FFFFFF" />
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={() => { setAddingSkill(false); setNewSkill(''); }} style={styles.cancelSkillBtn}>
+                                    <Ionicons name="close" size={18} color="#666" />
+                                </TouchableOpacity>
+                            </View>
+                        ) : (
+                            <TouchableOpacity style={styles.addSkillButton} onPress={() => setAddingSkill(true)}>
+                                <Ionicons name="add" size={20} color="#1972ca" />
+                                <Text style={styles.addSkillText}>Add Skill</Text>
+                            </TouchableOpacity>
+                        )}
                     </View>
                 </View>
 
@@ -246,6 +281,37 @@ const styles = StyleSheet.create({
         fontSize: 12,
         fontWeight: '600',
         color: '#1972ca',
+    },
+    newSkillRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    newSkillInput: {
+        borderWidth: 1,
+        borderColor: '#1972ca',
+        borderRadius: 20,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        fontSize: 12,
+        minWidth: 100,
+        backgroundColor: '#FFFFFF',
+    },
+    confirmSkillBtn: {
+        backgroundColor: '#4CAF50',
+        borderRadius: 15,
+        width: 30,
+        height: 30,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    cancelSkillBtn: {
+        backgroundColor: '#F1F5F9',
+        borderRadius: 15,
+        width: 30,
+        height: 30,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     infoRow: {
         flexDirection: 'row',
