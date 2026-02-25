@@ -9,6 +9,8 @@ import {
     KeyboardAvoidingView,
     Platform,
     StatusBar,
+    Alert,
+    ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, {
@@ -17,17 +19,20 @@ import Animated, {
     withTiming,
     FadeInDown,
 } from 'react-native-reanimated';
+import authService from '../../../services/authService';
 
 const { width, height } = Dimensions.get('window');
 
 interface OTPScreenProps {
     isVisible: boolean;
+    email: string;
     onClose: () => void;
     onVerify: () => void;
 }
 
-const OTPScreen: React.FC<OTPScreenProps> = ({ isVisible, onClose, onVerify }) => {
+const OTPScreen: React.FC<OTPScreenProps> = ({ isVisible, email, onClose, onVerify }) => {
     const [otp, setOtp] = useState(['', '', '', '']);
+    const [loading, setLoading] = useState(false);
     const translateY = useSharedValue(height);
 
     useEffect(() => {
@@ -48,6 +53,24 @@ const OTPScreen: React.FC<OTPScreenProps> = ({ isVisible, onClose, onVerify }) =
         setOtp(newOtp);
 
         // Auto focus logic can be added here with refs
+    };
+
+    const handleVerifySubmit = async () => {
+        const code = otp.join('');
+        if (code.length < 4) {
+            Alert.alert('Invalid OTP', 'Please enter the complete 4-digit verification code.');
+            return;
+        }
+
+        setLoading(true);
+        try {
+            await authService.verifyOtp({ email, otp: code });
+            onVerify();
+        } catch (error: any) {
+            Alert.alert('Verification Failed', error || 'Invalid confirmation code. Please try again.');
+        } finally {
+            setLoading(false);
+        }
     };
 
     if (!isVisible && translateY.value === height) return null;
@@ -94,10 +117,15 @@ const OTPScreen: React.FC<OTPScreenProps> = ({ isVisible, onClose, onVerify }) =
 
                     <TouchableOpacity
                         style={styles.verifyButton}
-                        onPress={onVerify}
+                        onPress={handleVerifySubmit}
                         activeOpacity={0.8}
+                        disabled={loading}
                     >
-                        <Text style={styles.verifyButtonText}>Verify</Text>
+                        {loading ? (
+                            <ActivityIndicator color="#FFFFFF" />
+                        ) : (
+                            <Text style={styles.verifyButtonText}>Verify</Text>
+                        )}
                     </TouchableOpacity>
                 </Animated.View>
             </KeyboardAvoidingView>

@@ -7,6 +7,8 @@ import {
     ScrollView,
     TextInput,
     Image,
+    KeyboardAvoidingView,
+    Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Header from '../../components/Header';
@@ -46,104 +48,110 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ isVisible, onBack }) => {
                 showBackButton={false}
             />
 
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-                <View style={styles.profileHeader}>
-                    <View style={styles.avatarContainer}>
-                        <Image
-                            source={{ uri: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200' }}
-                            style={styles.avatar}
-                        />
-                        <TouchableOpacity style={styles.editAvatarButton}>
-                            <Ionicons name="camera" size={20} color="#FFFFFF" />
-                        </TouchableOpacity>
-                    </View>
-                    <Text style={styles.userName}>Sarah Anderson</Text>
-                    <Text style={styles.userRole}>Senior Product Designer</Text>
-                </View>
-
-                <View style={styles.section}>
-                    <View style={styles.sectionHeader}>
-                        <Text style={styles.sectionTitle}>About Me</Text>
-                        <TouchableOpacity onPress={() => setIsEditing(!isEditing)}>
-                            <Text style={styles.editLink}>{isEditing ? 'Save' : 'Edit'}</Text>
-                        </TouchableOpacity>
-                    </View>
-                    {isEditing ? (
-                        <TextInput
-                            style={styles.bioInput}
-                            multiline
-                            value={bio}
-                            onChangeText={setBio}
-                            placeholder="Tell us about yourself..."
-                        />
-                    ) : (
-                        <Text style={styles.bioText}>{bio}</Text>
-                    )}
-                </View>
-
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Skills</Text>
-                    <View style={styles.skillsContainer}>
-                        {skills.map((skill, index) => (
-                            <View key={index} style={styles.skillBadge}>
-                                <Text style={styles.skillText}>{skill}</Text>
-                                <TouchableOpacity onPress={() => handleRemoveSkill(index)}>
-                                    <Ionicons name="close-circle" size={16} color="#1972ca" />
-                                </TouchableOpacity>
-                            </View>
-                        ))}
-                        {addingSkill ? (
-                            <View style={styles.newSkillRow}>
-                                <TextInput
-                                    style={styles.newSkillInput}
-                                    value={newSkill}
-                                    onChangeText={setNewSkill}
-                                    placeholder="e.g. React Native"
-                                    placeholderTextColor="#aaa"
-                                    autoFocus
-                                    onSubmitEditing={handleAddSkill}
-                                    returnKeyType="done"
-                                />
-                                <TouchableOpacity onPress={handleAddSkill} style={styles.confirmSkillBtn}>
-                                    <Ionicons name="checkmark" size={18} color="#FFFFFF" />
-                                </TouchableOpacity>
-                                <TouchableOpacity onPress={() => { setAddingSkill(false); setNewSkill(''); }} style={styles.cancelSkillBtn}>
-                                    <Ionicons name="close" size={18} color="#666" />
-                                </TouchableOpacity>
-                            </View>
-                        ) : (
-                            <TouchableOpacity style={styles.addSkillButton} onPress={() => setAddingSkill(true)}>
-                                <Ionicons name="add" size={20} color="#1972ca" />
-                                <Text style={styles.addSkillText}>Add Skill</Text>
+            <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                style={{ flex: 1 }}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
+            >
+                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+                    <View style={styles.profileHeader}>
+                        <View style={styles.avatarContainer}>
+                            <Image
+                                source={{ uri: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200' }}
+                                style={styles.avatar}
+                            />
+                            <TouchableOpacity style={styles.editAvatarButton}>
+                                <Ionicons name="camera" size={20} color="#FFFFFF" />
                             </TouchableOpacity>
+                        </View>
+                        <Text style={styles.userName}>Sarah Anderson</Text>
+                        <Text style={styles.userRole}>Senior Product Designer</Text>
+                    </View>
+
+                    <View style={styles.section}>
+                        <View style={styles.sectionHeader}>
+                            <Text style={styles.sectionTitle}>About Me</Text>
+                            <TouchableOpacity onPress={() => setIsEditing(!isEditing)}>
+                                <Text style={styles.editLink}>{isEditing ? 'Save' : 'Edit'}</Text>
+                            </TouchableOpacity>
+                        </View>
+                        {isEditing ? (
+                            <TextInput
+                                style={styles.bioInput}
+                                multiline
+                                value={bio}
+                                onChangeText={setBio}
+                                placeholder="Tell us about yourself..."
+                            />
+                        ) : (
+                            <Text style={styles.bioText}>{bio}</Text>
                         )}
                     </View>
-                </View>
 
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Contact Information</Text>
-                    <View style={styles.infoRow}>
-                        <Ionicons name="mail-outline" size={20} color="#666" />
-                        <Text style={styles.infoText}>sarah.anderson@email.com</Text>
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Skills</Text>
+                        <View style={styles.skillsContainer}>
+                            {skills.map((skill, index) => (
+                                <View key={index} style={styles.skillBadge}>
+                                    <Text style={styles.skillText}>{skill}</Text>
+                                    <TouchableOpacity onPress={() => handleRemoveSkill(index)}>
+                                        <Ionicons name="close-circle" size={16} color="#1972ca" />
+                                    </TouchableOpacity>
+                                </View>
+                            ))}
+                            {addingSkill ? (
+                                <View style={styles.newSkillRow}>
+                                    <TextInput
+                                        style={styles.newSkillInput}
+                                        value={newSkill}
+                                        onChangeText={setNewSkill}
+                                        placeholder="e.g. React Native"
+                                        placeholderTextColor="#aaa"
+                                        autoFocus
+                                        onSubmitEditing={handleAddSkill}
+                                        returnKeyType="done"
+                                    />
+                                    <TouchableOpacity onPress={handleAddSkill} style={styles.confirmSkillBtn}>
+                                        <Ionicons name="checkmark" size={18} color="#FFFFFF" />
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={() => { setAddingSkill(false); setNewSkill(''); }} style={styles.cancelSkillBtn}>
+                                        <Ionicons name="close" size={18} color="#666" />
+                                    </TouchableOpacity>
+                                </View>
+                            ) : (
+                                <TouchableOpacity style={styles.addSkillButton} onPress={() => setAddingSkill(true)}>
+                                    <Ionicons name="add" size={20} color="#1972ca" />
+                                    <Text style={styles.addSkillText}>Add Skill</Text>
+                                </TouchableOpacity>
+                            )}
+                        </View>
                     </View>
-                    <View style={styles.infoRow}>
-                        <Ionicons name="call-outline" size={20} color="#666" />
-                        <Text style={styles.infoText}>+1 (555) 123-4567</Text>
-                    </View>
-                    <View style={styles.infoRow}>
-                        <Ionicons name="globe-outline" size={20} color="#666" />
-                        <Text style={styles.infoText}>www.sarahdesigns.com</Text>
-                    </View>
-                </View>
 
-                <TouchableOpacity style={styles.saveButton}>
-                    <Text style={styles.saveButtonText}>Save Changes</Text>
-                </TouchableOpacity>
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Contact Information</Text>
+                        <View style={styles.infoRow}>
+                            <Ionicons name="mail-outline" size={20} color="#666" />
+                            <Text style={styles.infoText}>sarah.anderson@email.com</Text>
+                        </View>
+                        <View style={styles.infoRow}>
+                            <Ionicons name="call-outline" size={20} color="#666" />
+                            <Text style={styles.infoText}>+1 (555) 123-4567</Text>
+                        </View>
+                        <View style={styles.infoRow}>
+                            <Ionicons name="globe-outline" size={20} color="#666" />
+                            <Text style={styles.infoText}>www.sarahdesigns.com</Text>
+                        </View>
+                    </View>
 
-                <TouchableOpacity style={styles.cancelButton} onPress={() => setIsEditing(false)}>
-                    <Text style={styles.cancelButtonText}>Cancel</Text>
-                </TouchableOpacity>
-            </ScrollView>
+                    <TouchableOpacity style={styles.saveButton}>
+                        <Text style={styles.saveButtonText}>Save Changes</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity style={styles.cancelButton} onPress={() => setIsEditing(false)}>
+                        <Text style={styles.cancelButtonText}>Cancel</Text>
+                    </TouchableOpacity>
+                </ScrollView>
+            </KeyboardAvoidingView>
         </View>
     );
 };

@@ -4,6 +4,8 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import SplashScreenUI from './src/screens/Splash/SplashScreen';
 import SignupScreen from './src/screens/Auth/Signup/SignupScreen';
 import LoginScreen from './src/screens/Auth/Login/LoginScreen';
+import OTPScreen from './src/screens/Auth/OTP/OTPScreen';
+import ForgotPasswordScreen from './src/screens/Auth/ForgotPassword/ForgotPasswordScreen';
 import DashboardScreen from './src/screens/Dashboard/DashboardScreen';
 import ApplicationsScreen from './src/screens/Applications/ApplicationsScreen';
 import ProfileScreen from './src/screens/Profile/ProfileScreen';
@@ -20,9 +22,10 @@ export default function App() {
     'Pacifico-Regular': Pacifico_400Regular,
   });
 
-  const [authMode, setAuthMode] = useState<'signup' | 'login' | 'dashboard' | null>(null);
+  const [authMode, setAuthMode] = useState<'signup' | 'login' | 'otp' | 'forgot_password' | 'dashboard' | null>(null);
   const [activeTab, setActiveTab] = useState<TabType | 'settings'>('jobs');
   const [userName, setUserName] = useState('Alex');
+  const [verificationEmail, setVerificationEmail] = useState('');
 
   useEffect(() => {
     const initApp = async () => {
@@ -52,6 +55,11 @@ export default function App() {
 
   const openSignup = () => setAuthMode('signup');
   const openLogin = () => setAuthMode('login');
+  const openForgotPassword = () => setAuthMode('forgot_password');
+  const openOtp = (email: string) => {
+    setVerificationEmail(email);
+    setAuthMode('otp');
+  };
   const openDashboard = () => setAuthMode('dashboard');
   const logout = () => {
     authService.logout();
@@ -117,7 +125,7 @@ export default function App() {
             isVisible={true}
             onClose={() => setAuthMode(null)}
             onSwitchToSignin={openLogin}
-            onSignup={openDashboard}
+            onSignup={openOtp}
           />
         )}
 
@@ -126,7 +134,25 @@ export default function App() {
             isVisible={true}
             onClose={() => setAuthMode(null)}
             onSwitchToSignup={openSignup}
+            onForgotPassword={openForgotPassword}
             onLogin={openDashboard}
+          />
+        )}
+
+        {authMode === 'forgot_password' && (
+          <ForgotPasswordScreen
+            isVisible={true}
+            onClose={() => setAuthMode('login')}
+            onSuccess={() => setAuthMode('login')}
+          />
+        )}
+
+        {authMode === 'otp' && (
+          <OTPScreen
+            isVisible={true}
+            email={verificationEmail}
+            onClose={() => setAuthMode('signup')}
+            onVerify={openDashboard}
           />
         )}
 

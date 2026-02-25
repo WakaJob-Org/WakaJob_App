@@ -9,6 +9,8 @@ import {
     ScrollView,
     Alert,
     ActivityIndicator,
+    KeyboardAvoidingView,
+    Platform,
 } from 'react-native';
 import authService from '../../../services/authService';
 import GoogleIcon from '../../../components/GoogleIcon';
@@ -25,10 +27,11 @@ interface LoginScreenProps {
     isVisible: boolean;
     onClose: () => void;
     onSwitchToSignup: () => void;
+    onForgotPassword?: () => void;
     onLogin: () => void;
 }
 
-const LoginScreen: React.FC<LoginScreenProps> = ({ isVisible, onClose, onSwitchToSignup, onLogin }) => {
+const LoginScreen: React.FC<LoginScreenProps> = ({ isVisible, onClose, onSwitchToSignup, onForgotPassword, onLogin }) => {
     const translateY = useSharedValue(SCREEN_HEIGHT);
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -59,16 +62,27 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ isVisible, onClose, onSwitchT
     }));
 
     const handleLogin = async () => {
-        // Reset errors
+        // Reset and check errors
         const newErrors = {
-            email: !email ? 'Email address is required' : '',
-            password: !password ? 'Password is required' : '',
+            email: '',
+            password: '',
         };
+
+        if (!email) {
+            newErrors.email = 'Email address is required';
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            newErrors.email = 'Please enter a valid email address';
+        }
+
+        if (!password) {
+            newErrors.password = 'Password is required';
+        }
 
         setErrors(newErrors);
 
         // Check if any error exists
         if (Object.values(newErrors).some(err => err !== '')) {
+            Alert.alert('Validation Error', 'Please fix the errors in the form before submitting.');
             return;
         }
 
@@ -93,87 +107,96 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ isVisible, onClose, onSwitchT
                     <View style={styles.handle} />
                 </View>
 
-                <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-                    <View style={styles.header}>
-                        <View style={styles.iconContainer}>
-                            <Ionicons name="briefcase" size={32} color="#FFFFFF" />
-                        </View>
-                        <Text style={styles.title}>Wakajob</Text>
-                        <Text style={styles.welcomeText}>Welcome back to your career journey</Text>
-
-                        <View style={styles.titleSection}>
-                            <Text style={styles.loginTitle}>Log In to your account</Text>
-                            <Text style={styles.loginSubtitle}>Enter your credentials to access your account</Text>
-                        </View>
-                    </View>
-
-                    <View style={styles.form}>
-                        <View style={styles.inputWrapper}>
-                            <Text style={styles.label}>Email Address</Text>
-                            <View style={[styles.inputContainer, errors.email ? styles.inputError : null]}>
-                                <Ionicons name="mail-outline" size={20} color={errors.email ? "#FF3B30" : "#666"} style={styles.inputIcon} />
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Enter your email"
-                                    keyboardType="email-address"
-                                    placeholderTextColor="#999"
-                                    autoCapitalize="none"
-                                    value={email}
-                                    onChangeText={(text) => {
-                                        setEmail(text);
-                                        if (errors.email) setErrors({ ...errors, email: '' });
-                                    }}
-                                />
+                <KeyboardAvoidingView
+                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                    style={{ flex: 1 }}
+                >
+                    <ScrollView
+                        contentContainerStyle={styles.scrollContent}
+                        showsVerticalScrollIndicator={false}
+                        keyboardShouldPersistTaps="handled"
+                    >
+                        <View style={styles.header}>
+                            <View style={styles.iconContainer}>
+                                <Ionicons name="briefcase" size={32} color="#FFFFFF" />
                             </View>
-                            {errors.email ? <Text style={styles.errorText}>{errors.email}</Text> : null}
+                            <Text style={styles.title}>Wakajob</Text>
+                            <Text style={styles.welcomeText}>Welcome back to your career journey</Text>
+
+                            <View style={styles.titleSection}>
+                                <Text style={styles.loginTitle}>Log In to your account</Text>
+                                <Text style={styles.loginSubtitle}>Enter your credentials to access your account</Text>
+                            </View>
                         </View>
 
-                        <View style={styles.inputWrapper}>
-                            <Text style={styles.label}>Password</Text>
-                            <View style={[styles.inputContainer, errors.password ? styles.inputError : null]}>
-                                <Ionicons name="lock-closed-outline" size={20} color={errors.password ? "#FF3B30" : "#666"} style={styles.inputIcon} />
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Enter your password"
-                                    secureTextEntry={!showPassword}
-                                    placeholderTextColor="#999"
-                                    value={password}
-                                    onChangeText={(text) => {
-                                        setPassword(text);
-                                        if (errors.password) setErrors({ ...errors, password: '' });
-                                    }}
-                                />
-                                <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-                                    <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color="#666" />
+                        <View style={styles.form}>
+                            <View style={styles.inputWrapper}>
+                                <Text style={styles.label}>Email Address</Text>
+                                <View style={[styles.inputContainer, errors.email ? styles.inputError : null]}>
+                                    <Ionicons name="mail-outline" size={20} color={errors.email ? "#FF3B30" : "#666"} style={styles.inputIcon} />
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder="Enter your email"
+                                        keyboardType="email-address"
+                                        placeholderTextColor="#999"
+                                        autoCapitalize="none"
+                                        value={email}
+                                        onChangeText={(text) => {
+                                            setEmail(text);
+                                            if (errors.email) setErrors({ ...errors, email: '' });
+                                        }}
+                                    />
+                                </View>
+                                {errors.email ? <Text style={styles.errorText}>{errors.email}</Text> : null}
+                            </View>
+
+                            <View style={styles.inputWrapper}>
+                                <Text style={styles.label}>Password</Text>
+                                <View style={[styles.inputContainer, errors.password ? styles.inputError : null]}>
+                                    <Ionicons name="lock-closed-outline" size={20} color={errors.password ? "#FF3B30" : "#666"} style={styles.inputIcon} />
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder="Enter your password"
+                                        secureTextEntry={!showPassword}
+                                        placeholderTextColor="#999"
+                                        value={password}
+                                        onChangeText={(text) => {
+                                            setPassword(text);
+                                            if (errors.password) setErrors({ ...errors, password: '' });
+                                        }}
+                                    />
+                                    <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                                        <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color="#666" />
+                                    </TouchableOpacity>
+                                </View>
+                                {errors.password ? <Text style={styles.errorText}>{errors.password}</Text> : null}
+                                <TouchableOpacity style={styles.forgotPassword} onPress={onForgotPassword}>
+                                    <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
                                 </TouchableOpacity>
                             </View>
-                            {errors.password ? <Text style={styles.errorText}>{errors.password}</Text> : null}
-                            <TouchableOpacity style={styles.forgotPassword}>
-                                <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
-                            </TouchableOpacity>
-                        </View>
 
-                        <TouchableOpacity
-                            style={styles.signInButton}
-                            activeOpacity={0.8}
-                            onPress={handleLogin}
-                            disabled={loading}
-                        >
-                            {loading ? (
-                                <ActivityIndicator color="#FFFFFF" />
-                            ) : (
-                                <Text style={styles.signInButtonText}>Sign In</Text>
-                            )}
-                        </TouchableOpacity>
-
-                        <View style={styles.signupContainer}>
-                            <Text style={styles.signupText}>Don't have an account? </Text>
-                            <TouchableOpacity onPress={onSwitchToSignup}>
-                                <Text style={styles.signupLink}>Sign Up</Text>
+                            <TouchableOpacity
+                                style={styles.signInButton}
+                                activeOpacity={0.8}
+                                onPress={handleLogin}
+                                disabled={loading}
+                            >
+                                {loading ? (
+                                    <ActivityIndicator color="#FFFFFF" />
+                                ) : (
+                                    <Text style={styles.signInButtonText}>Sign In</Text>
+                                )}
                             </TouchableOpacity>
+
+                            <View style={styles.signupContainer}>
+                                <Text style={styles.signupText}>Don't have an account? </Text>
+                                <TouchableOpacity onPress={onSwitchToSignup}>
+                                    <Text style={styles.signupLink}>Sign Up</Text>
+                                </TouchableOpacity>
+                            </View>
                         </View>
-                    </View>
-                </ScrollView>
+                    </ScrollView>
+                </KeyboardAvoidingView>
             </Animated.View>
         </>
     );
