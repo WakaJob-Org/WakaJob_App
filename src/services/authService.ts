@@ -30,16 +30,23 @@ export interface VerifyOtpData {
     otp: string;
 }
 
+export interface ResendOtpData {
+    email: string;
+}
+
 export interface AuthResponse {
-    token: string;
-    user: {
-        id: string;
-        full_name: string;
-        email: string;
-        role: string;
-        is_verified?: boolean;
-    };
+    status: string;
     message?: string;
+    data?: {
+        token?: string;
+        user?: {
+            id: string;
+            full_name: string;
+            email: string;
+            role: string;
+            is_verified?: boolean;
+        };
+    };
 }
 
 const authService = {
@@ -56,9 +63,9 @@ const authService = {
             const response = await api.post<AuthResponse>('/auth/signup', payload);
 
             // Note: Signup might not return a token if OTP is required next.
-            if (response.data.token) {
-                await SecureStore.setItemAsync('auth_token', response.data.token);
-                await SecureStore.setItemAsync('user_data', JSON.stringify(response.data.user));
+            if (response.data.data?.token) {
+                await SecureStore.setItemAsync('auth_token', response.data.data.token);
+                await SecureStore.setItemAsync('user_data', JSON.stringify(response.data.data.user));
             }
             return response.data;
         } catch (error: any) {
@@ -68,13 +75,25 @@ const authService = {
         }
     },
 
+    resendOtp: async (data: ResendOtpData) => {
+        try {
+            console.log('Attempting to resend OTP code for email:', data.email);
+            const response = await api.post<AuthResponse>('/auth/resend-otp', { email: data.email });
+            return response.data;
+        } catch (error: any) {
+            const errorMessage = error.response?.data?.message || error.message || 'Failed to resend OTP';
+            console.error('Resend OTP Service Error:', errorMessage);
+            throw errorMessage;
+        }
+    },
+
     verifyOtp: async (data: VerifyOtpData) => {
         try {
             console.log('Attempting verify OTP for email:', data.email);
-            const response = await api.post<AuthResponse>('/auth/verify-otp', data);
-            if (response.data.token) {
-                await SecureStore.setItemAsync('auth_token', response.data.token);
-                await SecureStore.setItemAsync('user_data', JSON.stringify(response.data.user));
+            const response = await api.post<AuthResponse>('/auth/verify-otp', { email: data.email, token: data.otp });
+            if (response.data.data?.token) {
+                await SecureStore.setItemAsync('auth_token', response.data.data.token);
+                await SecureStore.setItemAsync('user_data', JSON.stringify(response.data.data.user));
             }
             return response.data;
         } catch (error: any) {
@@ -88,9 +107,9 @@ const authService = {
         try {
             console.log('Attempting signin with:', { email: data.email, password: '***' });
             const response = await api.post<AuthResponse>('/auth/signin', data);
-            if (response.data.token) {
-                await SecureStore.setItemAsync('auth_token', response.data.token);
-                await SecureStore.setItemAsync('user_data', JSON.stringify(response.data.user));
+            if (response.data.data?.token) {
+                await SecureStore.setItemAsync('auth_token', response.data.data.token);
+                await SecureStore.setItemAsync('user_data', JSON.stringify(response.data.data.user));
             }
             return response.data;
         } catch (error: any) {

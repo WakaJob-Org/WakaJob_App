@@ -86,7 +86,7 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ isVisible, 
 
     const handleResetPassword = async () => {
         const newErrors: any = {};
-        if (!otp || otp.length < 4) newErrors.otp = 'Please enter a valid OTP';
+        if (!otp || otp.length < 6) newErrors.otp = 'Please enter a valid 6-digit OTP';
         if (!newPassword || newPassword.length < 6) newErrors.newPassword = 'Password must be at least 6 characters';
         if (newPassword !== confirmPassword) newErrors.confirmPassword = 'Passwords do not match';
 
@@ -177,9 +177,9 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ isVisible, 
                                     <Ionicons name="keypad-outline" size={20} color={errors.otp ? "#FF3B30" : "#666"} style={styles.inputIcon} />
                                     <TextInput
                                         style={styles.input}
-                                        placeholder="Enter 4-digit code"
+                                        placeholder="Enter 6-digit code"
                                         keyboardType="number-pad"
-                                        maxLength={4}
+                                        maxLength={6}
                                         placeholderTextColor="#999"
                                         value={otp}
                                         onChangeText={(text) => {

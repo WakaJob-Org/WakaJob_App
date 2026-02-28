@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     StyleSheet,
     View,
@@ -31,9 +31,21 @@ interface OTPScreenProps {
 }
 
 const OTPScreen: React.FC<OTPScreenProps> = ({ isVisible, email, onClose, onVerify }) => {
-    const [otp, setOtp] = useState(['', '', '', '']);
+    const [otp, setOtp] = useState(['', '', '', '', '', '']);
     const [loading, setLoading] = useState(false);
+    const [resendLoading, setResendLoading] = useState(false);
+    const [countdown, setCountdown] = useState(0);
     const translateY = useSharedValue(height);
+
+    useEffect(() => {
+        let timer: NodeJS.Timeout;
+        if (countdown > 0) {
+            timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+        }
+        return () => {
+            if (timer) clearTimeout(timer);
+        };
+    }, [countdown]);
 
     useEffect(() => {
         if (isVisible) {
@@ -47,18 +59,70 @@ const OTPScreen: React.FC<OTPScreenProps> = ({ isVisible, email, onClose, onVeri
         transform: [{ translateY: translateY.value }],
     }));
 
+    const inputRefs = useRef<Array<TextInput | null>>([]);
+
     const handleOtpChange = (value: string, index: number) => {
+        // Handle full string paste or autofill mapping
+        if (value.length > 1) {
+            const pastedDigits = value.replace(/[^0-9]/g, '').slice(0, 6).split('');
+            if (pastedDigits.length === 0) return;
+
+            const newOtp = [...otp];
+            pastedDigits.forEach((char, i) => {
+                if (index + i < 6) {
+                    newOtp[index + i] = char;
+                }
+            });
+            setOtp(newOtp);
+
+            const nextIndex = Math.min(index + pastedDigits.length, 5);
+            inputRefs.current[nextIndex]?.focus();
+            return;
+        }
+
         const newOtp = [...otp];
         newOtp[index] = value;
         setOtp(newOtp);
 
-        // Auto focus logic can be added here with refs
+        // Auto move focus logic
+        if (value !== '') {
+            // Moved forward if value is entered
+            if (index < 5) {
+                inputRefs.current[index + 1]?.focus();
+            }
+        } else {
+            // Moved backward if value is cleared (e.g. deleting the current number)
+            if (index > 0) {
+                inputRefs.current[index - 1]?.focus();
+            }
+        }
+    };
+
+    const handleKeyPress = (e: any, index: number) => {
+        // If backspace is pressed and current field is literally empty, move to previous box
+        if (e.nativeEvent.key === 'Backspace' && otp[index] === '' && index > 0) {
+            inputRefs.current[index - 1]?.focus();
+        }
+    };
+
+    const handleResend = async () => {
+        if (countdown > 0 || resendLoading) return;
+
+        setResendLoading(true);
+        try {
+            await authService.resendOtp({ email });
+            setCountdown(120); // start 2-minute countdown
+        } catch (error: any) {
+            Alert.alert('Resend Failed', error || 'Failed to resend confirmation code. Please try again.');
+        } finally {
+            setResendLoading(false);
+        }
     };
 
     const handleVerifySubmit = async () => {
         const code = otp.join('');
-        if (code.length < 4) {
-            Alert.alert('Invalid OTP', 'Please enter the complete 4-digit verification code.');
+        if (code.length < 6) {
+            Alert.alert('Invalid OTP', 'Please enter the complete 6-digit verification code.');
             return;
         }
 
@@ -92,28 +156,41 @@ const OTPScreen: React.FC<OTPScreenProps> = ({ isVisible, email, onClose, onVeri
                 <Animated.View entering={FadeInDown.delay(200).duration(600)}>
                     <Text style={styles.title}>Verify Phone</Text>
                     <Text style={styles.subtitle}>
-                        Enter the 4-digit code sent to your phone number
+                        Enter the 6-digit code sent to your email address
                     </Text>
 
                     <View style={styles.otpContainer}>
                         {otp.map((digit, index) => (
                             <TextInput
                                 key={index}
+                                ref={(el) => (inputRefs.current[index] = el)}
                                 style={styles.otpInput}
                                 value={digit}
                                 onChangeText={(text) => handleOtpChange(text, index)}
+                                onKeyPress={(e) => handleKeyPress(e, index)}
                                 keyboardType="number-pad"
-                                maxLength={1}
+                                textContentType="oneTimeCode"
+                                maxLength={6}
                                 selectionColor="#1972ca"
                             />
                         ))}
                     </View>
 
-                    <TouchableOpacity style={styles.resendContainer}>
-                        <Text style={styles.resendText}>
-                            Didn't receive code? <Text style={styles.resendLink}>Resend</Text>
-                        </Text>
-                    </TouchableOpacity>
+                    <View style={styles.resendContainer}>
+                        {resendLoading ? (
+                            <ActivityIndicator size="small" color="#1972ca" />
+                        ) : (
+                            <Text style={styles.resendText}>
+                                Didn't receive code?{' '}
+                                <Text
+                                    style={[styles.resendLink, countdown > 0 && styles.resendLinkDisabled]}
+                                    onPress={countdown === 0 ? handleResend : undefined}
+                                >
+                                    {countdown > 0 ? `Resend in ${Math.floor(countdown / 60)}:${(countdown % 60).toString().padStart(2, '0')}` : 'Resend'}
+                                </Text>
+                            </Text>
+                        )}
+                    </View>
 
                     <TouchableOpacity
                         style={styles.verifyButton}
@@ -176,9 +253,9 @@ const styles = StyleSheet.create({
         marginBottom: 30,
     },
     otpInput: {
-        width: width * 0.18,
-        height: width * 0.18,
-        borderRadius: 15,
+        width: width * 0.13,
+        height: width * 0.13,
+        borderRadius: 12,
         backgroundColor: '#f5f7fa',
         borderWidth: 1,
         borderColor: '#e1e8f0',
@@ -198,6 +275,9 @@ const styles = StyleSheet.create({
     resendLink: {
         color: '#1972ca',
         fontWeight: '600',
+    },
+    resendLinkDisabled: {
+        color: '#999999',
     },
     verifyButton: {
         backgroundColor: '#1972ca',
