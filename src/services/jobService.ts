@@ -68,6 +68,40 @@ const jobService = {
         } catch (error: any) {
             throw error.response?.data?.message || 'Failed to apply for job';
         }
+    },
+
+    getUserApplications: async () => {
+        try {
+            const response = await api.get('/applications');
+            const raw = response.data;
+            // Handle different response formats
+            if (Array.isArray(raw)) return raw;
+            if (Array.isArray(raw?.applications)) return raw.applications;
+            if (Array.isArray(raw?.data)) return raw.data;
+            if (Array.isArray(raw?.results)) return raw.results;
+            console.warn('Unexpected /applications response shape:', typeof raw, raw);
+            return [];
+        } catch (error: any) {
+            console.error('Failed to fetch applications:', error.response?.data?.message || error?.message);
+            return [];
+        }
+    },
+
+    getSavedJobs: async () => {
+        try {
+            const response = await api.get('/jobs/saved');
+            const raw = response.data;
+            // Handle different response formats
+            if (Array.isArray(raw)) return raw;
+            if (Array.isArray(raw?.saved)) return raw.saved;
+            if (Array.isArray(raw?.data)) return raw.data;
+            if (Array.isArray(raw?.results)) return raw.results;
+            console.warn('Unexpected /jobs/saved response shape:', typeof raw, raw);
+            return [];
+        } catch (error: any) {
+            console.error('Failed to fetch saved jobs:', error.response?.data?.message || error?.message);
+            return [];
+        }
     }
 };
 

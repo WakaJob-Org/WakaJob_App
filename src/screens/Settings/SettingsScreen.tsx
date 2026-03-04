@@ -9,6 +9,7 @@ import {
     Switch,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as ScreenCapture from 'expo-screen-capture';
 import Header from '../../components/Header';
 
 interface SettingsScreenProps {
@@ -20,6 +21,8 @@ interface SettingsScreenProps {
 const SettingsScreen: React.FC<SettingsScreenProps> = ({ isVisible, onClose, onLogout }) => {
     const [pushEnabled, setPushEnabled] = React.useState(true);
     const [emailEnabled, setEmailEnabled] = React.useState(true);
+
+    ScreenCapture.usePreventScreenCapture();
 
     if (!isVisible) return null;
 

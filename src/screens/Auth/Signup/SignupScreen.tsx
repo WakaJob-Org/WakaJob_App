@@ -19,6 +19,7 @@ import Animated, {
     runOnJS,
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
+import * as ScreenCapture from 'expo-screen-capture';
 import authService from '../../../services/authService';
 import { Alert, ActivityIndicator } from 'react-native';
 
@@ -36,6 +37,8 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ isVisible, onClose, onSwitc
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [loading, setLoading] = useState(false);
+
+    ScreenCapture.usePreventScreenCapture();
 
     // Form state
     const [fullName, setFullName] = useState('');
@@ -77,16 +80,16 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ isVisible, onClose, onSwitc
             confirmPassword: '',
         };
 
-        if (!fullName) newErrors.fullName = 'Full name is required';
-        else if (fullName.length < 3) newErrors.fullName = 'Full name must be at least 3 characters';
+        if (!fullName.trim()) newErrors.fullName = 'Full name is required';
+        else if (fullName.trim().length < 3) newErrors.fullName = 'Full name must be at least 3 characters';
 
-        if (!email) newErrors.email = 'Email address is required';
-        else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) newErrors.email = 'Please enter a valid email address';
+        if (!email.trim()) newErrors.email = 'Email address is required';
+        else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) newErrors.email = 'Please enter a valid email address';
 
         if (!password) newErrors.password = 'Password is required';
         else if (password.length < 6) newErrors.password = 'Password must be at least 6 characters';
 
-        if (!confirmPassword) newErrors.confirmPassword = 'Please confirm your password';
+        if (!confirmPassword) newErrors.confirmPassword = 'Confirmation password is required';
         else if (password !== confirmPassword) newErrors.confirmPassword = 'Passwords do not match';
 
         setErrors(newErrors);
@@ -97,22 +100,26 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ isVisible, onClose, onSwitc
             return;
         }
 
+        const cleanFullName = fullName.trim();
+        const cleanEmail = email.trim();
+
         setLoading(true);
         try {
             await authService.signup({
-                full_name: fullName,
-                email,
-                password,
-                confirmPassword,
+                full_name: cleanFullName,
+                email: cleanEmail,
+                password: password,
+                confirm_password: confirmPassword,
                 role: role,
             });
-            onSignup(email);
+            onSignup(cleanEmail);
         } catch (error: any) {
             console.error('Signup error detail:', error);
+            const status = error.response?.status ? ` (Status: ${error.response.status})` : '';
             const errorMessage = typeof error === 'string'
                 ? error
                 : (error?.message || 'Email might already be taken or an unexpected error occurred.');
-            Alert.alert('Signup Failed', errorMessage);
+            Alert.alert('Signup Failed', `${errorMessage}${status}`);
         } finally {
             setLoading(false);
         }
@@ -128,8 +135,9 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ isVisible, onClose, onSwitc
                 </View>
 
                 <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                     style={{ flex: 1 }}
+                    keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
                 >
                     <ScrollView
                         contentContainerStyle={styles.scrollContent}
@@ -304,7 +312,7 @@ const styles = StyleSheet.create({
     },
     scrollContent: {
         paddingHorizontal: 24,
-        paddingBottom: 40,
+        paddingBottom: 100, // Extra padding to ensure everything is scrollable above keyboard
     },
     header: {
         alignItems: 'center',

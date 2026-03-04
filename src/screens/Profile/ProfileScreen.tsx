@@ -1,3 +1,4 @@
+// src/screens/Profile/ProfileScreen.tsx
 import React, { useState } from 'react';
 import {
     StyleSheet,
@@ -9,9 +10,12 @@ import {
     Image,
     KeyboardAvoidingView,
     Platform,
+    SafeAreaView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import Header from '../../components/Header';
+import * as ScreenCapture from 'expo-screen-capture';
+import authService from '../../services/authService';
+import ProfileSkeleton from '../../components/ProfileSkeleton';
 
 interface ProfileScreenProps {
     isVisible: boolean;
@@ -19,136 +23,178 @@ interface ProfileScreenProps {
 }
 
 const ProfileScreen: React.FC<ProfileScreenProps> = ({ isVisible, onBack }) => {
-    const [isEditing, setIsEditing] = useState(false);
-    const [bio, setBio] = useState('Passionate UX designer with 5+ years of experience creating user-centered digital experiences. Love crafting intuitive interfaces that solve real problems.');
-    const [skills, setSkills] = useState(['UI/UX Design', 'Product Strategy', 'Figma']);
-    const [addingSkill, setAddingSkill] = useState(false);
-    const [newSkill, setNewSkill] = useState('');
+    const [username, setUsername] = useState('');
+    const [dob, setDob] = useState('March 15, 1992');
+    const [bio, setBio] = useState('Passionate UX designer with 5+ years of experience');
+    const [skillCategory, setSkillCategory] = useState('UX/UI Design');
+    const [email, setEmail] = useState('');
+    const [phone, setPhone] = useState('+1 (555) 123-4567');
+    const [loading, setLoading] = useState(true);
 
-    const handleAddSkill = () => {
-        const trimmed = newSkill.trim();
-        if (trimmed && !skills.includes(trimmed)) {
-            setSkills([...skills, trimmed]);
-        }
-        setNewSkill('');
-        setAddingSkill(false);
-    };
+    ScreenCapture.usePreventScreenCapture();
 
-    const handleRemoveSkill = (index: number) => {
-        setSkills(skills.filter((_, i) => i !== index));
-    };
+    React.useEffect(() => {
+        const fetchProfile = async () => {
+            try {
+                setLoading(true);
+                const user = await authService.getUser();
+                if (user) {
+                    setUsername(user.full_name || user.username || '');
+                    setEmail(user.email || '');
+                }
+            } catch (error) {
+                console.error('Error fetching profile:', error);
+            } finally {
+                setTimeout(() => setLoading(false), 800);
+            }
+        };
+
+        if (isVisible) fetchProfile();
+    }, [isVisible]);
 
     if (!isVisible) return null;
+    if (loading) return <ProfileSkeleton />;
 
     return (
         <View style={styles.container}>
-            <Header
-                title="Edit Profile"
-                showSettings={false}
-                showBackButton={false}
-            />
+            {/* Custom Header */}
+            <View style={styles.header}>
+                <SafeAreaView>
+                    <View style={styles.headerContent}>
+                        <TouchableOpacity onPress={onBack} style={styles.headerIconButton}>
+                            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+                        </TouchableOpacity>
+                        <Text style={styles.headerTitle}>Edit Profile</Text>
+                        <TouchableOpacity onPress={onBack}>
+                            <Text style={styles.headerSaveText}>Save</Text>
+                        </TouchableOpacity>
+                    </View>
+                </SafeAreaView>
+            </View>
 
             <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                 style={{ flex: 1 }}
-                keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
             >
-                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-                    <View style={styles.profileHeader}>
-                        <View style={styles.avatarContainer}>
+                <ScrollView
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={styles.scrollContent}
+                    keyboardShouldPersistTaps="handled"
+                >
+                    {/* Profile Picture Section */}
+                    <View style={styles.avatarSection}>
+                        <View style={styles.avatarWrapper}>
                             <Image
                                 source={{ uri: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200' }}
                                 style={styles.avatar}
                             />
-                            <TouchableOpacity style={styles.editAvatarButton}>
-                                <Ionicons name="camera" size={20} color="#FFFFFF" />
+                            <TouchableOpacity style={styles.cameraBadge}>
+                                <Ionicons name="camera" size={18} color="#FFFFFF" />
                             </TouchableOpacity>
                         </View>
-                        <Text style={styles.userName}>Sarah Anderson</Text>
-                        <Text style={styles.userRole}>Senior Product Designer</Text>
+                        <TouchableOpacity>
+                            <Text style={styles.changePictureText}>Change Profile Picture</Text>
+                        </TouchableOpacity>
                     </View>
 
-                    <View style={styles.section}>
-                        <View style={styles.sectionHeader}>
-                            <Text style={styles.sectionTitle}>About Me</Text>
-                            <TouchableOpacity onPress={() => setIsEditing(!isEditing)}>
-                                <Text style={styles.editLink}>{isEditing ? 'Save' : 'Edit'}</Text>
+                    {/* Form Fields */}
+                    <View style={styles.formContainer}>
+                        {/* Username */}
+                        <View style={styles.fieldGroup}>
+                            <Text style={styles.label}>Username</Text>
+                            <View style={styles.inputWrapper}>
+                                <TextInput
+                                    style={styles.input}
+                                    value={username}
+                                    onChangeText={setUsername}
+                                    placeholder="Enter username"
+                                    placeholderTextColor="#9BA4B1"
+                                />
+                            </View>
+                        </View>
+
+                        {/* Date of Birth */}
+                        <View style={styles.fieldGroup}>
+                            <Text style={styles.label}>Date of Birth</Text>
+                            <View style={styles.inputWrapper}>
+                                <TextInput
+                                    style={styles.input}
+                                    value={dob}
+                                    onChangeText={setDob}
+                                    placeholder="MM/DD/YYYY"
+                                    placeholderTextColor="#9BA4B1"
+                                />
+                                <Ionicons name="calendar-outline" size={20} color="#9BA4B1" style={styles.fieldIcon} />
+                            </View>
+                        </View>
+
+                        {/* Short Bio */}
+                        <View style={styles.fieldGroup}>
+                            <Text style={styles.label}>Short Bio</Text>
+                            <View style={[styles.inputWrapper, styles.textAreaWrapper]}>
+                                <TextInput
+                                    style={[styles.input, styles.textArea]}
+                                    value={bio}
+                                    onChangeText={setBio}
+                                    multiline
+                                    numberOfLines={4}
+                                    maxLength={250}
+                                    placeholder="Tell us about yourself..."
+                                    placeholderTextColor="#9BA4B1"
+                                />
+                            </View>
+                            <Text style={styles.charCount}>{bio.length}/250 characters</Text>
+                        </View>
+
+                        {/* Skill Category */}
+                        <View style={styles.fieldGroup}>
+                            <Text style={styles.label}>Skill Category</Text>
+                            <View style={[styles.inputWrapper, { marginBottom: 10 }]}>
+                                <TextInput
+                                    style={styles.input}
+                                    value={skillCategory}
+                                    editable={false}
+                                    placeholderTextColor="#9BA4B1"
+                                />
+                                <Ionicons name="chevron-down" size={20} color="#9BA4B1" style={styles.fieldIcon} />
+                            </View>
+                            <TouchableOpacity style={styles.addSkillBtn}>
+                                <Ionicons name="add" size={18} color="#1972ca" />
+                                <Text style={styles.addSkillText}>Add Skill</Text>
                             </TouchableOpacity>
                         </View>
-                        {isEditing ? (
-                            <TextInput
-                                style={styles.bioInput}
-                                multiline
-                                value={bio}
-                                onChangeText={setBio}
-                                placeholder="Tell us about yourself..."
-                            />
-                        ) : (
-                            <Text style={styles.bioText}>{bio}</Text>
-                        )}
-                    </View>
 
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Skills</Text>
-                        <View style={styles.skillsContainer}>
-                            {skills.map((skill, index) => (
-                                <View key={index} style={styles.skillBadge}>
-                                    <Text style={styles.skillText}>{skill}</Text>
-                                    <TouchableOpacity onPress={() => handleRemoveSkill(index)}>
-                                        <Ionicons name="close-circle" size={16} color="#1972ca" />
-                                    </TouchableOpacity>
-                                </View>
-                            ))}
-                            {addingSkill ? (
-                                <View style={styles.newSkillRow}>
-                                    <TextInput
-                                        style={styles.newSkillInput}
-                                        value={newSkill}
-                                        onChangeText={setNewSkill}
-                                        placeholder="e.g. React Native"
-                                        placeholderTextColor="#aaa"
-                                        autoFocus
-                                        onSubmitEditing={handleAddSkill}
-                                        returnKeyType="done"
-                                    />
-                                    <TouchableOpacity onPress={handleAddSkill} style={styles.confirmSkillBtn}>
-                                        <Ionicons name="checkmark" size={18} color="#FFFFFF" />
-                                    </TouchableOpacity>
-                                    <TouchableOpacity onPress={() => { setAddingSkill(false); setNewSkill(''); }} style={styles.cancelSkillBtn}>
-                                        <Ionicons name="close" size={18} color="#666" />
-                                    </TouchableOpacity>
-                                </View>
-                            ) : (
-                                <TouchableOpacity style={styles.addSkillButton} onPress={() => setAddingSkill(true)}>
-                                    <Ionicons name="add" size={20} color="#1972ca" />
-                                    <Text style={styles.addSkillText}>Add Skill</Text>
-                                </TouchableOpacity>
-                            )}
+                        {/* Contact Information */}
+                        <View style={styles.fieldGroup}>
+                            <Text style={styles.label}>Contact Information</Text>
+                            <View style={[styles.inputWrapper, { marginBottom: 12 }]}>
+                                <Ionicons name="mail-outline" size={20} color="#9BA4B1" style={styles.leftIcon} />
+                                <TextInput
+                                    style={styles.input}
+                                    value={email}
+                                    onChangeText={setEmail}
+                                    placeholder="Email address"
+                                    placeholderTextColor="#9BA4B1"
+                                    keyboardType="email-address"
+                                />
+                            </View>
+                            <View style={styles.inputWrapper}>
+                                <Ionicons name="call-outline" size={20} color="#9BA4B1" style={styles.leftIcon} />
+                                <TextInput
+                                    style={styles.input}
+                                    value={phone}
+                                    onChangeText={setPhone}
+                                    placeholder="Phone number"
+                                    placeholderTextColor="#9BA4B1"
+                                    keyboardType="phone-pad"
+                                />
+                            </View>
                         </View>
                     </View>
 
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Contact Information</Text>
-                        <View style={styles.infoRow}>
-                            <Ionicons name="mail-outline" size={20} color="#666" />
-                            <Text style={styles.infoText}>sarah.anderson@email.com</Text>
-                        </View>
-                        <View style={styles.infoRow}>
-                            <Ionicons name="call-outline" size={20} color="#666" />
-                            <Text style={styles.infoText}>+1 (555) 123-4567</Text>
-                        </View>
-                        <View style={styles.infoRow}>
-                            <Ionicons name="globe-outline" size={20} color="#666" />
-                            <Text style={styles.infoText}>www.sarahdesigns.com</Text>
-                        </View>
-                    </View>
-
-                    <TouchableOpacity style={styles.saveButton}>
-                        <Text style={styles.saveButtonText}>Save Changes</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity style={styles.cancelButton} onPress={() => setIsEditing(false)}>
-                        <Text style={styles.cancelButtonText}>Cancel</Text>
+                    {/* Bottom Button */}
+                    <TouchableOpacity style={styles.saveChangesBtn} onPress={onBack}>
+                        <Text style={styles.saveChangesText}>Save Changes</Text>
                     </TouchableOpacity>
                 </ScrollView>
             </KeyboardAvoidingView>
@@ -159,37 +205,53 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ isVisible, onBack }) => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F8FAFC',
+        backgroundColor: '#FFFFFF',
+    },
+    header: {
+        backgroundColor: '#1972ca',
+        paddingBottom: 15,
+    },
+    headerContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 20,
+        paddingTop: 10,
+    },
+    headerIconButton: {
+        padding: 5,
+    },
+    headerTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#FFFFFF',
+    },
+    headerSaveText: {
+        fontSize: 16,
+        color: '#FFFFFF',
+        fontWeight: '600',
     },
     scrollContent: {
-        paddingBottom: 120,
+        paddingBottom: 120, // Pad for bottom navigation bar
+        paddingTop: 30,
     },
-    profileHeader: {
+    avatarSection: {
         alignItems: 'center',
-        paddingVertical: 30,
-        backgroundColor: '#FFFFFF',
-        borderBottomLeftRadius: 30,
-        borderBottomRightRadius: 30,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 10,
-        elevation: 5,
+        marginBottom: 30,
     },
-    avatarContainer: {
+    avatarWrapper: {
         position: 'relative',
-        marginBottom: 15,
+        marginBottom: 12,
     },
     avatar: {
-        width: 100,
-        height: 100,
-        borderRadius: 50,
-        borderWidth: 4,
-        borderColor: '#E8F2FB',
+        width: 110,
+        height: 110,
+        borderRadius: 55,
+        backgroundColor: '#F3F4F6',
     },
-    editAvatarButton: {
+    cameraBadge: {
         position: 'absolute',
-        bottom: 0,
+        bottom: 5,
         right: 0,
         backgroundColor: '#1972ca',
         width: 32,
@@ -197,171 +259,96 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         justifyContent: 'center',
         alignItems: 'center',
-        borderWidth: 2,
+        borderWidth: 3,
         borderColor: '#FFFFFF',
     },
-    userName: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: '#333',
-    },
-    userRole: {
-        fontSize: 14,
-        color: '#666',
-        marginTop: 4,
-    },
-    section: {
-        backgroundColor: '#FFFFFF',
-        marginTop: 20,
-        padding: 20,
-        borderRadius: 20,
-        marginHorizontal: 20,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 10,
-        elevation: 2,
-    },
-    sectionHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 15,
-    },
-    sectionTitle: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        color: '#333',
-        marginBottom: 15,
-    },
-    editLink: {
+    changePictureText: {
         fontSize: 14,
         color: '#1972ca',
         fontWeight: '600',
     },
-    bioText: {
-        fontSize: 14,
-        color: '#64748B',
-        lineHeight: 22,
+    formContainer: {
+        paddingHorizontal: 20,
     },
-    bioInput: {
+    fieldGroup: {
+        marginBottom: 20,
+    },
+    label: {
         fontSize: 14,
-        color: '#64748B',
-        lineHeight: 22,
+        color: '#4B5563',
+        fontWeight: '600',
+        marginBottom: 8,
+    },
+    inputWrapper: {
+        flexDirection: 'row',
+        alignItems: 'center',
         borderWidth: 1,
-        borderColor: '#E2E8F0',
+        borderColor: '#E5E7EB',
         borderRadius: 12,
-        padding: 12,
+        backgroundColor: '#FFFFFF',
+    },
+    input: {
+        flex: 1,
+        paddingHorizontal: 15,
+        height: 48,
+        fontSize: 15,
+        color: '#1F2937',
+    },
+    textAreaWrapper: {
+        height: 110,
+        alignItems: 'flex-start',
+    },
+    textArea: {
         height: 100,
         textAlignVertical: 'top',
+        paddingTop: 12,
     },
-    skillsContainer: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 10,
+    fieldIcon: {
+        marginRight: 15,
     },
-    skillBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#E8F2FB',
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        borderRadius: 20,
-        gap: 6,
+    leftIcon: {
+        marginLeft: 15,
     },
-    skillText: {
+    charCount: {
         fontSize: 12,
-        fontWeight: '600',
-        color: '#1972ca',
+        color: '#9BA4B1',
+        textAlign: 'right',
+        marginTop: 6,
     },
-    addSkillButton: {
+    addSkillBtn: {
         flexDirection: 'row',
         alignItems: 'center',
+        alignSelf: 'flex-end',
         borderWidth: 1,
-        borderColor: '#1972ca',
-        borderStyle: 'dashed',
+        borderColor: '#E5E7EB',
         paddingHorizontal: 12,
-        paddingVertical: 8,
+        paddingVertical: 6,
         borderRadius: 20,
-        gap: 6,
     },
     addSkillText: {
         fontSize: 12,
-        fontWeight: '600',
         color: '#1972ca',
+        fontWeight: '600',
+        marginLeft: 4,
     },
-    newSkillRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-    },
-    newSkillInput: {
-        borderWidth: 1,
-        borderColor: '#1972ca',
-        borderRadius: 20,
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        fontSize: 12,
-        minWidth: 100,
-        backgroundColor: '#FFFFFF',
-    },
-    confirmSkillBtn: {
-        backgroundColor: '#4CAF50',
-        borderRadius: 15,
-        width: 30,
-        height: 30,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    cancelSkillBtn: {
-        backgroundColor: '#F1F5F9',
-        borderRadius: 15,
-        width: 30,
-        height: 30,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    infoRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 15,
-        gap: 12,
-    },
-    infoText: {
-        fontSize: 14,
-        color: '#64748B',
-    },
-    saveButton: {
+    saveChangesBtn: {
         backgroundColor: '#1972ca',
         marginHorizontal: 20,
-        marginTop: 30,
-        height: 55,
-        borderRadius: 15,
+        marginTop: 10,
+        height: 52,
+        borderRadius: 12,
         justifyContent: 'center',
         alignItems: 'center',
-        shadowColor: '#1972ca',
+        shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 10,
-        elevation: 8,
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+        elevation: 4,
     },
-    saveButtonText: {
+    saveChangesText: {
         color: '#FFFFFF',
         fontSize: 16,
         fontWeight: 'bold',
-    },
-    cancelButton: {
-        marginHorizontal: 20,
-        marginTop: 15,
-        height: 55,
-        borderRadius: 15,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    cancelButtonText: {
-        color: '#666',
-        fontSize: 16,
-        fontWeight: '600',
     },
 });
 

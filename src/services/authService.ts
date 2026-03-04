@@ -1,171 +1,147 @@
-import api from './api';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
+import { Alert } from 'react-native';
+import CONFIG from '../config';
 
-export interface SignupData {
-    full_name: string;
-    email: string;
-    password: string;
-    confirmPassword: string;
-    role: 'worker' | 'employer';
-}
+const authApi = axios.create({
+  baseURL: CONFIG.API_BASE_URL,
+  timeout: CONFIG.TIMEOUT,
+  headers: {
+    'Content-Type': 'application/json',
+    'accept': 'application/json'
+  }
+});
 
-export interface SigninData {
-    email: string;
-    password: string;
-}
-
-export interface ForgotPasswordData {
-    email: string;
-}
-
-export interface ResetPasswordData {
-    email: string;
-    otp: string;
-    new_password: string;
-}
-
-export interface VerifyOtpData {
-    email: string;
-    otp: string;
-}
-
-export interface ResendOtpData {
-    email: string;
-}
-
-export interface AuthResponse {
-    status: string;
-    message?: string;
-    data?: {
-        token?: string;
-        user?: {
-            id: string;
-            full_name: string;
-            email: string;
-            role: string;
-            is_verified?: boolean;
-        };
-    };
-}
+let currentToken: string | null = null;
 
 const authService = {
-    signup: async (data: SignupData) => {
-        try {
-            const payload = {
-                full_name: data.full_name,
-                email: data.email,
-                password: data.password,
-                confirm_password: data.confirmPassword,
-                role: data.role
-            };
-            console.log('Attempting signup with payload:', { ...payload, password: '***' });
-            const response = await api.post<AuthResponse>('/auth/signup', payload);
+  async signup(data: any): Promise<any> {
+    try {
+      console.log('--- SIGNUP ATTEMPT ---');
+      const payload = {
+        full_name: data.full_name,
+        email: data.email,
+        password: data.password,
+        confirm_password: data.confirm_password,
+        role: data.role
+      };
 
-            // Note: Signup might not return a token if OTP is required next.
-            if (response.data.data?.token) {
-                await SecureStore.setItemAsync('auth_token', response.data.data.token);
-                await SecureStore.setItemAsync('user_data', JSON.stringify(response.data.data.user));
-            }
-            return response.data;
-        } catch (error: any) {
-            const errorMessage = error.response?.data?.message || error.message || 'Signup failed';
-            console.error('Signup Service Error:', errorMessage);
-            throw errorMessage;
-        }
-    },
+      console.log('Final Payload:', JSON.stringify(payload, null, 2));
 
-    resendOtp: async (data: ResendOtpData) => {
-        try {
-            console.log('Attempting to resend OTP code for email:', data.email);
-            const response = await api.post<AuthResponse>('/auth/resend-otp', { email: data.email });
-            return response.data;
-        } catch (error: any) {
-            const errorMessage = error.response?.data?.message || error.message || 'Failed to resend OTP';
-            console.error('Resend OTP Service Error:', errorMessage);
-            throw errorMessage;
-        }
-    },
+      // Attempt signup
+      const response = await authApi.post('/auth/signup', payload);
 
-    verifyOtp: async (data: VerifyOtpData) => {
-        try {
-            console.log('Attempting verify OTP for email:', data.email);
-            const response = await api.post<AuthResponse>('/auth/verify-otp', { email: data.email, token: data.otp });
-            if (response.data.data?.token) {
-                await SecureStore.setItemAsync('auth_token', response.data.data.token);
-                await SecureStore.setItemAsync('user_data', JSON.stringify(response.data.data.user));
-            }
-            return response.data;
-        } catch (error: any) {
-            const errorMessage = error.response?.data?.message || error.message || 'OTP Verification failed';
-            console.error('Verify OTP Service Error:', errorMessage);
-            throw errorMessage;
-        }
-    },
+      console.log('Signup Success:', response.data);
 
-    signin: async (data: SigninData) => {
-        try {
-            console.log('Attempting signin with:', { email: data.email, password: '***' });
-            const response = await api.post<AuthResponse>('/auth/signin', data);
-            if (response.data.data?.token) {
-                await SecureStore.setItemAsync('auth_token', response.data.data.token);
-                await SecureStore.setItemAsync('user_data', JSON.stringify(response.data.data.user));
-            }
-            return response.data;
-        } catch (error: any) {
-            const errorMessage = error.response?.data?.message || error.message || 'Signin failed';
-            console.error('Signin Service Error:', errorMessage);
-            throw errorMessage;
-        }
-    },
+      if (response.data.token || response.data.data?.token) {
+        const token = response.data.token || response.data.data?.token;
+        currentToken = token;
+        await SecureStore.setItemAsync('auth_token', token);
+      }
 
-    forgotPassword: async (data: ForgotPasswordData) => {
-        try {
-            console.log('Attempting forgot password for email:', data.email);
-            const response = await api.post('/auth/forgot-password', data);
-            return response.data;
-        } catch (error: any) {
-            const errorMessage = error.response?.data?.message || error.message || 'Failed to send reset code';
-            console.error('Forgot Password Service Error:', errorMessage);
-            throw errorMessage;
-        }
-    },
+      return response.data;
+    } catch (error: any) {
+      console.error('Signup Failure:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        msg: error.message
+      });
 
-    resetPassword: async (data: ResetPasswordData) => {
-        try {
-            console.log('Attempting reset password for email:', data.email);
-            const response = await api.post('/auth/reset-password', data);
-            return response.data;
-        } catch (error: any) {
-            const errorMessage = error.response?.data?.message || error.message || 'Failed to reset password';
-            console.error('Reset Password Service Error:', errorMessage);
-            throw errorMessage;
-        }
-    },
+      if (error.response?.data) {
+        // Force the official error message to be the one we show
+        const serverMsg = error.response.data.message || JSON.stringify(error.response.data);
+        throw new Error(serverMsg);
+      }
 
-    logout: async () => {
-        await SecureStore.deleteItemAsync('auth_token');
-        await SecureStore.deleteItemAsync('user_data');
-    },
+      throw error;
+    }
+  },
 
-    getUser: async () => {
-        const userData = await SecureStore.getItemAsync('user_data');
-        return userData ? JSON.parse(userData) : null;
-    },
+  async signin(data: any): Promise<any> {
+    try {
+      console.log('--- SIGNIN ATTEMPT ---');
+      const sanitizedEmail = data.email.trim().toLowerCase();
 
-    isAuthenticated: async () => {
-        const token = await SecureStore.getItemAsync('auth_token');
-        return !!token;
-    },
+      const payload = {
+        email: sanitizedEmail,
+        password: data.password
+      };
 
-    wakeUp: async () => {
-        try {
-            await api.get('https://wakajob-backend.onrender.com/health');
-            console.log('Backend wake-up ping successful');
-        } catch (error) {
-            console.log('Backend wake-up ping (expected if cold):', error instanceof Error ? error.message : 'timeout');
-        }
-    },
+      console.log('Signin Payload:', JSON.stringify(payload, null, 2));
+
+      const response = await authApi.post('/auth/signin', payload);
+
+      console.log('Signin Success:', response.status);
+
+      if (response.data.token || response.data.data?.token) {
+        const token = response.data.token || response.data.data?.token;
+        currentToken = token;
+        await SecureStore.setItemAsync('auth_token', token);
+      }
+
+      return response.data;
+    } catch (error: any) {
+      console.error('Signin Failure:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        msg: error.message
+      });
+
+      if (error.response?.data) {
+        const serverMsg = error.response.data.message || error.response.data.error || JSON.stringify(error.response.data);
+        throw new Error(serverMsg);
+      }
+
+      throw error;
+    }
+  },
+
+  async isAuthenticated(): Promise<boolean> {
+    if (currentToken) return true;
+    try {
+      const token = await SecureStore.getItemAsync('auth_token');
+      if (token) {
+        currentToken = token;
+        return true;
+      }
+    } catch (e) { }
+    return false;
+  },
+
+  async wakeUp(): Promise<void> {
+    try {
+      await authApi.get('/health', { timeout: 15000 });
+    } catch (e) { }
+  },
+
+  getToken(): string | null {
+    return currentToken;
+  },
+
+  async logout(): Promise<void> {
+    currentToken = null;
+    await SecureStore.deleteItemAsync('auth_token');
+  },
+
+  async setToken(token: string): Promise<void> {
+    currentToken = token;
+    await SecureStore.setItemAsync('auth_token', token);
+  },
+
+  async getUser(): Promise<any> {
+    try {
+      if (!currentToken) {
+        const hasToken = await this.isAuthenticated();
+        if (!hasToken) return null;
+      }
+      const response = await authApi.get('/auth/profile', {
+        headers: { Authorization: `Bearer ${currentToken}` }
+      });
+      return response.data.user || response.data;
+    } catch (e) {
+      return null;
+    }
+  }
 };
 
 export default authService;

@@ -20,6 +20,7 @@ import Animated, {
     withTiming,
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
+import * as ScreenCapture from 'expo-screen-capture';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -35,6 +36,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ isVisible, onClose, onSwitchT
     const translateY = useSharedValue(SCREEN_HEIGHT);
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
+
+    ScreenCapture.usePreventScreenCapture();
 
     // Form state
     const [email, setEmail] = useState('');
@@ -92,7 +95,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ isVisible, onClose, onSwitchT
             onLogin();
         } catch (error: any) {
             console.error('Login error detail:', error);
-            Alert.alert('Login Failed', error || 'Invalid email or password. Please try again.');
+            const errorMessage = error instanceof Error ? error.message : (error || 'Invalid email or password. Please try again.');
+            Alert.alert('Login Failed', errorMessage);
         } finally {
             setLoading(false);
         }
@@ -108,8 +112,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ isVisible, onClose, onSwitchT
                 </View>
 
                 <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                     style={{ flex: 1 }}
+                    keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
                 >
                     <ScrollView
                         contentContainerStyle={styles.scrollContent}
@@ -231,7 +236,7 @@ const styles = StyleSheet.create({
     },
     scrollContent: {
         paddingHorizontal: 24,
-        paddingBottom: 40,
+        paddingBottom: 80, // Increased for keyboard clearance
     },
     header: {
         alignItems: 'center',

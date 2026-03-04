@@ -80,9 +80,9 @@ export default function App() {
           />
         );
       case 'applications':
-        return <ApplicationsScreen isVisible={true} />;
+        return <ApplicationsScreen isVisible={true} onBack={() => setActiveTab('jobs')} />;
       case 'profile':
-        return <ProfileScreen isVisible={true} />;
+        return <ProfileScreen isVisible={true} onBack={() => setActiveTab('jobs')} />;
       case 'settings':
         return (
           <SettingsScreen
@@ -111,7 +111,7 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <View style={styles.container} onLayout={onLayoutRootView}>
-        <StatusBar barStyle={authMode === 'dashboard' ? 'light-content' : 'dark-content'} hidden />
+        <StatusBar hidden />
 
         {authMode !== 'dashboard' && (
           <SplashScreenUI

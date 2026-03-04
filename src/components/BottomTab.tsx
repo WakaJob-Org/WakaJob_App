@@ -1,3 +1,4 @@
+// src/components/BottomTab.tsx
 import React from 'react';
 import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,14 +15,14 @@ const BottomTab: React.FC<BottomTabProps> = ({ activeTab, onTabPress }) => {
     const insets = useSafeAreaInsets();
 
     const tabs: { type: TabType; icon: keyof typeof Ionicons.glyphMap; label: string }[] = [
-        { type: 'jobs', icon: 'home-outline', label: 'Jobs' },
-        { type: 'save', icon: 'bookmark-outline', label: 'Save' },
-        { type: 'applications', icon: 'document-text-outline', label: 'Applications' },
+        { type: 'jobs', icon: 'home-outline', label: 'Home' },
+        { type: 'save', icon: 'bookmark-outline', label: 'Saved' },
+        { type: 'applications', icon: 'briefcase-outline', label: 'Applications' },
         { type: 'profile', icon: 'person-outline', label: 'Profile' },
     ];
 
     return (
-        <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, 15) }]}>
+        <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, 12) }]}>
             {tabs.map((tab) => (
                 <TouchableOpacity
                     key={tab.type}
@@ -39,7 +40,6 @@ const BottomTab: React.FC<BottomTabProps> = ({ activeTab, onTabPress }) => {
                     ]}>
                         {tab.label}
                     </Text>
-                    {activeTab === tab.type && <View style={styles.activeIndicator} />}
                 </TouchableOpacity>
             ))}
         </View>
@@ -50,16 +50,16 @@ const styles = StyleSheet.create({
     container: {
         flexDirection: 'row',
         backgroundColor: '#1972ca',
-        borderTopLeftRadius: 20,
-        borderTopRightRadius: 20,
         paddingTop: 15,
         position: 'absolute',
         bottom: 0,
         left: 0,
         right: 0,
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: -4 },
-        shadowOpacity: 0.1,
+        shadowOpacity: 0.15,
         shadowRadius: 10,
         elevation: 20,
     },
@@ -69,16 +69,9 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     tabLabel: {
-        fontSize: 10,
+        fontSize: 12,
         marginTop: 4,
         fontWeight: '600',
-    },
-    activeIndicator: {
-        width: 4,
-        height: 4,
-        borderRadius: 2,
-        backgroundColor: '#FFFFFF',
-        marginTop: 4,
     },
 });
 
