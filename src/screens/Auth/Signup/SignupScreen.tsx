@@ -71,8 +71,13 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ isVisible, onClose, onSwitc
         transform: [{ translateY: translateY.value }],
     }));
 
+    const validatePassword = (pass: string) => {
+        const minLength = 6;
+        if (pass.length < minLength) return `Password must be at least ${minLength} characters`;
+        return '';
+    };
+
     const handleSignup = async () => {
-        // Reset and check errors
         const newErrors = {
             fullName: '',
             email: '',
@@ -86,19 +91,19 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ isVisible, onClose, onSwitc
         if (!email.trim()) newErrors.email = 'Email address is required';
         else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) newErrors.email = 'Please enter a valid email address';
 
-        if (!password) newErrors.password = 'Password is required';
-        else if (password.length < 6) newErrors.password = 'Password must be at least 6 characters';
+        if (!password) {
+            newErrors.password = 'Password is required';
+        } else {
+            const passError = validatePassword(password);
+            if (passError) newErrors.password = passError;
+        }
 
         if (!confirmPassword) newErrors.confirmPassword = 'Confirmation password is required';
         else if (password !== confirmPassword) newErrors.confirmPassword = 'Passwords do not match';
 
         setErrors(newErrors);
 
-        // Check if any error exists
-        if (Object.values(newErrors).some(err => err !== '')) {
-            Alert.alert('Validation Error', 'Please fix the errors in the form before submitting.');
-            return;
-        }
+        if (Object.values(newErrors).some(err => err !== '')) return;
 
         const cleanFullName = fullName.trim();
         const cleanEmail = email.trim();
@@ -114,12 +119,16 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ isVisible, onClose, onSwitc
             });
             onSignup(cleanEmail);
         } catch (error: any) {
-            console.error('Signup error detail:', error);
-            const status = error.response?.status ? ` (Status: ${error.response.status})` : '';
-            const errorMessage = typeof error === 'string'
-                ? error
-                : (error?.message || 'Email might already be taken or an unexpected error occurred.');
-            Alert.alert('Signup Failed', `${errorMessage}${status}`);
+            console.error('Signup error:', error.message);
+            const errorMessage = error?.message || 'Signup failed. Please check your details.';
+
+            if (errorMessage.toLowerCase().includes('email')) {
+                setErrors({ ...newErrors, email: errorMessage });
+            } else if (errorMessage.toLowerCase().includes('password')) {
+                setErrors({ ...newErrors, password: errorMessage });
+            } else {
+                Alert.alert('Signup Failed', errorMessage);
+            }
         } finally {
             setLoading(false);
         }

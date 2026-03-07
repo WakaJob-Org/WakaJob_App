@@ -13,10 +13,12 @@ import {
     SafeAreaView,
     ScrollView,
     RefreshControl,
+    Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import jobService, { Job } from '../../services/jobService';
+import authService from '../../services/authService';
 import DashboardSkeleton from '../../components/DashboardSkeleton';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -24,6 +26,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 interface DashboardScreenProps {
     isVisible: boolean;
     userName: string;
+    userProfile?: any;
     onLogout: () => void;
     onSettingsPress: () => void;
     onProfilePress: () => void;
@@ -102,6 +105,24 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({
     const [filteredJobs, setFilteredJobs] = useState<JobType[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [profile, setProfile] = useState<any>(null);
+
+    useEffect(() => {
+        const loadProfile = async () => {
+            try {
+                const userData = await authService.getUser();
+                if (userData) {
+                    setProfile(userData);
+                }
+            } catch (error) {
+                console.error('Error loading dashboard profile:', error);
+            }
+        };
+        if (isVisible) loadProfile();
+    }, [isVisible]);
+
+    const displayFirstName = profile?.full_name?.split(' ')[0] || userName;
+    const avatarChar = (profile?.full_name || userName || 'U').charAt(0).toUpperCase();
 
     const fetchJobs = async (isRefreshing = false) => {
         try {
@@ -265,22 +286,33 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({
                     </View>
                     <View style={styles.headerActions}>
                         <TouchableOpacity style={styles.iconButton}>
-                            <Ionicons name="notifications-outline" size={24} color="#5C6B80" />
+                            <Ionicons name="notifications-outline" size={24} color="#1972ca" />
                             <View style={styles.notifDot} />
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.avatar} onPress={onProfilePress}>
-                            <View style={styles.avatarInner}>
-                                <Text style={styles.avatarChar}>{userName.charAt(0)}</Text>
-                            </View>
+                            {profile?.profile_photo ? (
+                                <Image source={{ uri: profile.profile_photo }} style={styles.avatarImage} />
+                            ) : (
+                                <View style={styles.avatarInner}>
+                                    <Text style={styles.avatarChar}>{avatarChar}</Text>
+                                </View>
+                            )}
                         </TouchableOpacity>
                     </View>
+                </View>
+
+                {/* Welcome Message - Before Search Bar */}
+                <View style={styles.headerWelcome}>
+                    <Text style={styles.welcomeSub}>Welcome, {displayFirstName}</Text>
+                    <Text style={styles.welcomeTitle}>Available Jobs</Text>
+                    <Text style={styles.welcomeDesc}>Based on your location and preferences</Text>
                 </View>
 
                 <View style={styles.searchRow}>
                     <View style={styles.searchInputWrapper}>
                         <Ionicons name="search-outline" size={20} color="#9BA4B1" />
                         <TextInput
-                            style={styles.input}
+                            style={[styles.input, { flex: 1, marginLeft: 10 }]}
                             placeholder="Search jobs..."
                             placeholderTextColor="#9BA4B1"
                             value={searchQuery}
@@ -307,13 +339,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({
                         tintColor="#1972ca"
                     />
                 }
-                ListHeaderComponent={
-                    <View style={styles.welcome}>
-                        <Text style={styles.welcomeSub}>Welcome, {userName}</Text>
-                        <Text style={styles.welcomeTitle}>Available Jobs</Text>
-                        <Text style={styles.welcomeDesc}>Based on your location and preferences</Text>
-                    </View>
-                }
+                ListHeaderComponent={<View style={{ height: 10 }} />}
                 ListEmptyComponent={
                     <View style={styles.empty}>
                         <Ionicons name="search-outline" size={60} color="#CCC" />
@@ -385,18 +411,19 @@ const styles = StyleSheet.create({
     headerActions: { flexDirection: 'row', alignItems: 'center', gap: 15 },
     iconButton: { position: 'relative' },
     notifDot: { position: 'absolute', top: 0, right: 0, width: 8, height: 8, borderRadius: 4, backgroundColor: '#FF4D4F', borderWidth: 2, borderColor: '#FFFFFF' },
-    avatar: { width: 40, height: 40, borderRadius: 20, overflow: 'hidden' },
-    avatarInner: { width: '100%', height: '100%', backgroundColor: '#E6A23C', justifyContent: 'center', alignItems: 'center' },
+    avatar: { width: 40, height: 40, borderRadius: 20, overflow: 'hidden', backgroundColor: '#F3F4F6' },
+    avatarImage: { width: '100%', height: '100%' },
+    avatarInner: { width: '100%', height: '100%', backgroundColor: '#1972ca', justifyContent: 'center', alignItems: 'center' },
     avatarChar: { color: '#FFFFFF', fontWeight: '600', fontSize: 16 },
-    searchRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 5 },
+    searchRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 15 },
     searchInputWrapper: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', borderRadius: 12, paddingHorizontal: 15, height: 48 },
-    input: { flex: 1, marginLeft: 10, fontSize: 15, color: '#1F2937' },
+    input: { fontSize: 15, color: '#1F2937' },
     filterBtn: { width: 48, height: 48, backgroundColor: '#1972ca', borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
     listContent: { paddingHorizontal: 20, paddingBottom: 100 },
-    welcome: { paddingTop: 20, paddingBottom: 15 },
-    welcomeSub: { fontSize: 14, color: '#1972ca', fontWeight: '600', marginBottom: 8 },
-    welcomeTitle: { fontSize: 24, fontWeight: 'bold', color: '#111827', marginBottom: 4 },
-    welcomeDesc: { fontSize: 14, color: '#6B7280' },
+    headerWelcome: { marginTop: 10, marginBottom: 5 },
+    welcomeSub: { fontSize: 14, color: '#1972ca', fontWeight: '600', marginBottom: 4 },
+    welcomeTitle: { fontSize: 22, fontWeight: 'bold', color: '#111827', marginBottom: 2 },
+    welcomeDesc: { fontSize: 13, color: '#6B7280' },
     jobCard: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: '#F3F4F6', elevation: 2 },
     cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 15 },
     companyIcon: { width: 48, height: 48, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },

@@ -7,6 +7,7 @@ const api = axios.create({
     timeout: CONFIG.TIMEOUT,
     headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json'
     },
 });
 
@@ -31,9 +32,10 @@ api.interceptors.response.use(
         const originalRequest = error.config;
 
         if (error.response?.status === 401 && !originalRequest._retry) {
+            console.warn('--- 401 UNAUTHORIZED DETECTED ---', error.config.url);
             originalRequest._retry = true;
             try {
-                console.log('Session expired, logging out...');
+                console.log('Session expired, deleting token from storage...');
                 await SecureStore.deleteItemAsync('auth_token');
                 return Promise.reject(error);
             } catch (err) {

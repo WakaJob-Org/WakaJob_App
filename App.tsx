@@ -22,22 +22,39 @@ export default function App() {
     'Pacifico-Regular': Pacifico_400Regular,
   });
 
-  const [authMode, setAuthMode] = useState<'signup' | 'login' | 'otp' | 'forgot_password' | 'dashboard' | null>(null);
+  const [authMode, setAuthMode] = useState<'signup' | 'login' | 'otp' | 'forgot_password' | 'dashboard' | 'initializing' | null>('initializing');
   const [activeTab, setActiveTab] = useState<TabType | 'settings'>('jobs');
   const [userName, setUserName] = useState('Alex');
   const [verificationEmail, setVerificationEmail] = useState('');
 
   useEffect(() => {
     const initApp = async () => {
-      authService.wakeUp();
-      const authenticated = await authService.isAuthenticated();
-      const user = await authService.getUser();
-      if (user && user.full_name) {
-        setUserName(user.full_name.split(' ')[0]);
-      }
+      try {
+        console.log('--- APP INIT START ---');
+        // 1. Wake up the backend in background
+        authService.wakeUp();
 
-      if (authenticated) {
-        setAuthMode('dashboard');
+        // 2. Immediate local check for token
+        const authenticated = await authService.isAuthenticated();
+        console.log('Auth check:', authenticated);
+
+        if (authenticated) {
+          // If we have a token, jump to dashboard immediately to avoid showing login
+          setAuthMode('dashboard');
+
+          // 3. Then fetch user details in background
+          const user = await authService.getUser();
+          if (user && user.full_name) {
+            console.log('User profile loaded:', user.full_name);
+            setUserName(user.full_name);
+          }
+        } else {
+          // No token, show the landing/splash options
+          setAuthMode(null);
+        }
+      } catch (error) {
+        console.error('App Init Error:', error);
+        setAuthMode(null);
       }
     };
     initApp();
@@ -82,7 +99,7 @@ export default function App() {
       case 'applications':
         return <ApplicationsScreen isVisible={true} onBack={() => setActiveTab('jobs')} />;
       case 'profile':
-        return <ProfileScreen isVisible={true} onBack={() => setActiveTab('jobs')} />;
+        return <ProfileScreen isVisible={true} onBack={() => setActiveTab('jobs')} onLogout={logout} />;
       case 'settings':
         return (
           <SettingsScreen

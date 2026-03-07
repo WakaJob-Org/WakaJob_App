@@ -11,6 +11,7 @@ import {
     KeyboardAvoidingView,
     Platform,
     SafeAreaView,
+    Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ScreenCapture from 'expo-screen-capture';
@@ -20,9 +21,10 @@ import ProfileSkeleton from '../../components/ProfileSkeleton';
 interface ProfileScreenProps {
     isVisible: boolean;
     onBack?: () => void;
+    onLogout?: () => void;
 }
 
-const ProfileScreen: React.FC<ProfileScreenProps> = ({ isVisible, onBack }) => {
+const ProfileScreen: React.FC<ProfileScreenProps> = ({ isVisible, onBack, onLogout }) => {
     const [username, setUsername] = useState('');
     const [dob, setDob] = useState('March 15, 1992');
     const [bio, setBio] = useState('Passionate UX designer with 5+ years of experience');
@@ -196,6 +198,25 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ isVisible, onBack }) => {
                     <TouchableOpacity style={styles.saveChangesBtn} onPress={onBack}>
                         <Text style={styles.saveChangesText}>Save Changes</Text>
                     </TouchableOpacity>
+
+                    {onLogout && (
+                        <TouchableOpacity
+                            style={styles.logoutBtn}
+                            onPress={() => {
+                                Alert.alert(
+                                    'Logout',
+                                    'Are you sure you want to log out?',
+                                    [
+                                        { text: 'Cancel', style: 'cancel' },
+                                        { text: 'Logout', style: 'destructive', onPress: onLogout }
+                                    ]
+                                );
+                            }}
+                        >
+                            <Ionicons name="log-out-outline" size={20} color="#FF3B30" />
+                            <Text style={styles.logoutText}>Logout</Text>
+                        </TouchableOpacity>
+                    )}
                 </ScrollView>
             </KeyboardAvoidingView>
         </View>
@@ -349,6 +370,24 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontSize: 16,
         fontWeight: 'bold',
+    },
+    logoutBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginHorizontal: 20,
+        marginTop: 20,
+        height: 52,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#FF3B30',
+        backgroundColor: '#FFF9F9',
+        gap: 8,
+    },
+    logoutText: {
+        color: '#FF3B30',
+        fontSize: 16,
+        fontWeight: '600',
     },
 });
 

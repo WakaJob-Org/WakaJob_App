@@ -148,11 +148,18 @@ const OTPScreen: React.FC<OTPScreenProps> = ({ isVisible, email, onClose, onVeri
 
         setLoading(true);
         try {
-            // Updated service uses 'otp_code' internally, we just pass the 6 digits here
+            console.log('--- VERIFYING OTP ---', code);
             const response = await otpService.verifyOTP({ email, otp: code });
+            console.log('OTP Verify Response:', JSON.stringify(response));
 
-            if (response.token) {
-                await authService.setToken(response.token);
+            // Extract token from either response.token or response.data.token
+            const token = response.token || response.data?.token;
+
+            if (token) {
+                console.log('Token found, saving session...');
+                await authService.setToken(token);
+            } else {
+                console.warn('No token found in successful OTP response');
             }
 
             onVerify();
