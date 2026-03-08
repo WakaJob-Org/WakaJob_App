@@ -10,6 +10,8 @@ import DashboardScreen from './src/screens/Dashboard/DashboardScreen';
 import ApplicationsScreen from './src/screens/Applications/ApplicationsScreen';
 import ProfileScreen from './src/screens/Profile/ProfileScreen';
 import SettingsScreen from './src/screens/Settings/SettingsScreen';
+import EmployerVerificationScreen from './src/screens/Auth/Verification/EmployerVerificationScreen';
+import NotificationsScreen from './src/screens/Dashboard/NotificationsScreen';
 import BottomTab, { TabType } from './src/components/BottomTab';
 import { useFonts, Pacifico_400Regular } from '@expo-google-fonts/pacifico';
 import * as SplashScreen from 'expo-splash-screen';
@@ -22,7 +24,7 @@ export default function App() {
     'Pacifico-Regular': Pacifico_400Regular,
   });
 
-  const [authMode, setAuthMode] = useState<'signup' | 'login' | 'otp' | 'forgot_password' | 'dashboard' | 'initializing' | null>('initializing');
+  const [authMode, setAuthMode] = useState<'signup' | 'login' | 'otp' | 'forgot_password' | 'verification' | 'notifications' | 'dashboard' | 'initializing' | null>('initializing');
   const [activeTab, setActiveTab] = useState<TabType | 'settings'>('jobs');
   const [userName, setUserName] = useState('Alex');
   const [verificationEmail, setVerificationEmail] = useState('');
@@ -77,7 +79,27 @@ export default function App() {
     setVerificationEmail(email);
     setAuthMode('otp');
   };
-  const openDashboard = () => setAuthMode('dashboard');
+
+  const handleAfterOtp = async () => {
+    const user = await authService.getUser();
+    if (user && user.full_name) {
+      setUserName(user.full_name);
+    }
+
+    if (user && user.role === 'employer') {
+      setAuthMode('verification');
+    } else {
+      setAuthMode('dashboard');
+    }
+  };
+
+  const openDashboard = async () => {
+    const user = await authService.getUser();
+    if (user && user.full_name) {
+      setUserName(user.full_name);
+    }
+    setAuthMode('dashboard');
+  };
   const logout = () => {
     authService.logout();
     setAuthMode(null);
@@ -94,6 +116,7 @@ export default function App() {
             onLogout={logout}
             onSettingsPress={() => setActiveTab('settings')}
             onProfilePress={() => setActiveTab('profile')}
+            onNotificationPress={() => setAuthMode('notifications')}
           />
         );
       case 'applications':
@@ -117,8 +140,87 @@ export default function App() {
               onLogout={logout}
               onSettingsPress={() => setActiveTab('settings')}
               onProfilePress={() => setActiveTab('profile')}
+              onNotificationPress={() => setAuthMode('notifications')}
             />
           </View>
+        );
+      default:
+        return null;
+    }
+  };
+
+  const renderPrimaryLayer = () => {
+    switch (authMode) {
+      case 'notifications':
+        return (
+          <NotificationsScreen
+            isVisible={true}
+            onClose={() => setAuthMode('dashboard')}
+          />
+        );
+      case 'dashboard':
+        return (
+          <View style={styles.mainContent}>
+            {renderContent()}
+            <BottomTab
+              activeTab={activeTab === 'settings' ? 'jobs' : activeTab}
+              onTabPress={(tab) => setActiveTab(tab)}
+            />
+          </View>
+        );
+      case 'verification':
+        return (
+          <EmployerVerificationScreen
+            isVisible={true}
+            onClose={() => setAuthMode(null)}
+            onSubmit={openDashboard}
+          />
+        );
+      case 'initializing':
+      case null:
+      case 'signup':
+      case 'login':
+      case 'otp':
+      case 'forgot_password':
+        return (
+          <>
+            <SplashScreenUI
+              onGetStarted={openSignup}
+              showButton={authMode === null}
+            />
+            {authMode === 'signup' && (
+              <SignupScreen
+                isVisible={true}
+                onClose={() => setAuthMode(null)}
+                onSwitchToSignin={openLogin}
+                onSignup={openOtp}
+              />
+            )}
+            {authMode === 'login' && (
+              <LoginScreen
+                isVisible={true}
+                onClose={() => setAuthMode(null)}
+                onSwitchToSignup={openSignup}
+                onForgotPassword={openForgotPassword}
+                onLogin={openDashboard}
+              />
+            )}
+            {authMode === 'otp' && (
+              <OTPScreen
+                isVisible={true}
+                email={verificationEmail}
+                onClose={() => setAuthMode('signup')}
+                onVerify={handleAfterOtp}
+              />
+            )}
+            {authMode === 'forgot_password' && (
+              <ForgotPasswordScreen
+                isVisible={true}
+                onClose={() => setAuthMode('login')}
+                onSuccess={() => setAuthMode('login')}
+              />
+            )}
+          </>
         );
       default:
         return null;
@@ -129,59 +231,7 @@ export default function App() {
     <SafeAreaProvider>
       <View style={styles.container} onLayout={onLayoutRootView}>
         <StatusBar hidden />
-
-        {authMode !== 'dashboard' && (
-          <SplashScreenUI
-            onGetStarted={openSignup}
-            showButton={authMode === null}
-          />
-        )}
-
-        {authMode === 'signup' && (
-          <SignupScreen
-            isVisible={true}
-            onClose={() => setAuthMode(null)}
-            onSwitchToSignin={openLogin}
-            onSignup={openOtp}
-          />
-        )}
-
-        {authMode === 'login' && (
-          <LoginScreen
-            isVisible={true}
-            onClose={() => setAuthMode(null)}
-            onSwitchToSignup={openSignup}
-            onForgotPassword={openForgotPassword}
-            onLogin={openDashboard}
-          />
-        )}
-
-        {authMode === 'forgot_password' && (
-          <ForgotPasswordScreen
-            isVisible={true}
-            onClose={() => setAuthMode('login')}
-            onSuccess={() => setAuthMode('login')}
-          />
-        )}
-
-        {authMode === 'otp' && (
-          <OTPScreen
-            isVisible={true}
-            email={verificationEmail}
-            onClose={() => setAuthMode('signup')}
-            onVerify={openDashboard}
-          />
-        )}
-
-        {authMode === 'dashboard' && (
-          <View style={styles.mainContent}>
-            {renderContent()}
-            <BottomTab
-              activeTab={activeTab === 'settings' ? 'jobs' : activeTab}
-              onTabPress={(tab) => setActiveTab(tab)}
-            />
-          </View>
-        )}
+        {renderPrimaryLayer()}
       </View>
     </SafeAreaProvider>
   );

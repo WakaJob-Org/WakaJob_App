@@ -10,9 +10,9 @@ import {
     Image,
     KeyboardAvoidingView,
     Platform,
-    SafeAreaView,
     Alert,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ScreenCapture from 'expo-screen-capture';
 import authService from '../../services/authService';
@@ -54,24 +54,24 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ isVisible, onBack, onLogo
         if (isVisible) fetchProfile();
     }, [isVisible]);
 
+    const insets = useSafeAreaInsets();
+
     if (!isVisible) return null;
     if (loading) return <ProfileSkeleton />;
 
     return (
         <View style={styles.container}>
             {/* Custom Header */}
-            <View style={styles.header}>
-                <SafeAreaView>
-                    <View style={styles.headerContent}>
-                        <TouchableOpacity onPress={onBack} style={styles.headerIconButton}>
-                            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-                        </TouchableOpacity>
-                        <Text style={styles.headerTitle}>Edit Profile</Text>
-                        <TouchableOpacity onPress={onBack}>
-                            <Text style={styles.headerSaveText}>Save</Text>
-                        </TouchableOpacity>
-                    </View>
-                </SafeAreaView>
+            <View style={[styles.header, { paddingTop: insets.top }]}>
+                <View style={styles.headerContent}>
+                    <TouchableOpacity onPress={onBack} style={styles.headerIconButton}>
+                        <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+                    </TouchableOpacity>
+                    <Text style={styles.headerTitle}>Edit Profile</Text>
+                    <TouchableOpacity onPress={onBack}>
+                        <Text style={styles.headerSaveText}>Save</Text>
+                    </TouchableOpacity>
+                </View>
             </View>
 
             <KeyboardAvoidingView

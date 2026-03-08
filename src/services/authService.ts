@@ -59,7 +59,7 @@ const authService = {
         console.log('--- TOKEN EXTRACTED FROM SIGNUP ---');
         await this.setToken(token);
       } else {
-        console.error('FAILED to extract token from Signup structure:', JSON.stringify(response.data));
+        console.log('--- Signup successful, waiting for OTP verification ---');
       }
       return response.data;
     } catch (error: any) {
@@ -199,9 +199,21 @@ const authService = {
   },
 
   async setToken(token: string): Promise<void> {
-    console.log('--- Persisting new token to storage ---');
-    currentToken = token;
-    await SecureStore.setItemAsync('auth_token', token);
+    try {
+      console.log('--- Persisting new token to storage (Length: ' + token.length + ') ---');
+      currentToken = token;
+      await SecureStore.setItemAsync('auth_token', token);
+
+      // Immediate verification read-back
+      const verifyToken = await SecureStore.getItemAsync('auth_token');
+      if (verifyToken === token) {
+        console.log('--- SESSION PERSISTENCE VERIFIED ---');
+      } else {
+        console.error('--- SESSION PERSISTENCE FAILURE: Read-back failed ---');
+      }
+    } catch (e) {
+      console.error('--- SecureStore Write Error ---:', e);
+    }
   },
 
   async getUser(): Promise<any> {
@@ -209,28 +221,26 @@ const authService = {
       if (!currentToken) {
         const hasToken = await this.isAuthenticated();
         if (!hasToken) {
-          console.log('getUser: No token found');
+          console.log('getUser: No token found, skipping profile fetch');
           return null;
         }
       }
 
-      console.log('getUser: Fetching profile...');
-      // Note: /auth/profile is currently returning 404 on the backend.
-      // We catch this and return the token info as a fallback so the app still works.
+      console.log('getUser: Fetching live profile data...');
       const response = await authApi.get('/auth/profile', {
         headers: { Authorization: `Bearer ${currentToken}` }
       });
 
-      console.log('getUser: Profile fetch success');
-      return response.data.data?.user || response.data.user || response.data;
+      console.log('getUser RAW RESPONSE:', JSON.stringify(response.data));
+
+      // Attempt extraction
+      const userData = response.data.data?.user || response.data.user || response.data.data || response.data;
+      console.log('getUser EXTRACTED DATA:', JSON.stringify(userData));
+
+      return userData;
     } catch (e: any) {
-      if (e.response?.status === 404) {
-        console.warn('getUser: Profile endpoint (404) - Using local session fallback');
-        // If profile fails, we shouldn't lock the user out. 
-        // We return a basic object so the UI can still show "Welcome"
-        return { full_name: 'User' };
-      }
       console.error('getUser error:', e.response?.status || e.message);
+      // Fallback for UI stability during network issues
       return null;
     }
   }

@@ -30,6 +30,7 @@ interface DashboardScreenProps {
     onLogout: () => void;
     onSettingsPress: () => void;
     onProfilePress: () => void;
+    onNotificationPress: () => void;
 }
 
 interface JobType {
@@ -94,7 +95,8 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({
     userName,
     onLogout,
     onSettingsPress,
-    onProfilePress
+    onProfilePress,
+    onNotificationPress
 }) => {
     const insets = useSafeAreaInsets();
     const [searchQuery, setSearchQuery] = useState('');
@@ -121,8 +123,16 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({
         if (isVisible) loadProfile();
     }, [isVisible]);
 
-    const displayFirstName = profile?.full_name?.split(' ')[0] || userName;
-    const avatarChar = (profile?.full_name || userName || 'U').charAt(0).toUpperCase();
+    const getInitials = (name: string) => {
+        if (!name) return 'U';
+        const parts = name.trim().split(/\s+/);
+        if (parts.length === 0) return 'U';
+        if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+        return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+    };
+
+    const displayName = profile?.full_name || userName;
+    const avatarInitials = getInitials(displayName);
 
     const fetchJobs = async (isRefreshing = false) => {
         try {
@@ -285,7 +295,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({
                         <View style={styles.pinkDot} />
                     </View>
                     <View style={styles.headerActions}>
-                        <TouchableOpacity style={styles.iconButton}>
+                        <TouchableOpacity style={styles.iconButton} onPress={onNotificationPress}>
                             <Ionicons name="notifications-outline" size={24} color="#1972ca" />
                             <View style={styles.notifDot} />
                         </TouchableOpacity>
@@ -294,7 +304,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({
                                 <Image source={{ uri: profile.profile_photo }} style={styles.avatarImage} />
                             ) : (
                                 <View style={styles.avatarInner}>
-                                    <Text style={styles.avatarChar}>{avatarChar}</Text>
+                                    <Text style={styles.avatarChar}>{avatarInitials}</Text>
                                 </View>
                             )}
                         </TouchableOpacity>
@@ -303,7 +313,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({
 
                 {/* Welcome Message - Before Search Bar */}
                 <View style={styles.headerWelcome}>
-                    <Text style={styles.welcomeSub}>Welcome, {displayFirstName}</Text>
+                    <Text style={styles.welcomeSub}>Welcome, {displayName}</Text>
                     <Text style={styles.welcomeTitle}>Available Jobs</Text>
                     <Text style={styles.welcomeDesc}>Based on your location and preferences</Text>
                 </View>
