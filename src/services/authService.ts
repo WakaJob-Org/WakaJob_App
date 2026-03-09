@@ -1,6 +1,7 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import CONFIG from '../config';
+import api from './api';
 
 // Dedicated instance for Auth and Public routes (No interceptors, no tokens)
 const authApi = axios.create({
@@ -226,21 +227,33 @@ const authService = {
         }
       }
 
-      console.log('getUser: Fetching live profile data...');
-      const response = await authApi.get('/auth/profile', {
-        headers: { Authorization: `Bearer ${currentToken}` }
-      });
+      console.log('getUser: Fetching live profile data via main API...');
+      const response = await api.get('/auth/profile');
 
       console.log('getUser RAW RESPONSE:', JSON.stringify(response.data));
 
       // Attempt extraction
       const userData = response.data.data?.user || response.data.user || response.data.data || response.data;
-      console.log('getUser EXTRACTED DATA:', JSON.stringify(userData));
 
+      if (userData && userData.full_name) {
+        console.log('getUser: Captured name for cache:', userData.full_name);
+        await SecureStore.setItemAsync('cached_user_name', userData.full_name);
+      }
+
+      console.log('getUser EXTRACTED DATA:', JSON.stringify(userData));
       return userData;
     } catch (e: any) {
       console.error('getUser error:', e.response?.status || e.message);
-      // Fallback for UI stability during network issues
+
+      // Try to return a skeleton user with the cached name if API fails
+      try {
+        const cachedName = await SecureStore.getItemAsync('cached_user_name');
+        if (cachedName) {
+          console.log('getUser: API failed, falling back to cache:', cachedName);
+          return { full_name: cachedName };
+        }
+      } catch (cacheErr) { }
+
       return null;
     }
   }

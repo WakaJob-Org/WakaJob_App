@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, StatusBar } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import * as SecureStore from 'expo-secure-store';
 import SplashScreenUI from './src/screens/Splash/SplashScreen';
 import SignupScreen from './src/screens/Auth/Signup/SignupScreen';
 import LoginScreen from './src/screens/Auth/Login/LoginScreen';
@@ -39,6 +40,12 @@ export default function App() {
         // 2. Immediate local check for token
         const authenticated = await authService.isAuthenticated();
         console.log('Auth check:', authenticated);
+
+        // Pre-load cached name for immediate UI feedback
+        try {
+          const cachedName = await SecureStore.getItemAsync('cached_user_name');
+          if (cachedName) setUserName(cachedName);
+        } catch (e) { }
 
         if (authenticated) {
           // If we have a token, jump to dashboard immediately to avoid showing login

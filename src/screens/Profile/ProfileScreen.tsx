@@ -31,6 +31,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ isVisible, onBack, onLogo
     const [skillCategory, setSkillCategory] = useState('UX/UI Design');
     const [email, setEmail] = useState('');
     const [phone, setPhone] = useState('+1 (555) 123-4567');
+    const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
 
     ScreenCapture.usePreventScreenCapture();
@@ -43,6 +44,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ isVisible, onBack, onLogo
                 if (user) {
                     setUsername(user.full_name || user.username || '');
                     setEmail(user.email || '');
+                    setProfilePhoto(user.profile_photo || null);
                 }
             } catch (error) {
                 console.error('Error fetching profile:', error);
@@ -54,7 +56,16 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ isVisible, onBack, onLogo
         if (isVisible) fetchProfile();
     }, [isVisible]);
 
+    const getInitials = (name: string) => {
+        if (!name) return 'U';
+        const parts = name.trim().split(/\s+/);
+        if (parts.length === 0) return 'U';
+        if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+        return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+    };
+
     const insets = useSafeAreaInsets();
+    const avatarInitials = getInitials(username);
 
     if (!isVisible) return null;
     if (loading) return <ProfileSkeleton />;
@@ -86,10 +97,16 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ isVisible, onBack, onLogo
                     {/* Profile Picture Section */}
                     <View style={styles.avatarSection}>
                         <View style={styles.avatarWrapper}>
-                            <Image
-                                source={{ uri: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200' }}
-                                style={styles.avatar}
-                            />
+                            {profilePhoto ? (
+                                <Image
+                                    source={{ uri: profilePhoto }}
+                                    style={styles.avatar}
+                                />
+                            ) : (
+                                <View style={[styles.avatar, styles.avatarInitialsContainer]}>
+                                    <Text style={styles.avatarInitialsText}>{avatarInitials}</Text>
+                                </View>
+                            )}
                             <TouchableOpacity style={styles.cameraBadge}>
                                 <Ionicons name="camera" size={18} color="#FFFFFF" />
                             </TouchableOpacity>
@@ -388,6 +405,16 @@ const styles = StyleSheet.create({
         color: '#FF3B30',
         fontSize: 16,
         fontWeight: '600',
+    },
+    avatarInitialsContainer: {
+        backgroundColor: '#1972ca',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    avatarInitialsText: {
+        color: '#FFFFFF',
+        fontSize: 42,
+        fontWeight: 'bold',
     },
 });
 
