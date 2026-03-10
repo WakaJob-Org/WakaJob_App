@@ -62,11 +62,37 @@ const jobService = {
 
     applyToJob: async (jobId: string) => {
         try {
-            // Tentative endpoint based on common naming
-            const response = await api.post(`/jobs/${jobId}/apply`);
+            const response = await api.post(`/applications`, { jobId });
             return response.data;
         } catch (error: any) {
             throw error.response?.data?.message || 'Failed to apply for job';
+        }
+    },
+
+    saveJob: async (jobId: string) => {
+        try {
+            const response = await api.post(`/jobs/save`, { jobId });
+            return response.data;
+        } catch (error: any) {
+            throw error.response?.data?.message || 'Failed to save job';
+        }
+    },
+
+    updateJob: async (id: string, data: Partial<CreateJobData>) => {
+        try {
+            const response = await api.put(`/jobs/${id}`, data);
+            return response.data;
+        } catch (error: any) {
+            throw error.response?.data?.message || 'Failed to update job';
+        }
+    },
+
+    deleteJob: async (id: string) => {
+        try {
+            const response = await api.delete(`/jobs/${id}`);
+            return response.data;
+        } catch (error: any) {
+            throw error.response?.data?.message || 'Failed to delete job';
         }
     },
 
@@ -87,16 +113,15 @@ const jobService = {
         }
     },
 
-    getSavedJobs: async () => {
+    getSavedJobs: async (workerId?: string) => {
         try {
-            const response = await api.get('/jobs/saved');
+            const endpoint = workerId ? `/jobs/saved/${workerId}` : '/jobs/saved';
+            const response = await api.get(endpoint);
             const raw = response.data;
-            // Handle different response formats
             if (Array.isArray(raw)) return raw;
             if (Array.isArray(raw?.saved)) return raw.saved;
             if (Array.isArray(raw?.data)) return raw.data;
             if (Array.isArray(raw?.results)) return raw.results;
-            console.warn('Unexpected /jobs/saved response shape:', typeof raw, raw);
             return [];
         } catch (error: any) {
             console.error('Failed to fetch saved jobs:', error.response?.data?.message || error?.message);

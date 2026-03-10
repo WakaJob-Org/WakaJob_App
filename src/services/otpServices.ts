@@ -37,6 +37,9 @@ const otpService = {
             const response = await authApi.post('/auth/resend-otp', data);
             return response.data;
         } catch (error: any) {
+            if (error.response?.status === 404) {
+                throw new Error('Backend Missing Endpoint: The backend developer needs to implement POST /auth/resend-otp. It is currently returning 404 Not Found.');
+            }
             const msg = error.response?.data?.data?.message ||
                 error.response?.data?.message ||
                 error.message ||

@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSequence, withDelay } from 'react-native-reanimated';
 import jobService, { Job } from '../../services/jobService';
 import authService from '../../services/authService';
 import DashboardSkeleton from '../../components/DashboardSkeleton';
@@ -108,6 +109,22 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [profile, setProfile] = useState<any>(null);
+
+    // Toast Animation State
+    const toastTranslateY = useSharedValue(200);
+    const [toastMessage, setToastMessage] = useState('');
+
+    const showToast = (message: string) => {
+        setToastMessage(message);
+        toastTranslateY.value = withSequence(
+            withTiming(0, { duration: 300 }),
+            withDelay(1200, withTiming(200, { duration: 300 }))
+        );
+    };
+
+    const toastStyle = useAnimatedStyle(() => ({
+        transform: [{ translateY: toastTranslateY.value }],
+    }));
 
     useEffect(() => {
         const loadProfile = async () => {
@@ -205,13 +222,18 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({
         setShowDetails(false);
     };
 
-    const handleSaveJob = (jobId: string) => {
-        if (savedJobsList.includes(jobId)) {
-            setSavedJobsList(prev => prev.filter(id => id !== jobId));
-            Alert.alert("Success", "Job removed from saved");
-        } else {
-            setSavedJobsList(prev => [...prev, jobId]);
-            Alert.alert("Success", "Job saved successfully");
+    const handleSaveJob = async (jobId: string) => {
+        try {
+            if (savedJobsList.includes(jobId)) {
+                setSavedJobsList(prev => prev.filter(id => id !== jobId));
+                showToast("Job removed from saved");
+            } else {
+                setSavedJobsList(prev => [...prev, jobId]);
+                showToast("Job saved successfully");
+                await jobService.saveJob(jobId);
+            }
+        } catch (error) {
+            console.error('Error saving job:', error);
         }
     };
 
@@ -406,6 +428,16 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({
                     </View>
                 </View>
             </Modal>
+
+            {/* Toast Notification */}
+            <Animated.View pointerEvents="none" style={[styles.toastContainer, toastStyle]}>
+                <View style={styles.toastContent}>
+                    <View style={styles.toastCheck}>
+                        <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                    </View>
+                    <Text style={styles.toastText}>{toastMessage}</Text>
+                </View>
+            </Animated.View>
         </View>
     );
 };
@@ -469,6 +501,41 @@ const styles = StyleSheet.create({
     modalFooter: { padding: 20, borderTopWidth: 1, borderTopColor: '#F0F0F0' },
     modalApplyBtn: { backgroundColor: '#1972ca', height: 50, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
     modalApplyBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: 'bold' },
+    toastContainer: {
+        position: 'absolute',
+        bottom: 120,
+        left: 20,
+        right: 20,
+        zIndex: 9999,
+        alignItems: 'center',
+    },
+    toastContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#111827',
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderRadius: 20,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 10,
+        elevation: 8,
+        gap: 12,
+    },
+    toastCheck: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: '#1972ca',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    toastText: {
+        color: '#FFFFFF',
+        fontSize: 14,
+        fontWeight: '600',
+    },
 });
 
 export default DashboardScreen;

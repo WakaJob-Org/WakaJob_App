@@ -1,5 +1,6 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
+import { jwtDecode } from 'jwt-decode';
 import CONFIG from '../config';
 import api from './api';
 
@@ -136,6 +137,9 @@ const authService = {
       const response = await authApi.post('/auth/resend-otp', data);
       return response.data;
     } catch (error: any) {
+      if (error.response?.status === 404) {
+        throw new Error('Backend Missing Endpoint: The backend developer needs to implement POST /auth/resend-otp.');
+      }
       const msg = parseError(error);
       console.error('Resend OTP failure:', msg);
       throw new Error(msg);
@@ -228,7 +232,18 @@ const authService = {
       }
 
       console.log('getUser: Fetching live profile data via main API...');
-      const response = await api.get('/auth/profile');
+      // Try /auth/profile first, then /auth/me as common synonyms
+      let response;
+      try {
+        response = await api.get('/auth/profile');
+      } catch (err: any) {
+        if (err.response?.status === 404) {
+          console.log('getUser: /auth/profile 404, trying /auth/me...');
+          response = await api.get('/auth/me');
+        } else {
+          throw err;
+        }
+      }
 
       console.log('getUser RAW RESPONSE:', JSON.stringify(response.data));
 
@@ -255,6 +270,69 @@ const authService = {
       } catch (cacheErr) { }
 
       return null;
+    }
+  },
+
+  async updateProfile(userId: string, data: any): Promise<any> {
+    try {
+      let activeUserId = userId;
+      if (!activeUserId || activeUserId === 'me') {
+        const token = await SecureStore.getItemAsync('auth_token');
+        if (token) {
+          try {
+            const decoded: any = jwtDecode(token);
+            activeUserId = decoded.sub || decoded.id || 'me';
+          } catch (e) { }
+        }
+      }
+
+      // Guarantee the ID is in the payload to satisfy Supabase RLS upsert rules
+      const payload = {
+        id: activeUserId !== 'me' ? activeUserId : undefined,
+        ...data
+      };
+
+      console.log('--- UPDATING PROFILE at /profiles/' + activeUserId + ' ---');
+      const response = await api.put('/profiles/' + activeUserId, payload);
+
+      // Update local cache if full_name was changed
+      if (payload.full_name) {
+        await SecureStore.setItemAsync('cached_user_name', payload.full_name);
+      }
+
+      return response.data;
+    } catch (error: any) {
+      // Fallback: some backends use /auth/profile for updates too
+      try {
+        let activeUserId = userId;
+        if (!activeUserId || activeUserId === 'me') {
+          const token = await SecureStore.getItemAsync('auth_token');
+          if (token) {
+            try {
+              const decoded: any = jwtDecode(token);
+              activeUserId = decoded.sub || decoded.id || 'me';
+            } catch (e) { }
+          }
+        }
+
+        const payload = {
+          id: activeUserId !== 'me' ? activeUserId : undefined,
+          ...data
+        };
+
+        console.log('Profile update failed at /profiles/' + userId + ', trying /auth/profile...');
+        const response = await api.patch('/auth/profile', payload);
+
+        if (payload.full_name) {
+          await SecureStore.setItemAsync('cached_user_name', payload.full_name);
+        }
+
+        return response.data;
+      } catch (innerError) {
+        const msg = parseError(error); // Return the original error msg
+        console.error('Update Profile failure:', msg);
+        throw new Error(msg);
+      }
     }
   }
 };

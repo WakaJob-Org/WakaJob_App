@@ -15,6 +15,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ScreenCapture from 'expo-screen-capture';
+import * as ImagePicker from 'expo-image-picker';
 import authService from '../../services/authService';
 import ProfileSkeleton from '../../components/ProfileSkeleton';
 
@@ -32,7 +33,10 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ isVisible, onBack, onLogo
     const [email, setEmail] = useState('');
     const [phone, setPhone] = useState('+1 (555) 123-4567');
     const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
+    const [userId, setUserId] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [skills, setSkills] = useState<{ id: string; name: string }[]>([]);
 
     ScreenCapture.usePreventScreenCapture();
 
@@ -42,9 +46,15 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ isVisible, onBack, onLogo
                 setLoading(true);
                 const user = await authService.getUser();
                 if (user) {
+                    setUserId(user.id || user._id || null);
                     setUsername(user.full_name || user.username || '');
                     setEmail(user.email || '');
                     setProfilePhoto(user.profile_photo || null);
+                    if (user.bio) setBio(user.bio);
+                    if (user.phone) setPhone(user.phone);
+                    if (user.skills && Array.isArray(user.skills)) {
+                        setSkills(user.skills.map((s: any) => ({ id: Math.random().toString(), name: s })));
+                    }
                 }
             } catch (error) {
                 console.error('Error fetching profile:', error);
@@ -56,6 +66,26 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ isVisible, onBack, onLogo
         if (isVisible) fetchProfile();
     }, [isVisible]);
 
+    const handleSave = async () => {
+        try {
+            setSaving(true);
+            const updateData = {
+                full_name: username,
+                bio: bio,
+                phone: phone,
+                skills: skills.map(s => s.name),
+            };
+
+            await authService.updateProfile(userId || 'me', updateData);
+            Alert.alert('Success', 'Profile updated successfully');
+            if (onBack) onBack();
+        } catch (error: any) {
+            Alert.alert('Error', error.message || 'Failed to update profile');
+        } finally {
+            setSaving(false);
+        }
+    };
+
     const getInitials = (name: string) => {
         if (!name) return 'U';
         const parts = name.trim().split(/\s+/);
@@ -66,6 +96,25 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ isVisible, onBack, onLogo
 
     const insets = useSafeAreaInsets();
     const avatarInitials = getInitials(username);
+
+    const pickImage = async () => {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+            Alert.alert('Permission mapping', 'We need camera roll permissions to change your profile picture.');
+            return;
+        }
+
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'],
+            allowsEditing: true,
+            aspect: [1, 1],
+            quality: 0.8,
+        });
+
+        if (!result.canceled) {
+            setProfilePhoto(result.assets[0].uri);
+        }
+    };
 
     if (!isVisible) return null;
     if (loading) return <ProfileSkeleton />;
@@ -79,8 +128,10 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ isVisible, onBack, onLogo
                         <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>Edit Profile</Text>
-                    <TouchableOpacity onPress={onBack}>
-                        <Text style={styles.headerSaveText}>Save</Text>
+                    <TouchableOpacity onPress={handleSave} disabled={saving}>
+                        <Text style={[styles.headerSaveText, saving && { opacity: 0.5 }]}>
+                            {saving ? '...' : 'Save'}
+                        </Text>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -107,11 +158,11 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ isVisible, onBack, onLogo
                                     <Text style={styles.avatarInitialsText}>{avatarInitials}</Text>
                                 </View>
                             )}
-                            <TouchableOpacity style={styles.cameraBadge}>
+                            <TouchableOpacity style={styles.cameraBadge} onPress={pickImage}>
                                 <Ionicons name="camera" size={18} color="#FFFFFF" />
                             </TouchableOpacity>
                         </View>
-                        <TouchableOpacity>
+                        <TouchableOpacity onPress={pickImage}>
                             <Text style={styles.changePictureText}>Change Profile Picture</Text>
                         </TouchableOpacity>
                     </View>
@@ -172,12 +223,34 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ isVisible, onBack, onLogo
                                 <TextInput
                                     style={styles.input}
                                     value={skillCategory}
-                                    editable={false}
+                                    onChangeText={setSkillCategory}
+                                    placeholder="e.g. UX/UI Design"
                                     placeholderTextColor="#9BA4B1"
                                 />
                                 <Ionicons name="chevron-down" size={20} color="#9BA4B1" style={styles.fieldIcon} />
                             </View>
-                            <TouchableOpacity style={styles.addSkillBtn}>
+
+                            {/* Dynamic Skills List */}
+                            <View style={styles.skillsList}>
+                                {skills.map(skill => (
+                                    <View key={skill.id} style={styles.skillTag}>
+                                        <Text style={styles.skillTagText}>{skill.name}</Text>
+                                        <TouchableOpacity onPress={() => setSkills(prev => prev.filter(s => s.id !== skill.id))}>
+                                            <Ionicons name="close-circle" size={16} color="#1972ca" />
+                                        </TouchableOpacity>
+                                    </View>
+                                ))}
+                            </View>
+
+                            <TouchableOpacity
+                                style={styles.addSkillBtn}
+                                onPress={() => {
+                                    if (skillCategory.trim()) {
+                                        setSkills(prev => [...prev, { id: Math.random().toString(), name: skillCategory }]);
+                                        setSkillCategory('');
+                                    }
+                                }}
+                            >
                                 <Ionicons name="add" size={18} color="#1972ca" />
                                 <Text style={styles.addSkillText}>Add Skill</Text>
                             </TouchableOpacity>
@@ -212,8 +285,12 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ isVisible, onBack, onLogo
                     </View>
 
                     {/* Bottom Button */}
-                    <TouchableOpacity style={styles.saveChangesBtn} onPress={onBack}>
-                        <Text style={styles.saveChangesText}>Save Changes</Text>
+                    <TouchableOpacity
+                        style={[styles.saveChangesBtn, saving && { opacity: 0.7 }]}
+                        onPress={handleSave}
+                        disabled={saving}
+                    >
+                        <Text style={styles.saveChangesText}>{saving ? 'Saving...' : 'Save Changes'}</Text>
                     </TouchableOpacity>
 
                     {onLogout && (
@@ -415,6 +492,26 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontSize: 42,
         fontWeight: 'bold',
+    },
+    skillsList: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+        marginBottom: 10,
+    },
+    skillTag: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#E0F2FE',
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 20,
+        gap: 6,
+    },
+    skillTagText: {
+        fontSize: 12,
+        color: '#1972ca',
+        fontWeight: '600',
     },
 });
 
