@@ -10,9 +10,9 @@ import {
     Image,
     KeyboardAvoidingView,
     Platform,
-    SafeAreaView,
     Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ScreenCapture from 'expo-screen-capture';
 import authService from '../../services/authService';

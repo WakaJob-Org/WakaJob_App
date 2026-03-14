@@ -10,12 +10,11 @@ import {
     FlatList,
     Alert,
     Modal,
-    SafeAreaView,
     ScrollView,
     RefreshControl,
     Image,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import jobService, { Job } from '../../services/jobService';
 import authService from '../../services/authService';

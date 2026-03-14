@@ -1,4 +1,3 @@
-// src/screens/Applications/ApplicationsScreen.tsx
 import React, { useState } from 'react';
 import {
     StyleSheet,
@@ -6,68 +5,137 @@ import {
     Text,
     TouchableOpacity,
     FlatList,
-    SafeAreaView,
     ScrollView,
+    TextInput,
+    Image,
     RefreshControl,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import jobService from '../../services/jobService';
 import ApplicationsSkeleton from '../../components/ApplicationsSkeleton';
+import ApplicantProfileScreen, { Applicant } from './ApplicantProfileScreen';
 
 interface ApplicationsScreenProps {
     isVisible: boolean;
     onBack?: () => void;
+    onViewApplicant?: (applicantId: string) => void;
 }
 
-const TABS = ['All', 'Pending', 'Accepted', 'Rejected'];
+type StatusKey = 'NEW' | 'UNDER REVIEW' | 'INTERVIEWING' | 'ACCEPTED';
 
-const MOCK_APPLICATIONS = [
+const FILTER_TABS = ['All', 'New', 'Reviewing', 'Interview', 'Accepted'];
+
+const MOCK_APPLICANTS: Applicant[] = [
     {
         id: '1',
-        title: 'Senior Product Designer',
-        company: 'TechFlow Inc.',
-        status: 'PENDING',
-        date: 'Oct 1st, 2023',
-        action: 'View Details',
+        name: 'Samuel Adebayo',
+        role: 'Master Carpenter',
+        location: 'Lagos, Nigeria',
+        status: 'NEW',
+        photo: null,
+        initials: 'SA',
+        isVerified: true,
+        bio: 'Dedicated and detail-oriented Master Carpenter with over 12 years of experience in residential and commercial construction. Specialized in bespoke cabinetry, structural framing, and intricate wood finishing.',
+        skills: ['Custom Cabinetry', 'Roof Framing', 'Wood Finishing', 'Blueprint Reading', 'Team Leadership'],
+        startDate: 'Oct 24, 2023',
+        jobDuration: '2 Weeks',
+        agreedRate: '₦150,000',
     },
     {
         id: '2',
-        title: 'Frontend Developer',
-        company: 'Creative Solutions',
-        status: 'ACCEPTED',
-        date: 'Sept 28, 2023',
-        action: 'Schedule Interview',
+        name: 'Chioma Okafor',
+        role: 'Senior Hair Stylist',
+        location: 'Abuja, Nigeria',
+        status: 'UNDER REVIEW',
+        photo: null,
+        initials: 'CO',
+        isVerified: true,
+        skills: ['Braiding', 'Coloring', 'Keratin Treatments', 'Styling'],
+        startDate: 'Nov 01, 2023',
+        jobDuration: '3 Days/Week',
+        agreedRate: '₦80,000',
     },
     {
         id: '3',
-        title: 'UX Researcher',
-        company: 'Global Media Group',
-        status: 'REJECTED',
-        date: 'Aug 24, 2023',
-        action: 'FeedBack',
+        name: 'Kofi Mensah',
+        role: 'Professional Barber',
+        location: 'Accra, Ghana',
+        status: 'INTERVIEWING',
+        photo: null,
+        initials: 'KM',
+        isVerified: false,
+        skills: ['Fades', 'Line-ups', 'Beard Grooming', 'Skin Tapers'],
+        startDate: 'Oct 30, 2023',
+        jobDuration: '1 Month',
+        agreedRate: '₦60,000',
     },
     {
         id: '4',
-        title: 'FullStack Engineer',
-        company: 'NextGen System',
-        status: 'PENDING',
-        date: 'Dec 25, 2023',
-        action: 'View Details',
+        name: 'Emeka Musa',
+        role: 'Apprentice Carpenter',
+        location: 'Kano, Nigeria',
+        status: 'ACCEPTED',
+        photo: null,
+        initials: 'EM',
+        isVerified: false,
+        skills: ['Sanding', 'Assembly', 'Wood Cutting'],
+        startDate: 'Oct 20, 2023',
+        jobDuration: '6 Months',
+        agreedRate: '₦40,000',
     },
 ];
 
-const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ isVisible, onBack }) => {
+const STATUS_CONFIG: Record<StatusKey, { label: string; bg: string; text: string; borderColor: string }> = {
+    'NEW': {
+        label: 'NEW',
+        bg: '#EBF5FF',
+        text: '#2563EB',
+        borderColor: '#BFDBFE',
+    },
+    'UNDER REVIEW': {
+        label: 'UNDER REVIEW',
+        bg: '#FFF7ED',
+        text: '#C2410C',
+        borderColor: '#FED7AA',
+    },
+    'INTERVIEWING': {
+        label: 'INTERVIEWING',
+        bg: '#F5F3FF',
+        text: '#7C3AED',
+        borderColor: '#DDD6FE',
+    },
+    'ACCEPTED': {
+        label: 'ACCEPTED',
+        bg: '#F0FDF4',
+        text: '#16A34A',
+        borderColor: '#BBF7D0',
+    },
+};
+
+const AVATAR_COLORS: Record<string, string> = {
+    SA: '#9CA3AF',
+    CO: '#6B7280',
+    KM: '#4B5563',
+    EM: '#93C5FD',
+};
+
+const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ isVisible, onBack, onViewApplicant }) => {
+    const insets = useSafeAreaInsets();
     const [activeTab, setActiveTab] = useState('All');
-    const [applications, setApplications] = useState<any[]>(MOCK_APPLICATIONS);
-    const [loading, setLoading] = useState(true);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [applicants, setApplicants] = useState<Applicant[]>(MOCK_APPLICANTS);
+    const [loading, setLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
+    const [selectedApplicant, setSelectedApplicant] = useState<Applicant | null>(null);
+    const [profileVisible, setProfileVisible] = useState(false);
 
     const fetchApplications = async (isRefreshing = false) => {
         try {
             if (!isRefreshing) setLoading(true);
             const fetched = await jobService.getUserApplications();
             if (fetched && fetched.length > 0) {
-                setApplications(fetched);
+                // map fetched data if available
             }
         } catch (error) {
             console.error('Error fetching applications:', error);
@@ -89,55 +157,71 @@ const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ isVisible, onBa
     if (!isVisible) return null;
     if (loading) return <ApplicationsSkeleton />;
 
-    const filteredApplications = applications.filter(app => {
-        if (activeTab === 'All') return true;
-        return app.status.toLowerCase() === activeTab.toLowerCase();
+    const filteredApplicants = applicants.filter((item) => {
+        const matchesSearch =
+            searchQuery === '' ||
+            item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            item.role.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesTab =
+            activeTab === 'All' ||
+            (activeTab === 'New' && item.status === 'NEW') ||
+            (activeTab === 'Reviewing' && item.status === 'UNDER REVIEW') ||
+            (activeTab === 'Interview' && item.status === 'INTERVIEWING') ||
+            (activeTab === 'Accepted' && item.status === 'ACCEPTED');
+        return matchesSearch && matchesTab;
     });
 
-    const getStatusStyles = (status: string) => {
-        switch (status) {
-            case 'ACCEPTED':
-                return { container: styles.statusAccepted, text: styles.statusTextAccepted };
-            case 'REJECTED':
-                return { container: styles.statusRejected, text: styles.statusTextRejected };
-            default:
-                return { container: styles.statusPending, text: styles.statusTextPending };
+    const handleViewDetails = (item: Applicant) => {
+        // If parent provides navigation handler, use it; otherwise open internal modal
+        if (onViewApplicant) {
+            onViewApplicant(item.id);
+        } else {
+            setSelectedApplicant(item);
+            setProfileVisible(true);
         }
     };
 
-    const renderApplicationCard = ({ item }: { item: typeof MOCK_APPLICATIONS[0] }) => {
-        const statusStyle = getStatusStyles(item.status);
+    const renderApplicantCard = ({ item }: { item: Applicant }) => {
+        const statusCfg = STATUS_CONFIG[item.status as StatusKey] ?? STATUS_CONFIG['NEW'];
 
         return (
-            <View style={styles.appCard}>
+            <View style={styles.card}>
+                {/* Top row: photo, name, role, badge */}
                 <View style={styles.cardTop}>
-                    <View style={styles.companyLogo}>
-                        <View style={styles.logoPlaceholder}>
-                            <Text style={styles.logoText}>the design crew</Text>
+                    {/* Avatar */}
+                    {item.photo ? (
+                        <Image source={{ uri: item.photo }} style={styles.avatar} />
+                    ) : (
+                        <View style={[styles.avatar, styles.avatarFallback, { backgroundColor: AVATAR_COLORS[item.initials ?? ''] ?? '#9CA3AF' }]}>
+                            <Text style={styles.avatarInitials}>{item.initials ?? item.name.charAt(0)}</Text>
                         </View>
+                    )}
+
+                    {/* Name & Role */}
+                    <View style={styles.nameBlock}>
+                        <Text style={styles.applicantName}>{item.name}</Text>
+                        <Text style={styles.applicantRole}>{item.role}</Text>
                     </View>
-                    <View style={styles.jobInfo}>
-                        <Text style={styles.jobTitle}>{item.title}</Text>
-                        <Text style={styles.companyName}>{item.company}</Text>
-                    </View>
-                    <View style={[styles.statusBadge, statusStyle.container]}>
-                        <Text style={[styles.statusTabText, statusStyle.text]}>{item.status}</Text>
+
+                    {/* Status badge */}
+                    <View style={[styles.statusBadge, { backgroundColor: statusCfg.bg, borderColor: statusCfg.borderColor }]}>
+                        <Text style={[styles.statusText, { color: statusCfg.text }]}>
+                            {statusCfg.label}
+                        </Text>
                     </View>
                 </View>
 
+                {/* Divider */}
+                <View style={styles.divider} />
+
+                {/* Bottom row: location + View Details */}
                 <View style={styles.cardBottom}>
-                    <View style={styles.dateRow}>
-                        <Ionicons name="calendar-outline" size={16} color="#9BA4B1" />
-                        <Text style={styles.dateText}>Applied {item.date}</Text>
+                    <View style={styles.locationRow}>
+                        <Ionicons name="location-outline" size={14} color="#9CA3AF" />
+                        <Text style={styles.locationText}>{item.location}</Text>
                     </View>
-                    <TouchableOpacity style={styles.actionLink}>
-                        <Text style={styles.actionText}>{item.action}</Text>
-                        <Ionicons
-                            name="chevron-forward"
-                            size={14}
-                            color="#1972ca"
-                            style={{ marginLeft: 2 }}
-                        />
+                    <TouchableOpacity activeOpacity={0.7} onPress={() => handleViewDetails(item)}>
+                        <Text style={styles.viewDetails}>View Details</Text>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -146,67 +230,84 @@ const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ isVisible, onBa
 
     return (
         <View style={styles.container}>
-            <SafeAreaView style={styles.safeArea}>
-                <View style={styles.header}>
-                    <View style={styles.headerTop}>
-                        <TouchableOpacity onPress={onBack} style={styles.iconButton}>
-                            <Ionicons name="chevron-back" size={28} color="#1972ca" />
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.iconButton}>
-                            <Ionicons name="search-outline" size={28} color="#1972ca" />
-                        </TouchableOpacity>
-                    </View>
-                    <Text style={styles.screenTitle}>My Application</Text>
-                </View>
+            <SafeAreaView style={{ backgroundColor: '#FFFFFF' }} />
 
-                <View style={styles.tabsWrapper}>
-                    <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={styles.tabsScroll}
-                    >
-                        {TABS.map((tab) => (
-                            <TouchableOpacity
-                                key={tab}
-                                style={[
-                                    styles.tabChip,
-                                    activeTab === tab && styles.activeTabChip
-                                ]}
-                                onPress={() => setActiveTab(tab)}
-                            >
-                                <Text style={[
-                                    styles.tabChipText,
-                                    activeTab === tab && styles.activeTabChipText
-                                ]}>
-                                    {tab}
-                                </Text>
-                            </TouchableOpacity>
-                        ))}
-                    </ScrollView>
-                </View>
+            {/* ── Header ── */}
+            <View style={[styles.header, { paddingTop: insets.top > 0 ? 8 : 16 }]}>
+                <TouchableOpacity onPress={onBack} style={styles.headerIconBtn} activeOpacity={0.7}>
+                    <Ionicons name="arrow-back" size={22} color="#1F2937" />
+                </TouchableOpacity>
+                <Text style={styles.headerTitle}>Job Applications</Text>
+                <TouchableOpacity style={styles.headerIconBtn} activeOpacity={0.7}>
+                    <Ionicons name="notifications-outline" size={22} color="#1F2937" />
+                </TouchableOpacity>
+            </View>
 
-                <FlatList
-                    data={filteredApplications}
-                    renderItem={renderApplicationCard}
-                    keyExtractor={(item) => item.id}
-                    contentContainerStyle={styles.appList}
-                    showsVerticalScrollIndicator={false}
-                    refreshControl={
-                        <RefreshControl
-                            refreshing={refreshing}
-                            onRefresh={onRefresh}
-                            colors={['#1972ca']}
-                            tintColor="#1972ca"
-                        />
-                    }
-                    ListEmptyComponent={
-                        <View style={styles.emptyState}>
-                            <Ionicons name="document-text-outline" size={64} color="#CCC" />
-                            <Text style={styles.emptyStateText}>No applications found</Text>
-                        </View>
-                    }
+            {/* ── Search Bar ── */}
+            <View style={styles.searchWrapper}>
+                <Ionicons name="search-outline" size={18} color="#9CA3AF" style={styles.searchIcon} />
+                <TextInput
+                    style={styles.searchInput}
+                    placeholder="Search by name or job title"
+                    placeholderTextColor="#B0B8C5"
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
                 />
-            </SafeAreaView>
+            </View>
+
+            {/* ── Filter Tabs ── */}
+            <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.tabsScroll}
+                style={styles.tabsContainer}
+            >
+                {FILTER_TABS.map((tab) => (
+                    <TouchableOpacity
+                        key={tab}
+                        style={[styles.tabChip, activeTab === tab && styles.activeTabChip]}
+                        onPress={() => setActiveTab(tab)}
+                        activeOpacity={0.8}
+                    >
+                        <Text style={[styles.tabChipText, activeTab === tab && styles.activeTabChipText]}>
+                            {tab}
+                        </Text>
+                    </TouchableOpacity>
+                ))}
+            </ScrollView>
+
+            {/* ── Applicant List ── */}
+            <FlatList
+                data={filteredApplicants}
+                renderItem={renderApplicantCard}
+                keyExtractor={(item) => item.id}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.listContent}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={onRefresh}
+                        colors={['#1972ca']}
+                        tintColor="#1972ca"
+                    />
+                }
+                ListHeaderComponent={
+                    <Text style={styles.sectionTitle}>Recent Applicants</Text>
+                }
+                ListEmptyComponent={
+                    <View style={styles.emptyState}>
+                        <Ionicons name="document-text-outline" size={60} color="#D1D5DB" />
+                        <Text style={styles.emptyStateText}>No applicants found</Text>
+                    </View>
+                }
+            />
+
+            {/* Applicant Profile Modal */}
+            <ApplicantProfileScreen
+                applicant={selectedApplicant}
+                visible={profileVisible}
+                onClose={() => setProfileVisible(false)}
+            />
         </View>
     );
 };
@@ -214,41 +315,67 @@ const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ isVisible, onBa
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F3F7FB',
+        backgroundColor: '#F8FAFB',
     },
-    safeArea: {
-        flex: 1,
-    },
+
+    // ── Header ──
     header: {
-        paddingHorizontal: 20,
-        paddingTop: 10,
-        paddingBottom: 20,
-    },
-    headerTop: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 20,
+        justifyContent: 'space-between',
+        paddingHorizontal: 20,
+        paddingBottom: 14,
+        backgroundColor: '#FFFFFF',
     },
-    iconButton: {
-        padding: 5,
+    headerIconBtn: {
+        width: 38,
+        height: 38,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
-    screenTitle: {
-        fontSize: 28,
-        fontWeight: '900',
-        color: '#111827',
+    headerTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: '#1F2937',
+        flex: 1,
+        textAlign: 'center',
     },
-    tabsWrapper: {
-        marginBottom: 20,
+
+    // ── Search ──
+    searchWrapper: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#F3F4F6',
+        borderRadius: 14,
+        marginHorizontal: 18,
+        marginTop: 14,
+        marginBottom: 14,
+        paddingHorizontal: 14,
+        paddingVertical: 12,
+    },
+    searchIcon: {
+        marginRight: 10,
+    },
+    searchInput: {
+        flex: 1,
+        fontSize: 14,
+        color: '#1F2937',
+        padding: 0,
+    },
+
+    // ── Tabs ──
+    tabsContainer: {
+        marginBottom: 10,
     },
     tabsScroll: {
-        paddingHorizontal: 20,
-        gap: 12,
+        paddingHorizontal: 18,
+        gap: 10,
+        paddingBottom: 2,
     },
     tabChip: {
-        paddingHorizontal: 24,
-        paddingVertical: 10,
-        borderRadius: 12,
+        paddingHorizontal: 20,
+        paddingVertical: 9,
+        borderRadius: 20,
         backgroundColor: '#FFFFFF',
         borderWidth: 1,
         borderColor: '#E5E7EB',
@@ -258,127 +385,123 @@ const styles = StyleSheet.create({
         borderColor: '#1972ca',
     },
     tabChipText: {
-        fontSize: 15,
-        fontWeight: '600',
+        fontSize: 14,
+        fontWeight: '500',
         color: '#6B7280',
     },
     activeTabChipText: {
         color: '#FFFFFF',
+        fontWeight: '600',
     },
-    appList: {
-        paddingHorizontal: 20,
+
+    // ── List ──
+    listContent: {
+        paddingHorizontal: 18,
         paddingBottom: 100,
+        paddingTop: 4,
     },
-    appCard: {
+    sectionTitle: {
+        fontSize: 17,
+        fontWeight: '700',
+        color: '#1F2937',
+        marginBottom: 14,
+        marginTop: 4,
+    },
+
+    // ── Applicant Card ──
+    card: {
         backgroundColor: '#FFFFFF',
-        borderRadius: 20,
-        padding: 16,
-        marginBottom: 16,
+        borderRadius: 16,
+        paddingHorizontal: 16,
+        paddingTop: 16,
+        paddingBottom: 14,
+        marginBottom: 12,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 10,
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
         elevation: 2,
     },
     cardTop: {
         flexDirection: 'row',
-        alignItems: 'flex-start',
-        marginBottom: 20,
+        alignItems: 'center',
+        marginBottom: 14,
     },
-    companyLogo: {
+    avatar: {
         width: 52,
         height: 52,
-        borderRadius: 12,
-        backgroundColor: '#000000',
-        justifyContent: 'center',
-        alignItems: 'center',
+        borderRadius: 26,
         marginRight: 12,
     },
-    logoPlaceholder: {
-        padding: 4,
+    avatarFallback: {
+        justifyContent: 'center',
+        alignItems: 'center',
     },
-    logoText: {
+    avatarInitials: {
         color: '#FFFFFF',
-        fontSize: 8,
-        fontWeight: 'bold',
-        textAlign: 'center',
+        fontSize: 16,
+        fontWeight: '700',
     },
-    jobInfo: {
+    nameBlock: {
         flex: 1,
-        paddingTop: 2,
     },
-    jobTitle: {
-        fontSize: 17,
-        fontWeight: 'bold',
-        color: '#1972ca',
-        marginBottom: 4,
+    applicantName: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#1F2937',
+        marginBottom: 3,
     },
-    companyName: {
-        fontSize: 14,
+    applicantRole: {
+        fontSize: 13,
         color: '#6B7280',
     },
     statusBadge: {
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 12,
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: 8,
+        borderWidth: 1,
     },
-    statusPending: {
-        backgroundColor: '#FEF9C3',
-    },
-    statusAccepted: {
-        backgroundColor: '#DCFCE7',
-    },
-    statusRejected: {
-        backgroundColor: '#FEE2E2',
-    },
-    statusTabText: {
-        fontSize: 11,
+    statusText: {
+        fontSize: 10,
         fontWeight: '800',
+        letterSpacing: 0.3,
     },
-    statusTextPending: {
-        color: '#854D0E',
+
+    divider: {
+        height: 1,
+        backgroundColor: '#F3F4F6',
+        marginBottom: 12,
     },
-    statusTextAccepted: {
-        color: '#166534',
-    },
-    statusTextRejected: {
-        color: '#991B1B',
-    },
+
     cardBottom: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        borderTopWidth: 1,
-        borderTopColor: '#F3F4F6',
-        paddingTop: 15,
     },
-    dateRow: {
+    locationRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 6,
+        gap: 5,
     },
-    dateText: {
+    locationText: {
         fontSize: 13,
-        color: '#9BA4B1',
-        fontWeight: '500',
+        color: '#9CA3AF',
     },
-    actionLink: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    actionText: {
+    viewDetails: {
         fontSize: 13,
         fontWeight: '700',
-        color: '#1972ca'
+        color: '#1972ca',
     },
+
+    // ── Empty State ──
     emptyState: {
         alignItems: 'center',
-        marginTop: 100,
+        marginTop: 80,
     },
     emptyStateText: {
-        marginTop: 16,
-        fontSize: 16,
-        color: '#9BA4B1',
+        marginTop: 14,
+        fontSize: 15,
+        color: '#9CA3AF',
     },
 });
 
