@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ScreenCapture from 'expo-screen-capture';
 import * as ImagePicker from 'expo-image-picker';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import authService from '../../services/authService';
 import ProfileSkeleton from '../../components/ProfileSkeleton';
 
@@ -37,6 +38,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ isVisible, onBack, onLogo
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [skills, setSkills] = useState<{ id: string; name: string }[]>([]);
+    const [showDatePicker, setShowDatePicker] = useState(false);
+    const [dobDate, setDobDate] = useState<Date>(new Date());
 
     ScreenCapture.usePreventScreenCapture();
 
@@ -49,9 +52,15 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ isVisible, onBack, onLogo
                     setUserId(user.id || user._id || null);
                     setUsername(user.full_name || user.username || '');
                     setEmail(user.email || '');
-                    setProfilePhoto(user.profile_photo || null);
+                    setProfilePhoto(user.profile_image_url || null);
                     if (user.bio) setBio(user.bio);
-                    if (user.phone) setPhone(user.phone);
+                    if (user.phone_number) setPhone(user.phone_number.replace('+237', ''));
+                    if (user.date_of_birth) {
+                        setDob(user.date_of_birth);
+                        try {
+                            setDobDate(new Date(user.date_of_birth));
+                        } catch (e) { }
+                    }
                     if (user.skills && Array.isArray(user.skills)) {
                         setSkills(user.skills.map((s: any) => ({ id: Math.random().toString(), name: s })));
                     }
@@ -69,17 +78,58 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ isVisible, onBack, onLogo
     const handleSave = async () => {
         try {
             setSaving(true);
-            const updateData = {
-                full_name: username,
-                bio: bio,
-                phone: phone,
-                skills: skills.map(s => s.name),
-            };
 
-            await authService.updateProfile(userId || 'me', updateData);
-            Alert.alert('Success', 'Profile updated successfully');
+            // Determine if we are sending a local file or just JSON
+            const isLocalFile = profilePhoto && (profilePhoto.startsWith('file://') || profilePhoto.startsWith('content://'));
+
+            let payload: any;
+
+            if (isLocalFile) {
+                // Use FormData for robust file upload
+                const formData = new FormData();
+                formData.append('full_name', username);
+                formData.append('bio', bio);
+                formData.append('phone_number', phone.startsWith('+237') ? phone : `+237${phone}`);
+                formData.append('date_of_birth', dob);
+                
+                // Many backends prefer arrays as JSON strings in FormData
+                formData.append('skills', JSON.stringify(skills.map(s => s.name)));
+
+                if (profilePhoto) {
+                    const uri = profilePhoto;
+                    const filename = uri.split('/').pop() || 'profile.jpg';
+                    const match = /\.(\w+)$/.exec(filename);
+                    const type = match ? `image/${match[1]}` : `image/jpeg`;
+                    
+                    const fileObj = {
+                        uri: Platform.OS === 'android' ? uri : uri.replace('file://', ''),
+                        name: filename,
+                        type,
+                    };
+                    
+                    // Try 'profile_image' first, as suggested by your logs
+                    formData.append('profile_image', fileObj as any);
+                }
+                payload = formData;
+            } else {
+                // Standard JSON payload for text-only updates
+                payload = {
+                    full_name: username,
+                    bio: bio,
+                    phone_number: phone.startsWith('+237') ? phone : `+237${phone}`,
+                    date_of_birth: dob,
+                    skills: skills.map(s => s.name),
+                    ...(profilePhoto && !profilePhoto.startsWith('http') && { profile_image_url: profilePhoto })
+                };
+            }
+
+            console.log('--- SAVING PROFILE ---', isLocalFile ? 'FORM DATA' : 'JSON');
+            await authService.updateProfile(userId || 'me', payload);
+            
+            // Immediate navigation without popup for smoother UX
             if (onBack) onBack();
         } catch (error: any) {
+            console.error('Save profile error:', error);
             Alert.alert('Error', error.message || 'Failed to update profile');
         } finally {
             setSaving(false);
@@ -100,7 +150,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ isVisible, onBack, onLogo
     const pickImage = async () => {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (status !== 'granted') {
-            Alert.alert('Permission mapping', 'We need camera roll permissions to change your profile picture.');
+            Alert.alert('Permission required', 'We need camera roll permissions to change your profile picture.');
             return;
         }
 
@@ -108,11 +158,19 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ isVisible, onBack, onLogo
             mediaTypes: ['images'],
             allowsEditing: true,
             aspect: [1, 1],
-            quality: 0.8,
+            quality: 0.5, // Slightly higher quality, FormData can handle it
         });
 
-        if (!result.canceled) {
+        if (!result.canceled && result.assets[0].uri) {
             setProfilePhoto(result.assets[0].uri);
+        }
+    };
+
+    const onDateChange = (event: any, selectedDate?: Date) => {
+        setShowDatePicker(false);
+        if (selectedDate) {
+            setDobDate(selectedDate);
+            setDob(selectedDate.toISOString().split('T')[0]);
         }
     };
 
@@ -183,19 +241,30 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ isVisible, onBack, onLogo
                             </View>
                         </View>
 
-                        {/* Date of Birth */}
                         <View style={styles.fieldGroup}>
                             <Text style={styles.label}>Date of Birth</Text>
-                            <View style={styles.inputWrapper}>
+                            <TouchableOpacity 
+                                style={styles.inputWrapper}
+                                onPress={() => setShowDatePicker(true)}
+                            >
                                 <TextInput
                                     style={styles.input}
                                     value={dob}
-                                    onChangeText={setDob}
-                                    placeholder="MM/DD/YYYY"
+                                    editable={false}
+                                    placeholder="YYYY-MM-DD"
                                     placeholderTextColor="#9BA4B1"
                                 />
                                 <Ionicons name="calendar-outline" size={20} color="#9BA4B1" style={styles.fieldIcon} />
-                            </View>
+                            </TouchableOpacity>
+                            {showDatePicker && (
+                                <DateTimePicker
+                                    value={dobDate}
+                                    mode="date"
+                                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                                    onChange={onDateChange}
+                                    maximumDate={new Date()}
+                                />
+                            )}
                         </View>
 
                         {/* Short Bio */}
@@ -271,14 +340,18 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ isVisible, onBack, onLogo
                                 />
                             </View>
                             <View style={styles.inputWrapper}>
-                                <Ionicons name="call-outline" size={20} color="#9BA4B1" style={styles.leftIcon} />
+                                <View style={styles.countryCodeContainer}>
+                                    <Text style={styles.flagEmoji}>🇨🇲</Text>
+                                    <Text style={styles.countryCodeText}>+237</Text>
+                                </View>
                                 <TextInput
                                     style={styles.input}
                                     value={phone}
                                     onChangeText={setPhone}
-                                    placeholder="Phone number"
+                                    placeholder="6xx xxx xxx"
                                     placeholderTextColor="#9BA4B1"
                                     keyboardType="phone-pad"
+                                    maxLength={9}
                                 />
                             </View>
                         </View>
@@ -423,6 +496,25 @@ const styles = StyleSheet.create({
     },
     leftIcon: {
         marginLeft: 15,
+    },
+    countryCodeContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderRightWidth: 1,
+        borderRightColor: '#E5E7EB',
+        paddingRight: 10,
+        marginLeft: 10,
+        marginRight: 5,
+        height: '60%',
+    },
+    flagEmoji: {
+        fontSize: 18,
+        marginRight: 4,
+    },
+    countryCodeText: {
+        fontSize: 14,
+        color: '#1F2937',
+        fontWeight: '600',
     },
     charCount: {
         fontSize: 12,

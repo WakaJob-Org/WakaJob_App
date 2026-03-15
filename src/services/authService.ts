@@ -22,6 +22,10 @@ let currentToken: string | null = null;
 const parseError = (error: any): string => {
   if (error.response?.data) {
     const data = error.response.data;
+    // If it's HTML (likely a 500 error), return a clean message
+    if (typeof data === 'string' && data.toLowerCase().includes('<!doctype html>')) {
+      return 'Server error (500). The backend might be having issues with the image format.';
+    }
     // Handle nested structure: { data: { message: "..." } }
     if (data.data?.message) return data.data.message;
     // Handle standard structure: { message: "..." }
@@ -277,27 +281,31 @@ const authService = {
     try {
       let activeUserId = userId;
       if (!activeUserId || activeUserId === 'me') {
-        const token = await SecureStore.getItemAsync('auth_token');
-        if (token) {
-          try {
-            const decoded: any = jwtDecode(token);
-            activeUserId = decoded.sub || decoded.id || 'me';
-          } catch (e) { }
-        }
+        const user = await this.getUser();
+        activeUserId = user?.id || user?._id || 'me';
       }
 
-      // Guarantee the ID is in the payload to satisfy Supabase RLS upsert rules
-      const payload = {
-        id: activeUserId !== 'me' ? activeUserId : undefined,
-        ...data
-      };
+      let payload = data;
+
+      // Only append ID if data is a standard object, not FormData
+      if (!(data instanceof FormData)) {
+        payload = {
+          id: activeUserId !== 'me' ? activeUserId : undefined,
+          ...data
+        };
+      } else {
+        // For FormData, inject ID specifically
+        if (activeUserId !== 'me') {
+          payload.append('id', activeUserId);
+        }
+      }
 
       console.log('--- UPDATING PROFILE at /profiles/' + activeUserId + ' ---');
       const response = await api.put('/profiles/' + activeUserId, payload);
 
-      // Update local cache if full_name was changed
-      if (payload.full_name) {
-        await SecureStore.setItemAsync('cached_user_name', payload.full_name);
+      // Update local cache if full_name was provided in a standard object
+      if (!(data instanceof FormData) && data.full_name) {
+        await SecureStore.setItemAsync('cached_user_name', data.full_name);
       }
 
       return response.data;
@@ -315,16 +323,24 @@ const authService = {
           }
         }
 
-        const payload = {
-          id: activeUserId !== 'me' ? activeUserId : undefined,
-          ...data
-        };
+        let payload = data;
+        if (!(data instanceof FormData)) {
+          payload = {
+            id: activeUserId !== 'me' ? activeUserId : undefined,
+            ...data
+          };
+        } else {
+          // For FormData, inject ID specifically if not already present
+          if (activeUserId !== 'me' && !payload.has('id')) {
+            payload.append('id', activeUserId);
+          }
+        }
 
         console.log('Profile update failed at /profiles/' + userId + ', trying /auth/profile...');
         const response = await api.patch('/auth/profile', payload);
 
-        if (payload.full_name) {
-          await SecureStore.setItemAsync('cached_user_name', payload.full_name);
+        if (!(data instanceof FormData) && data.full_name) {
+          await SecureStore.setItemAsync('cached_user_name', data.full_name);
         }
 
         return response.data;
@@ -333,6 +349,24 @@ const authService = {
         console.error('Update Profile failure:', msg);
         throw new Error(msg);
       }
+    }
+  },
+  
+  async verifyEmployer(formData: FormData): Promise<any> {
+    try {
+      console.log('--- SUBMITTING EMPLOYER VERIFICATION ---');
+      // Using /profiles/verify as the standard endpoint for professional validation
+      // Fallback to updateProfile if specific endpoint doesn't exist
+      const response = await api.post('/profiles/verify', formData);
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        // If specific verify endpoint is missing, try general profile update
+        return this.updateProfile('me', formData);
+      }
+      const msg = parseError(error);
+      console.error('Employer Verification failure:', msg);
+      throw new Error(msg);
     }
   }
 };

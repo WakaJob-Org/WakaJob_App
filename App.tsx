@@ -10,6 +10,7 @@ import ForgotPasswordScreen from './src/screens/Auth/ForgotPassword/ForgotPasswo
 import DashboardScreen from './src/screens/Dashboard/DashboardScreen';
 import ApplicationsScreen from './src/screens/Applications/ApplicationsScreen';
 import ProfileScreen from './src/screens/Profile/ProfileScreen';
+import ProfileSetupScreen from './src/screens/Profile/ProfileSetupScreen';
 import SettingsScreen from './src/screens/Settings/SettingsScreen';
 import EmployerVerificationScreen from './src/screens/Auth/Verification/EmployerVerificationScreen';
 import NotificationsScreen from './src/screens/Dashboard/NotificationsScreen';
@@ -25,10 +26,11 @@ export default function App() {
     'Pacifico-Regular': Pacifico_400Regular,
   });
 
-  const [authMode, setAuthMode] = useState<'signup' | 'login' | 'otp' | 'forgot_password' | 'verification' | 'notifications' | 'dashboard' | 'initializing' | null>('initializing');
+  const [authMode, setAuthMode] = useState<'signup' | 'login' | 'otp' | 'forgot_password' | 'verification' | 'notifications' | 'dashboard' | 'profile_setup' | 'initializing' | null>('initializing');
   const [activeTab, setActiveTab] = useState<TabType | 'settings'>('jobs');
   const [userName, setUserName] = useState('Alex');
   const [verificationEmail, setVerificationEmail] = useState('');
+  const [isNewUser, setIsNewUser] = useState(false);
 
   useEffect(() => {
     const initApp = async () => {
@@ -84,6 +86,7 @@ export default function App() {
   const openForgotPassword = () => setAuthMode('forgot_password');
   const openOtp = (email: string) => {
     setVerificationEmail(email);
+    setIsNewUser(true); // Flag that this is a signup flow
     setAuthMode('otp');
   };
 
@@ -93,7 +96,10 @@ export default function App() {
       setUserName(user.full_name);
     }
 
-    if (user && user.role === 'employer') {
+    if (isNewUser) {
+      setIsNewUser(false);
+      setAuthMode('profile_setup');
+    } else if (user && user.role === 'employer') {
       setAuthMode('verification');
     } else {
       setAuthMode('dashboard');
@@ -105,8 +111,15 @@ export default function App() {
     if (user && user.full_name) {
       setUserName(user.full_name);
     }
-    setAuthMode('dashboard');
+    
+    // If it's a new employer who hasn't verified, show verification instead
+    if (user && user.role === 'employer') {
+      setAuthMode('verification');
+    } else {
+      setAuthMode('dashboard');
+    }
   };
+
   const logout = () => {
     authService.logout();
     setAuthMode(null);
@@ -179,8 +192,8 @@ export default function App() {
         return (
           <EmployerVerificationScreen
             isVisible={true}
-            onClose={() => setAuthMode(null)}
-            onSubmit={openDashboard}
+            onClose={logout}
+            onSubmit={() => setAuthMode('dashboard')}
           />
         );
       case 'initializing':
@@ -189,12 +202,19 @@ export default function App() {
       case 'login':
       case 'otp':
       case 'forgot_password':
+      case 'profile_setup':
         return (
           <>
             <SplashScreenUI
               onGetStarted={openSignup}
               showButton={authMode === null}
             />
+            {authMode === 'profile_setup' && (
+              <ProfileSetupScreen
+                isVisible={true}
+                onComplete={() => setAuthMode('dashboard')}
+              />
+            )}
             {authMode === 'signup' && (
               <SignupScreen
                 isVisible={true}

@@ -6,7 +6,6 @@ const api = axios.create({
     baseURL: CONFIG.API_BASE_URL,
     timeout: CONFIG.TIMEOUT,
     headers: {
-        'Content-Type': 'application/json',
         'Accept': 'application/json'
     },
 });
@@ -17,6 +16,14 @@ api.interceptors.request.use(
         const token = await SecureStore.getItemAsync('auth_token');
         if (token && config.headers) {
             config.headers.Authorization = `Bearer ${token}`;
+        }
+        // Dynamically set content type based on payload
+        if (config.data && config.data instanceof FormData) {
+            // Delete Content-Type to let axios automatically set it with the correct boundary
+            delete config.headers['Content-Type'];
+            delete config.headers['content-type'];
+        } else if (config.data) {
+            config.headers['Content-Type'] = 'application/json';
         }
         return config;
     },

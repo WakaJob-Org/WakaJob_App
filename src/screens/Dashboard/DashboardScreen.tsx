@@ -322,8 +322,8 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({
                             <View style={styles.notifDot} />
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.avatar} onPress={onProfilePress}>
-                            {profile?.profile_photo ? (
-                                <Image source={{ uri: profile.profile_photo }} style={styles.avatarImage} />
+                            {profile?.profile_image_url ? (
+                                <Image source={{ uri: profile.profile_image_url }} style={styles.avatarImage} />
                             ) : (
                                 <View style={styles.avatarInner}>
                                     <Text style={styles.avatarChar}>{avatarInitials}</Text>

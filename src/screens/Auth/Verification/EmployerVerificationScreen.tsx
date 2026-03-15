@@ -11,7 +11,10 @@ import {
     KeyboardAvoidingView,
     Platform,
     Image,
+    ActivityIndicator,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import authService from '../../../services/authService';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -34,33 +37,99 @@ const EmployerVerificationScreen: React.FC<EmployerVerificationScreenProps> = ({
     const [bio, setBio] = useState('');
     const [location, setLocation] = useState('');
     const [isApprenticeOpen, setIsApprenticeOpen] = useState<boolean | null>(null);
+    const [loading, setLoading] = useState(false);
 
-    const handleFileUpload = (type: string) => {
-        Alert.alert("Upload", `File selection for ${type} will be available in the production build.`);
-    };
+    // File states
+    const [workLocationPic, setWorkLocationPic] = useState<string | null>(null);
+    const [permitDoc, setPermitDoc] = useState<string | null>(null);
+    const [idFrontPic, setIdFrontPic] = useState<string | null>(null);
+    const [idBackPic, setIdBackPic] = useState<string | null>(null);
 
-    const handleSubmit = () => {
-        if (!bio || !location || isApprenticeOpen === null) {
-            Alert.alert("Missing Information", "Please complete all fields before submitting.");
+    const pickImage = async (type: string) => {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+            Alert.alert('Permission required', 'We need camera roll permissions to upload verification documents.');
             return;
         }
 
-        Alert.alert(
-            "Submitted",
-            "Your professional verification details have been received. Our team will review them shortly.",
-            [{ text: "OK", onPress: onSubmit }]
-        );
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'],
+            allowsEditing: true,
+            quality: 0.6,
+        });
+
+        if (!result.canceled && result.assets[0].uri) {
+            const uri = result.assets[0].uri;
+            switch(type) {
+                case 'Work Location Image': setWorkLocationPic(uri); break;
+                case 'Council Permit': setPermitDoc(uri); break;
+                case 'ID Front': setIdFrontPic(uri); break;
+                case 'ID Back': setIdBackPic(uri); break;
+            }
+        }
+    };
+
+    const handleFileUpload = (type: string) => {
+        pickImage(type);
+    };
+
+    const handleSubmit = async () => {
+        if (!bio || !location || isApprenticeOpen === null) {
+            Alert.alert("Missing Information", "Please complete all text fields and preferences.");
+            return;
+        }
+
+        if (!workLocationPic || !idFrontPic) {
+            Alert.alert("Documents Required", "Please upload at least the Work Location image and your ID frontside.");
+            return;
+        }
+
+        setLoading(true);
+        try {
+            const formData = new FormData();
+            formData.append('bio', bio);
+            formData.append('location', location);
+            formData.append('looking_for_apprentice', String(isApprenticeOpen));
+
+            const appendFile = (uri: string, fieldName: string) => {
+                const filename = uri.split('/').pop() || `${fieldName}.jpg`;
+                const match = /\.(\w+)$/.exec(filename);
+                const type = match ? `image/${match[1]}` : `image/jpeg`;
+                formData.append(fieldName, {
+                    uri: Platform.OS === 'android' ? uri : uri.replace('file://', ''),
+                    name: filename,
+                    type,
+                } as any);
+            };
+
+            if (workLocationPic) appendFile(workLocationPic, 'work_location_image');
+            if (permitDoc) appendFile(permitDoc, 'council_permit');
+            if (idFrontPic) appendFile(idFrontPic, 'id_front');
+            if (idBackPic) appendFile(idBackPic, 'id_back');
+
+            await authService.verifyEmployer(formData);
+
+            Alert.alert(
+                "Verification Submitted",
+                "Your details have been saved successfully. Our team will review your professional status shortly.",
+                [{ text: "OK", onPress: onSubmit }]
+            );
+        } catch (error: any) {
+            Alert.alert("Submission Failed", error.message || "Could not save verification data.");
+        } finally {
+            setLoading(false);
+        }
     };
 
     if (!isVisible) return null;
 
     return (
         <View style={styles.container}>
-            <View style={[styles.header, { paddingTop: insets.top }]}>
+            <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
                 <TouchableOpacity onPress={onClose} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color="#333" />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Professional Verification</Text>
+                <Text style={styles.headerTitle}>Proffessional Verification</Text>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
@@ -72,7 +141,11 @@ const EmployerVerificationScreen: React.FC<EmployerVerificationScreenProps> = ({
                             onPress={() => handleFileUpload("Work Location Image")}
                         >
                             <View style={styles.dashedBox}>
-                                <Ionicons name="cloud-upload-outline" size={40} color="#9BA4B1" />
+                                {workLocationPic ? (
+                                    <Image source={{ uri: workLocationPic }} style={styles.uploadedImage} />
+                                ) : (
+                                    <Ionicons name="cloud-upload" size={32} color="#9BA4B1" />
+                                )}
                             </View>
                             <View style={styles.cameraCircle}>
                                 <Ionicons name="camera" size={18} color="#FFF" />
@@ -86,11 +159,13 @@ const EmployerVerificationScreen: React.FC<EmployerVerificationScreenProps> = ({
                     <View style={styles.section}>
                         <Text style={styles.sectionLabel}>Council Permit</Text>
                         <View style={styles.permitBox}>
-                            <View style={styles.fileIconBox}>
+                            <View style={[styles.fileIconBox, { backgroundColor: '#F0F7FF' }]}>
                                 <Ionicons name="document-text" size={24} color="#1972ca" />
                             </View>
                             <View style={styles.fileInfo}>
-                                <Text style={styles.fileName}>Upload Permit Document</Text>
+                                <Text style={styles.fileName}>
+                                    {permitDoc ? permitDoc.split('/').pop() : "Upload Permit Document"}
+                                </Text>
                                 <Text style={styles.fileHint}>pdf, jpg or png · 5mb</Text>
                             </View>
                             <TouchableOpacity style={styles.selectFileBtn} onPress={() => handleFileUpload("Council Permit")}>
@@ -118,12 +193,24 @@ const EmployerVerificationScreen: React.FC<EmployerVerificationScreenProps> = ({
                         <Text style={styles.sectionLabel}>Government ID Card</Text>
                         <View style={styles.idGrid}>
                             <TouchableOpacity style={styles.idBox} onPress={() => handleFileUpload("ID Front")}>
-                                <Ionicons name="cloud-upload-outline" size={24} color="#9BA4B1" />
-                                <Text style={styles.idBoxText}>Frontside</Text>
+                                {idFrontPic ? (
+                                    <Image source={{ uri: idFrontPic }} style={styles.uploadedImage} />
+                                ) : (
+                                    <>
+                                        <Ionicons name="cloud-upload" size={24} color="#9BA4B1" />
+                                        <Text style={styles.idBoxText}>Frontside</Text>
+                                    </>
+                                )}
                             </TouchableOpacity>
                             <TouchableOpacity style={styles.idBox} onPress={() => handleFileUpload("ID Back")}>
-                                <Ionicons name="cloud-upload-outline" size={24} color="#9BA4B1" />
-                                <Text style={styles.idBoxText}>Backside</Text>
+                                {idBackPic ? (
+                                    <Image source={{ uri: idBackPic }} style={styles.uploadedImage} />
+                                ) : (
+                                    <>
+                                        <Ionicons name="cloud-upload" size={24} color="#9BA4B1" />
+                                        <Text style={styles.idBoxText}>Backside</Text>
+                                    </>
+                                )}
                             </TouchableOpacity>
                         </View>
                     </View>
@@ -132,21 +219,14 @@ const EmployerVerificationScreen: React.FC<EmployerVerificationScreenProps> = ({
                     <View style={styles.section}>
                         <Text style={styles.sectionLabel}>Service Location</Text>
                         <View style={styles.locationInputWrapper}>
-                            <Ionicons name="location-outline" size={20} color="#1972ca" style={styles.locationIcon} />
+                            <Ionicons name="location" size={20} color="#1972ca" style={styles.locationIcon} />
                             <TextInput
                                 style={styles.locationInput}
                                 placeholder="street address, city, country"
                                 value={location}
                                 onChangeText={setLocation}
+                                placeholderTextColor="#9BA4B1"
                             />
-                        </View>
-                        <TouchableOpacity style={styles.autoDetectBtn}>
-                            <Ionicons name="location" size={18} color="#1972ca" />
-                            <Text style={styles.autoDetectText}>Auto-detect Location</Text>
-                        </TouchableOpacity>
-
-                        <View style={styles.mapPlaceholder}>
-                            <Text style={styles.mapText}>MAP</Text>
                         </View>
                     </View>
 
@@ -173,8 +253,16 @@ const EmployerVerificationScreen: React.FC<EmployerVerificationScreenProps> = ({
                     </View>
 
                     {/* Submit Button */}
-                    <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
-                        <Text style={styles.submitButtonText}>Submit for Verification</Text>
+                    <TouchableOpacity 
+                        style={[styles.submitButton, loading && styles.submitButtonDisabled]} 
+                        onPress={handleSubmit}
+                        disabled={loading}
+                    >
+                        {loading ? (
+                            <ActivityIndicator color="#FFF" />
+                        ) : (
+                            <Text style={styles.submitButtonText}>Submit for Verification</Text>
+                        )}
                     </TouchableOpacity>
                 </Animated.View>
             </ScrollView>
@@ -230,6 +318,12 @@ const styles = StyleSheet.create({
         backgroundColor: '#F8F9FA',
         justifyContent: 'center',
         alignItems: 'center',
+        overflow: 'hidden',
+    },
+    uploadedImage: {
+        width: '100%',
+        height: '100%',
+        resizeMode: 'cover',
     },
     cameraCircle: {
         position: 'absolute',
@@ -365,25 +459,25 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         color: '#1972ca',
     },
-    mapPlaceholder: {
+    mapContainer: {
         width: '100%',
-        height: 100,
-        backgroundColor: '#C4C4C4',
+        height: 150,
+        backgroundColor: '#F1F5F9',
         borderRadius: 15,
-        justifyContent: 'center',
-        alignItems: 'center',
+        overflow: 'hidden',
+        marginTop: 5,
     },
-    mapText: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#333',
-        letterSpacing: 2,
+    mapImage: {
+        width: '100%',
+        height: '100%',
+        resizeMode: 'cover',
     },
     apprenticeCard: {
         backgroundColor: '#F7F9FC',
         padding: 20,
         borderRadius: 20,
         marginBottom: 25,
+        marginTop: 20,
     },
     apprenticeTitle: {
         fontSize: 14,
@@ -426,19 +520,24 @@ const styles = StyleSheet.create({
     },
     submitButton: {
         backgroundColor: '#1972ca',
-        height: 56,
-        borderRadius: 16,
+        height: 54,
+        borderRadius: 12,
         justifyContent: 'center',
         alignItems: 'center',
+        marginTop: 5,
         shadowColor: '#1972ca',
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
+        shadowOpacity: 0.2,
         shadowRadius: 8,
-        elevation: 5,
+        elevation: 4,
+    },
+    submitButtonDisabled: {
+        backgroundColor: '#9BA4B1',
+        shadowOpacity: 0,
     },
     submitButtonText: {
         color: '#FFFFFF',
-        fontSize: 18,
+        fontSize: 16,
         fontWeight: '700',
     },
 });
