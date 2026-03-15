@@ -8,10 +8,11 @@ import {
     Dimensions,
     KeyboardAvoidingView,
     Platform,
+    ActivityIndicator,
     StatusBar,
     Alert,
-    ActivityIndicator,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ScreenCapture from 'expo-screen-capture';
 import Animated, {
@@ -149,19 +150,11 @@ const OTPScreen: React.FC<OTPScreenProps> = ({ isVisible, email, onClose, onVeri
         setLoading(true);
         try {
             console.log('--- VERIFYING OTP ---', code);
-            const response = await otpService.verifyOTP({ email, otp: code });
-            console.log('OTP Verify Response:', JSON.stringify(response));
 
-            // Extract token from either response.token or response.data.token
-            const token = response.token || response.data?.token;
+            // Use authService.verifyOTP which has the robust Deep Token Scan and automatic session persistence
+            await authService.verifyOTP({ email, otp: code });
 
-            if (token) {
-                console.log('Token found, saving session...');
-                await authService.setToken(token);
-            } else {
-                console.warn('No token found in successful OTP response');
-            }
-
+            console.log('OTP Verified successfully and session persisted.');
             onVerify();
         } catch (error: any) {
             // Check for common error messages
@@ -172,13 +165,15 @@ const OTPScreen: React.FC<OTPScreenProps> = ({ isVisible, email, onClose, onVeri
         }
     };
 
+    const insets = useSafeAreaInsets();
+
     if (!isVisible && translateY.value === height) return null;
 
     return (
         <Animated.View style={[styles.container, animatedStyle]}>
             <StatusBar barStyle="dark-content" />
 
-            <View style={styles.header}>
+            <View style={[styles.header, { paddingTop: Math.max(insets.top, 20) }]}>
                 <TouchableOpacity onPress={onClose} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color="#333" />
                 </TouchableOpacity>
@@ -261,7 +256,6 @@ const styles = StyleSheet.create({
         zIndex: 100,
     },
     header: {
-        paddingTop: Platform.OS === 'ios' ? 60 : 40,
         paddingHorizontal: 20,
     },
     backButton: {

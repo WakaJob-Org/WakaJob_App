@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, StatusBar, Linking } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import * as SecureStore from 'expo-secure-store';
 import SplashScreenUI from './src/screens/Splash/SplashScreen';
 import SignupScreen from './src/screens/Auth/Signup/SignupScreen';
 import LoginScreen from './src/screens/Auth/Login/LoginScreen';
@@ -9,6 +10,7 @@ import ForgotPasswordScreen from './src/screens/Auth/ForgotPassword/ForgotPasswo
 import DashboardScreen from './src/screens/Dashboard/DashboardScreen';
 import ApplicationsScreen from './src/screens/Applications/ApplicationsScreen';
 import ProfileScreen from './src/screens/Profile/ProfileScreen';
+import ProfileSetupScreen from './src/screens/Profile/ProfileSetupScreen';
 import SettingsScreen from './src/screens/Settings/SettingsScreen';
 import VerificationFailedScreen from './src/screens/Verification/VerificationFailedScreen';
 import VerificationPendingScreen from './src/screens/Verification/VerificationPendingScreen';
@@ -29,6 +31,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<TabType | 'settings'>('jobs');
   const [userName, setUserName] = useState('Alex');
   const [verificationEmail, setVerificationEmail] = useState('');
+  const [isNewUser, setIsNewUser] = useState(false);
 
   useEffect(() => {
     const initApp = async () => {
@@ -40,6 +43,12 @@ export default function App() {
         // 2. Immediate local check for token
         const authenticated = await authService.isAuthenticated();
         console.log('Auth check:', authenticated);
+
+        // Pre-load cached name for immediate UI feedback
+        try {
+          const cachedName = await SecureStore.getItemAsync('cached_user_name');
+          if (cachedName) setUserName(cachedName);
+        } catch (e) { }
 
         if (authenticated) {
           // If we have a token, jump to dashboard immediately to avoid showing login
@@ -78,9 +87,40 @@ export default function App() {
   const openForgotPassword = () => setAuthMode('forgot_password');
   const openOtp = (email: string) => {
     setVerificationEmail(email);
+    setIsNewUser(true); // Flag that this is a signup flow
     setAuthMode('otp');
   };
-  const openDashboard = () => setAuthMode('dashboard');
+
+  const handleAfterOtp = async () => {
+    const user = await authService.getUser();
+    if (user && user.full_name) {
+      setUserName(user.full_name);
+    }
+
+    if (isNewUser) {
+      setIsNewUser(false);
+      setAuthMode('profile_setup');
+    } else if (user && user.role === 'employer') {
+      setAuthMode('verification');
+    } else {
+      setAuthMode('dashboard');
+    }
+  };
+
+  const openDashboard = async () => {
+    const user = await authService.getUser();
+    if (user && user.full_name) {
+      setUserName(user.full_name);
+    }
+    
+    // If it's a new employer who hasn't verified, show verification instead
+    if (user && user.role === 'employer') {
+      setAuthMode('verification');
+    } else {
+      setAuthMode('dashboard');
+    }
+  };
+
   const logout = () => {
     authService.logout();
     setAuthMode(null);
@@ -97,6 +137,7 @@ export default function App() {
             onLogout={logout}
             onSettingsPress={() => setActiveTab('settings')}
             onProfilePress={() => setActiveTab('profile')}
+            onNotificationPress={() => setAuthMode('notifications')}
           />
         );
       case 'applications':
@@ -120,6 +161,7 @@ export default function App() {
               onLogout={logout}
               onSettingsPress={() => setActiveTab('settings')}
               onProfilePress={() => setActiveTab('profile')}
+              onNotificationPress={() => setAuthMode('notifications')}
             />
           </View>
         );
@@ -128,51 +170,13 @@ export default function App() {
     }
   };
 
-  return (
-    <SafeAreaProvider>
-      <View style={styles.container} onLayout={onLayoutRootView}>
-        <StatusBar hidden />
-
-        {authMode !== 'dashboard' && (
-          <SplashScreenUI
-            onGetStarted={openSignup}
-            showButton={authMode === null}
-          />
-        )}
-
-        {authMode === 'signup' && (
-          <SignupScreen
+  const renderPrimaryLayer = () => {
+    switch (authMode) {
+      case 'notifications':
+        return (
+          <NotificationsScreen
             isVisible={true}
-            onClose={() => setAuthMode(null)}
-            onSwitchToSignin={openLogin}
-            onSignup={openOtp}
-          />
-        )}
-
-        {authMode === 'login' && (
-          <LoginScreen
-            isVisible={true}
-            onClose={() => setAuthMode(null)}
-            onSwitchToSignup={openSignup}
-            onForgotPassword={openForgotPassword}
-            onLogin={openDashboard}
-          />
-        )}
-
-        {authMode === 'forgot_password' && (
-          <ForgotPasswordScreen
-            isVisible={true}
-            onClose={() => setAuthMode('login')}
-            onSuccess={() => setAuthMode('login')}
-          />
-        )}
-
-        {authMode === 'otp' && (
-          <OTPScreen
-            isVisible={true}
-            email={verificationEmail}
-            onClose={() => setAuthMode('signup')}
-            onVerify={openDashboard}
+            onClose={() => setAuthMode('dashboard')}
           />
         )}
 
@@ -210,7 +214,78 @@ export default function App() {
               onTabPress={(tab) => setActiveTab(tab)}
             />
           </View>
-        )}
+        );
+      case 'verification':
+        return (
+          <EmployerVerificationScreen
+            isVisible={true}
+            onClose={logout}
+            onSubmit={() => setAuthMode('dashboard')}
+          />
+        );
+      case 'initializing':
+      case null:
+      case 'signup':
+      case 'login':
+      case 'otp':
+      case 'forgot_password':
+      case 'profile_setup':
+        return (
+          <>
+            <SplashScreenUI
+              onGetStarted={openSignup}
+              showButton={authMode === null}
+            />
+            {authMode === 'profile_setup' && (
+              <ProfileSetupScreen
+                isVisible={true}
+                onComplete={() => setAuthMode('dashboard')}
+              />
+            )}
+            {authMode === 'signup' && (
+              <SignupScreen
+                isVisible={true}
+                onClose={() => setAuthMode(null)}
+                onSwitchToSignin={openLogin}
+                onSignup={openOtp}
+              />
+            )}
+            {authMode === 'login' && (
+              <LoginScreen
+                isVisible={true}
+                onClose={() => setAuthMode(null)}
+                onSwitchToSignup={openSignup}
+                onForgotPassword={openForgotPassword}
+                onLogin={openDashboard}
+              />
+            )}
+            {authMode === 'otp' && (
+              <OTPScreen
+                isVisible={true}
+                email={verificationEmail}
+                onClose={() => setAuthMode('signup')}
+                onVerify={handleAfterOtp}
+              />
+            )}
+            {authMode === 'forgot_password' && (
+              <ForgotPasswordScreen
+                isVisible={true}
+                onClose={() => setAuthMode('login')}
+                onSuccess={() => setAuthMode('login')}
+              />
+            )}
+          </>
+        );
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <SafeAreaProvider>
+      <View style={styles.container} onLayout={onLayoutRootView}>
+        <StatusBar hidden />
+        {renderPrimaryLayer()}
       </View>
     </SafeAreaProvider>
   );

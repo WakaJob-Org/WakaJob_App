@@ -1,6 +1,8 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
+import { jwtDecode } from 'jwt-decode';
 import CONFIG from '../config';
+import api from './api';
 
 // Dedicated instance for Auth and Public routes (No interceptors, no tokens)
 const authApi = axios.create({
@@ -20,6 +22,10 @@ let currentToken: string | null = null;
 const parseError = (error: any): string => {
   if (error.response?.data) {
     const data = error.response.data;
+    // If it's HTML (likely a 500 error), return a clean message
+    if (typeof data === 'string' && data.toLowerCase().includes('<!doctype html>')) {
+      return 'Server error (500). The backend might be having issues with the image format.';
+    }
     // Handle nested structure: { data: { message: "..." } }
     if (data.data?.message) return data.data.message;
     // Handle standard structure: { message: "..." }
@@ -59,7 +65,7 @@ const authService = {
         console.log('--- TOKEN EXTRACTED FROM SIGNUP ---');
         await this.setToken(token);
       } else {
-        console.error('FAILED to extract token from Signup structure:', JSON.stringify(response.data));
+        console.log('--- Signup successful, waiting for OTP verification ---');
       }
       return response.data;
     } catch (error: any) {
@@ -135,6 +141,9 @@ const authService = {
       const response = await authApi.post('/auth/resend-otp', data);
       return response.data;
     } catch (error: any) {
+      if (error.response?.status === 404) {
+        throw new Error('Backend Missing Endpoint: The backend developer needs to implement POST /auth/resend-otp.');
+      }
       const msg = parseError(error);
       console.error('Resend OTP failure:', msg);
       throw new Error(msg);
@@ -199,9 +208,21 @@ const authService = {
   },
 
   async setToken(token: string): Promise<void> {
-    console.log('--- Persisting new token to storage ---');
-    currentToken = token;
-    await SecureStore.setItemAsync('auth_token', token);
+    try {
+      console.log('--- Persisting new token to storage (Length: ' + token.length + ') ---');
+      currentToken = token;
+      await SecureStore.setItemAsync('auth_token', token);
+
+      // Immediate verification read-back
+      const verifyToken = await SecureStore.getItemAsync('auth_token');
+      if (verifyToken === token) {
+        console.log('--- SESSION PERSISTENCE VERIFIED ---');
+      } else {
+        console.error('--- SESSION PERSISTENCE FAILURE: Read-back failed ---');
+      }
+    } catch (e) {
+      console.error('--- SecureStore Write Error ---:', e);
+    }
   },
 
   async getUser(): Promise<any> {
@@ -209,29 +230,143 @@ const authService = {
       if (!currentToken) {
         const hasToken = await this.isAuthenticated();
         if (!hasToken) {
-          console.log('getUser: No token found');
+          console.log('getUser: No token found, skipping profile fetch');
           return null;
         }
       }
 
-      console.log('getUser: Fetching profile...');
-      // Note: /auth/profile is currently returning 404 on the backend.
-      // We catch this and return the token info as a fallback so the app still works.
-      const response = await authApi.get('/auth/profile', {
-        headers: { Authorization: `Bearer ${currentToken}` }
-      });
-
-      console.log('getUser: Profile fetch success');
-      return response.data.data?.user || response.data.user || response.data;
-    } catch (e: any) {
-      if (e.response?.status === 404) {
-        console.warn('getUser: Profile endpoint (404) - Using local session fallback');
-        // If profile fails, we shouldn't lock the user out. 
-        // We return a basic object so the UI can still show "Welcome"
-        return { full_name: 'User' };
+      console.log('getUser: Fetching live profile data via main API...');
+      // Try /auth/profile first, then /auth/me as common synonyms
+      let response;
+      try {
+        response = await api.get('/auth/profile');
+      } catch (err: any) {
+        if (err.response?.status === 404) {
+          console.log('getUser: /auth/profile 404, trying /auth/me...');
+          response = await api.get('/auth/me');
+        } else {
+          throw err;
+        }
       }
+
+      console.log('getUser RAW RESPONSE:', JSON.stringify(response.data));
+
+      // Attempt extraction
+      const userData = response.data.data?.user || response.data.user || response.data.data || response.data;
+
+      if (userData && userData.full_name) {
+        console.log('getUser: Captured name for cache:', userData.full_name);
+        await SecureStore.setItemAsync('cached_user_name', userData.full_name);
+      }
+
+      console.log('getUser EXTRACTED DATA:', JSON.stringify(userData));
+      return userData;
+    } catch (e: any) {
       console.error('getUser error:', e.response?.status || e.message);
+
+      // Try to return a skeleton user with the cached name if API fails
+      try {
+        const cachedName = await SecureStore.getItemAsync('cached_user_name');
+        if (cachedName) {
+          console.log('getUser: API failed, falling back to cache:', cachedName);
+          return { full_name: cachedName };
+        }
+      } catch (cacheErr) { }
+
       return null;
+    }
+  },
+
+  async updateProfile(userId: string, data: any): Promise<any> {
+    try {
+      let activeUserId = userId;
+      if (!activeUserId || activeUserId === 'me') {
+        const user = await this.getUser();
+        activeUserId = user?.id || user?._id || 'me';
+      }
+
+      let payload = data;
+
+      // Only append ID if data is a standard object, not FormData
+      if (!(data instanceof FormData)) {
+        payload = {
+          id: activeUserId !== 'me' ? activeUserId : undefined,
+          ...data
+        };
+      } else {
+        // For FormData, inject ID specifically
+        if (activeUserId !== 'me') {
+          payload.append('id', activeUserId);
+        }
+      }
+
+      console.log('--- UPDATING PROFILE at /profiles/' + activeUserId + ' ---');
+      const response = await api.put('/profiles/' + activeUserId, payload);
+
+      // Update local cache if full_name was provided in a standard object
+      if (!(data instanceof FormData) && data.full_name) {
+        await SecureStore.setItemAsync('cached_user_name', data.full_name);
+      }
+
+      return response.data;
+    } catch (error: any) {
+      // Fallback: some backends use /auth/profile for updates too
+      try {
+        let activeUserId = userId;
+        if (!activeUserId || activeUserId === 'me') {
+          const token = await SecureStore.getItemAsync('auth_token');
+          if (token) {
+            try {
+              const decoded: any = jwtDecode(token);
+              activeUserId = decoded.sub || decoded.id || 'me';
+            } catch (e) { }
+          }
+        }
+
+        let payload = data;
+        if (!(data instanceof FormData)) {
+          payload = {
+            id: activeUserId !== 'me' ? activeUserId : undefined,
+            ...data
+          };
+        } else {
+          // For FormData, inject ID specifically if not already present
+          if (activeUserId !== 'me' && !payload.has('id')) {
+            payload.append('id', activeUserId);
+          }
+        }
+
+        console.log('Profile update failed at /profiles/' + userId + ', trying /auth/profile...');
+        const response = await api.patch('/auth/profile', payload);
+
+        if (!(data instanceof FormData) && data.full_name) {
+          await SecureStore.setItemAsync('cached_user_name', data.full_name);
+        }
+
+        return response.data;
+      } catch (innerError) {
+        const msg = parseError(error); // Return the original error msg
+        console.error('Update Profile failure:', msg);
+        throw new Error(msg);
+      }
+    }
+  },
+  
+  async verifyEmployer(formData: FormData): Promise<any> {
+    try {
+      console.log('--- SUBMITTING EMPLOYER VERIFICATION ---');
+      // Using /profiles/verify as the standard endpoint for professional validation
+      // Fallback to updateProfile if specific endpoint doesn't exist
+      const response = await api.post('/profiles/verify', formData);
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        // If specific verify endpoint is missing, try general profile update
+        return this.updateProfile('me', formData);
+      }
+      const msg = parseError(error);
+      console.error('Employer Verification failure:', msg);
+      throw new Error(msg);
     }
   }
 };

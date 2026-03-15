@@ -6,10 +6,10 @@ import {
     Text,
     TouchableOpacity,
     FlatList,
-    SafeAreaView,
-    ScrollView,
     RefreshControl,
+    ScrollView,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import jobService from '../../services/jobService';
 import ApplicationsSkeleton from '../../components/ApplicationsSkeleton';
@@ -86,6 +86,8 @@ const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ isVisible, onBa
         fetchApplications(true);
     }, []);
 
+    const insets = useSafeAreaInsets();
+
     if (!isVisible) return null;
     if (loading) return <ApplicationsSkeleton />;
 
@@ -146,67 +148,65 @@ const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ isVisible, onBa
 
     return (
         <View style={styles.container}>
-            <SafeAreaView style={styles.safeArea}>
-                <View style={styles.header}>
-                    <View style={styles.headerTop}>
-                        <TouchableOpacity onPress={onBack} style={styles.iconButton}>
-                            <Ionicons name="chevron-back" size={28} color="#1972ca" />
+            <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+                <View style={styles.headerTop}>
+                    <TouchableOpacity onPress={onBack} style={styles.iconButton}>
+                        <Ionicons name="chevron-back" size={28} color="#1972ca" />
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.iconButton}>
+                        <Ionicons name="search-outline" size={28} color="#1972ca" />
+                    </TouchableOpacity>
+                </View>
+                <Text style={styles.screenTitle}>My Application</Text>
+            </View>
+
+            <View style={styles.tabsWrapper}>
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.tabsScroll}
+                >
+                    {TABS.map((tab) => (
+                        <TouchableOpacity
+                            key={tab}
+                            style={[
+                                styles.tabChip,
+                                activeTab === tab && styles.activeTabChip
+                            ]}
+                            onPress={() => setActiveTab(tab)}
+                        >
+                            <Text style={[
+                                styles.tabChipText,
+                                activeTab === tab && styles.activeTabChipText
+                            ]}>
+                                {tab}
+                            </Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.iconButton}>
-                            <Ionicons name="search-outline" size={28} color="#1972ca" />
-                        </TouchableOpacity>
+                    ))}
+                </ScrollView>
+            </View>
+
+            <FlatList
+                data={filteredApplications}
+                renderItem={renderApplicationCard}
+                keyExtractor={(item) => item.id}
+                contentContainerStyle={styles.appList}
+                showsVerticalScrollIndicator={false}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={onRefresh}
+                        colors={['#1972ca']}
+                        tintColor="#1972ca"
+                    />
+                }
+                ListEmptyComponent={
+                    <View style={styles.emptyState}>
+                        <Ionicons name="document-text-outline" size={64} color="#CCC" />
+                        <Text style={styles.emptyStateText}>No applications found</Text>
                     </View>
-                    <Text style={styles.screenTitle}>My Application</Text>
-                </View>
-
-                <View style={styles.tabsWrapper}>
-                    <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={styles.tabsScroll}
-                    >
-                        {TABS.map((tab) => (
-                            <TouchableOpacity
-                                key={tab}
-                                style={[
-                                    styles.tabChip,
-                                    activeTab === tab && styles.activeTabChip
-                                ]}
-                                onPress={() => setActiveTab(tab)}
-                            >
-                                <Text style={[
-                                    styles.tabChipText,
-                                    activeTab === tab && styles.activeTabChipText
-                                ]}>
-                                    {tab}
-                                </Text>
-                            </TouchableOpacity>
-                        ))}
-                    </ScrollView>
-                </View>
-
-                <FlatList
-                    data={filteredApplications}
-                    renderItem={renderApplicationCard}
-                    keyExtractor={(item) => item.id}
-                    contentContainerStyle={styles.appList}
-                    showsVerticalScrollIndicator={false}
-                    refreshControl={
-                        <RefreshControl
-                            refreshing={refreshing}
-                            onRefresh={onRefresh}
-                            colors={['#1972ca']}
-                            tintColor="#1972ca"
-                        />
-                    }
-                    ListEmptyComponent={
-                        <View style={styles.emptyState}>
-                            <Ionicons name="document-text-outline" size={64} color="#CCC" />
-                            <Text style={styles.emptyStateText}>No applications found</Text>
-                        </View>
-                    }
-                />
-            </SafeAreaView>
+                }
+            />
         </View>
     );
 };
