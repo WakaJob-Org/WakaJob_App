@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, StatusBar } from 'react-native';
+import { View, StyleSheet, StatusBar, Linking } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as SecureStore from 'expo-secure-store';
 import SplashScreenUI from './src/screens/Splash/SplashScreen';
@@ -12,8 +12,9 @@ import ApplicationsScreen from './src/screens/Applications/ApplicationsScreen';
 import ProfileScreen from './src/screens/Profile/ProfileScreen';
 import ProfileSetupScreen from './src/screens/Profile/ProfileSetupScreen';
 import SettingsScreen from './src/screens/Settings/SettingsScreen';
-import EmployerVerificationScreen from './src/screens/Auth/Verification/EmployerVerificationScreen';
-import NotificationsScreen from './src/screens/Dashboard/NotificationsScreen';
+import VerificationFailedScreen from './src/screens/Verification/VerificationFailedScreen';
+import VerificationPendingScreen from './src/screens/Verification/VerificationPendingScreen';
+import VerificationSuccessScreen from './src/screens/Verification/VerificationSuccessScreen';
 import BottomTab, { TabType } from './src/components/BottomTab';
 import { useFonts, Pacifico_400Regular } from '@expo-google-fonts/pacifico';
 import * as SplashScreen from 'expo-splash-screen';
@@ -26,7 +27,7 @@ export default function App() {
     'Pacifico-Regular': Pacifico_400Regular,
   });
 
-  const [authMode, setAuthMode] = useState<'signup' | 'login' | 'otp' | 'forgot_password' | 'verification' | 'notifications' | 'dashboard' | 'profile_setup' | 'initializing' | null>('initializing');
+  const [authMode, setAuthMode] = useState<'signup' | 'login' | 'otp' | 'forgot_password' | 'dashboard' | 'verification_failed' | 'verification_pending' | 'verification_success' | 'initializing' | null>('initializing');
   const [activeTab, setActiveTab] = useState<TabType | 'settings'>('jobs');
   const [userName, setUserName] = useState('Alex');
   const [verificationEmail, setVerificationEmail] = useState('');
@@ -177,9 +178,35 @@ export default function App() {
             isVisible={true}
             onClose={() => setAuthMode('dashboard')}
           />
-        );
-      case 'dashboard':
-        return (
+        )}
+
+        {authMode === 'verification_pending' && (
+          <VerificationPendingScreen
+            isVisible={true}
+            onProfilePress={() => { }}
+          />
+        )}
+
+        {authMode === 'verification_success' && (
+          <VerificationSuccessScreen
+            isVisible={true}
+            onProfilePress={() => { }}
+            onStartNow={() => setAuthMode('dashboard')}
+          />
+        )}
+
+        {authMode === 'verification_failed' && (
+          <VerificationFailedScreen
+            isVisible={true}
+            onProfilePress={() => { }}
+            onContactSupport={() => {
+              const email = 'wakajob@gmail.com';
+              Linking.openURL(`mailto:${email}?subject=${encodeURIComponent('Account Verification Issue')}`);
+            }}
+          />
+        )}
+
+        {authMode === 'dashboard' && (
           <View style={styles.mainContent}>
             {renderContent()}
             <BottomTab
