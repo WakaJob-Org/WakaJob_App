@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, StatusBar } from 'react-native';
+import { View, StyleSheet, StatusBar, Linking } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as SecureStore from 'expo-secure-store';
 import SplashScreenUI from './src/screens/Splash/SplashScreen';
@@ -13,6 +13,9 @@ import ProfileScreen from './src/screens/Profile/ProfileScreen';
 import ProfileSetupScreen from './src/screens/Profile/ProfileSetupScreen';
 import SettingsScreen from './src/screens/Settings/SettingsScreen';
 import EmployerVerificationScreen from './src/screens/Auth/Verification/EmployerVerificationScreen';
+import VerificationFailedScreen from './src/screens/Verification/VerificationFailedScreen';
+import VerificationPendingScreen from './src/screens/Verification/VerificationPendingScreen';
+import VerificationSuccessScreen from './src/screens/Verification/VerificationSuccessScreen';
 import NotificationsScreen from './src/screens/Dashboard/NotificationsScreen';
 import BottomTab, { TabType } from './src/components/BottomTab';
 import { useFonts, Pacifico_400Regular } from '@expo-google-fonts/pacifico';
@@ -26,7 +29,12 @@ export default function App() {
     'Pacifico-Regular': Pacifico_400Regular,
   });
 
-  const [authMode, setAuthMode] = useState<'signup' | 'login' | 'otp' | 'forgot_password' | 'verification' | 'notifications' | 'dashboard' | 'profile_setup' | 'initializing' | null>('initializing');
+  const [authMode, setAuthMode] = useState<
+    'signup' | 'login' | 'otp' | 'forgot_password' | 'verification' | 
+    'verification_failed' | 'verification_pending' | 'verification_success' |
+    'notifications' | 'dashboard' | 'profile_setup' | 'initializing' | null
+  >('initializing');
+  
   const [activeTab, setActiveTab] = useState<TabType | 'settings'>('jobs');
   const [userName, setUserName] = useState('Alex');
   const [verificationEmail, setVerificationEmail] = useState('');
@@ -194,6 +202,32 @@ export default function App() {
             isVisible={true}
             onClose={logout}
             onSubmit={() => setAuthMode('dashboard')}
+          />
+        );
+      case 'verification_pending':
+        return (
+          <VerificationPendingScreen
+            isVisible={true}
+            onProfilePress={() => setActiveTab('profile')}
+          />
+        );
+      case 'verification_success':
+        return (
+          <VerificationSuccessScreen
+            isVisible={true}
+            onProfilePress={() => setActiveTab('profile')}
+            onStartNow={() => setAuthMode('dashboard')}
+          />
+        );
+      case 'verification_failed':
+        return (
+          <VerificationFailedScreen
+            isVisible={true}
+            onProfilePress={() => setActiveTab('profile')}
+            onContactSupport={() => {
+              const email = 'wakajob@gmail.com';
+              Linking.openURL(`mailto:${email}?subject=${encodeURIComponent('Account Verification Issue')}`);
+            }}
           />
         );
       case 'initializing':
