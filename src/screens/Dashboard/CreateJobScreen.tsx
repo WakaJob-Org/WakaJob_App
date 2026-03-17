@@ -65,8 +65,33 @@ const CreateJobScreen: React.FC<CreateJobScreenProps> = ({ isVisible, onClose, o
                 return;
             }
 
+            let uploadedImageUrl = undefined;
+            if (jobImage) {
+                try {
+                    uploadedImageUrl = await jobService.uploadImage(jobImage);
+                } catch (imgError: any) {
+                    console.error('Image upload failed:', imgError);
+                    // Optionally alert and continue or stop. I'll stop to ensure consistency.
+                    Alert.alert('Image Upload Failed', 'Could not upload the job image. Would you like to post anyway?', [
+                        { text: 'Cancel', style: 'cancel', onPress: () => setLoading(false) },
+                        { text: 'Post Anyway', onPress: () => proceedWithPost(user.id, undefined) }
+                    ]);
+                    return;
+                }
+            }
+
+            await proceedWithPost(user.id, uploadedImageUrl);
+        } catch (error: any) {
+            Alert.alert('Post Failed', typeof error === 'string' ? error : 'Could not create job listing.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const proceedWithPost = async (employerId: string, imageUrl?: string) => {
+        try {
             const backendData = {
-                employer_id: user.id,
+                employer_id: employerId,
                 position_vacant: jobData.title,
                 description: jobData.description,
                 location: jobData.location,
@@ -75,9 +100,11 @@ const CreateJobScreen: React.FC<CreateJobScreenProps> = ({ isVisible, onClose, o
                 job_type: 'full-time' as any,
                 qualifications: 'None',
                 is_apprentice: isApprentice,
+                image_url: imageUrl,
             };
 
             const createdJob = await jobService.createJob(backendData);
+            Alert.alert('Success', 'Job posted successfully!');
             onPost(createdJob);
             // Reset form
             setJobData({ title: '', description: '', location: '' });
@@ -86,8 +113,6 @@ const CreateJobScreen: React.FC<CreateJobScreenProps> = ({ isVisible, onClose, o
             onClose();
         } catch (error: any) {
             Alert.alert('Post Failed', typeof error === 'string' ? error : 'Could not create job listing.');
-        } finally {
-            setLoading(false);
         }
     };
 

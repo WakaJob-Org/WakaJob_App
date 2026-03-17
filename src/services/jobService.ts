@@ -19,10 +19,12 @@ export interface CreateJobData {
     position_vacant: string;
     description: string;
     location: string;
-    salary: string;
-    category: string;
+    salary?: string;
+    category?: string;
     job_type: 'full-time' | 'part-time' | 'contract' | 'freelance';
     qualifications?: string;
+    image_url?: string;
+    is_apprentice?: boolean;
 }
 
 const jobService = {
@@ -91,16 +93,48 @@ const jobService = {
         try {
             const response = await api.get('/jobs/saved');
             const raw = response.data;
-            // Handle different response formats
             if (Array.isArray(raw)) return raw;
             if (Array.isArray(raw?.saved)) return raw.saved;
             if (Array.isArray(raw?.data)) return raw.data;
             if (Array.isArray(raw?.results)) return raw.results;
-            console.warn('Unexpected /jobs/saved response shape:', typeof raw, raw);
             return [];
         } catch (error: any) {
             console.error('Failed to fetch saved jobs:', error.response?.data?.message || error?.message);
             return [];
+        }
+    },
+
+    uploadImage: async (imageUri: string): Promise<string> => {
+        try {
+            const formData = new FormData();
+            const filename = imageUri.split('/').pop() || 'upload.jpg';
+            const match = /\.(\w+)$/.exec(filename);
+            const type = match ? `image/${match[1]}` : `image`;
+
+            formData.append('image', {
+                uri: imageUri,
+                name: filename,
+                type,
+            } as any);
+
+            const response = await api.post('/upload/image', formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                },
+            });
+
+            return response.data.image_url || response.data.url || '';
+        } catch (error: any) {
+            throw error.response?.data?.message || 'Image upload failed';
+        }
+    },
+
+    getCompanies: async () => {
+        try {
+            const response = await api.get('/companies');
+            return Array.isArray(response.data) ? response.data : response.data.data || [];
+        } catch (error: any) {
+            throw error.response?.data?.message || 'Failed to fetch companies';
         }
     }
 };
