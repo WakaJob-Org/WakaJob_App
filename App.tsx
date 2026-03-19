@@ -175,7 +175,7 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-      <View style={styles.appContainer}>
+      <View style={styles.appContainer} onLayout={onLayoutRootView}>
         {renderScreen()}
       </View>
     </SafeAreaProvider>

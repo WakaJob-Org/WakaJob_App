@@ -23,7 +23,8 @@ export interface CreateJobData {
     category?: string;
     job_type: 'full-time' | 'part-time' | 'contract' | 'freelance';
     qualifications?: string;
-    image_url?: string;
+    image_url?: string; // Still here for backward compatibility
+    images?: string[]; // Added for multiple images
     is_apprentice?: boolean;
 }
 

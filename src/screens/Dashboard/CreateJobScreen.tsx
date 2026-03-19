@@ -26,7 +26,7 @@ interface CreateJobScreenProps {
 
 const CreateJobScreen: React.FC<CreateJobScreenProps> = ({ isVisible, onClose, onPost }) => {
     const [loading, setLoading] = useState(false);
-    const [jobImage, setJobImage] = useState<string | null>(null);
+    const [jobImages, setJobImages] = useState<string[]>([]);
     const [isApprentice, setIsApprentice] = useState(false);
     const [jobData, setJobData] = useState({
         title: '',
@@ -35,6 +35,11 @@ const CreateJobScreen: React.FC<CreateJobScreenProps> = ({ isVisible, onClose, o
     });
 
     const handlePickImage = async () => {
+        if (jobImages.length >= 8) {
+            Alert.alert('Limit Reached', 'You can only upload a maximum of 8 photos.');
+            return;
+        }
+
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (status !== 'granted') {
             Alert.alert('Permission denied', 'We need permission to access your photo library.');
@@ -43,12 +48,19 @@ const CreateJobScreen: React.FC<CreateJobScreenProps> = ({ isVisible, onClose, o
         const result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
             allowsEditing: true,
-            aspect: [1200, 630],
             quality: 0.8,
+            allowsMultipleSelection: true,
+            selectionLimit: 8 - jobImages.length,
         });
+
         if (!result.canceled && result.assets.length > 0) {
-            setJobImage(result.assets[0].uri);
+            const newImages = result.assets.map(asset => asset.uri);
+            setJobImages(prev => [...prev, ...newImages].slice(0, 8));
         }
+    };
+
+    const handleRemoveImage = (index: number) => {
+        setJobImages(prev => prev.filter((_, i) => i !== index));
     };
 
     const handlePost = async () => {
@@ -65,22 +77,23 @@ const CreateJobScreen: React.FC<CreateJobScreenProps> = ({ isVisible, onClose, o
                 return;
             }
 
-            let uploadedImageUrl = undefined;
-            if (jobImage) {
+            let uploadedUrls: string[] = [];
+            if (jobImages.length > 0) {
                 try {
-                    uploadedImageUrl = await jobService.uploadImage(jobImage);
+                    // Upload all images in parallel
+                    const uploadPromises = jobImages.map(uri => jobService.uploadImage(uri));
+                    uploadedUrls = await Promise.all(uploadPromises);
                 } catch (imgError: any) {
-                    console.error('Image upload failed:', imgError);
-                    // Optionally alert and continue or stop. I'll stop to ensure consistency.
-                    Alert.alert('Image Upload Failed', 'Could not upload the job image. Would you like to post anyway?', [
+                    console.error('Some images failed to upload:', imgError);
+                    Alert.alert('Upload partial failure', 'Some images could not be uploaded. Proceed anyway?', [
                         { text: 'Cancel', style: 'cancel', onPress: () => setLoading(false) },
-                        { text: 'Post Anyway', onPress: () => proceedWithPost(user.id, undefined) }
+                        { text: 'Post Anyway', onPress: () => proceedWithPost(user.id, uploadedUrls) }
                     ]);
                     return;
                 }
             }
 
-            await proceedWithPost(user.id, uploadedImageUrl);
+            await proceedWithPost(user.id, uploadedUrls);
         } catch (error: any) {
             Alert.alert('Post Failed', typeof error === 'string' ? error : 'Could not create job listing.');
         } finally {
@@ -88,7 +101,7 @@ const CreateJobScreen: React.FC<CreateJobScreenProps> = ({ isVisible, onClose, o
         }
     };
 
-    const proceedWithPost = async (employerId: string, imageUrl?: string) => {
+    const proceedWithPost = async (employerId: string, imageUrls: string[]) => {
         try {
             const backendData = {
                 employer_id: employerId,
@@ -100,7 +113,8 @@ const CreateJobScreen: React.FC<CreateJobScreenProps> = ({ isVisible, onClose, o
                 job_type: 'full-time' as any,
                 qualifications: 'None',
                 is_apprentice: isApprentice,
-                image_url: imageUrl,
+                image_url: imageUrls[0] || undefined, // Keep first for backward compatibility
+                images: imageUrls, // Store all URLs
             };
 
             const createdJob = await jobService.createJob(backendData);
@@ -108,7 +122,7 @@ const CreateJobScreen: React.FC<CreateJobScreenProps> = ({ isVisible, onClose, o
             onPost(createdJob);
             // Reset form
             setJobData({ title: '', description: '', location: '' });
-            setJobImage(null);
+            setJobImages([]);
             setIsApprentice(false);
             onClose();
         } catch (error: any) {
@@ -164,31 +178,45 @@ const CreateJobScreen: React.FC<CreateJobScreenProps> = ({ isVisible, onClose, o
 
                     {/* ── Job Image ── */}
                     <View style={styles.fieldGroup}>
-                        <Text style={styles.label}>Job Image</Text>
-                        <TouchableOpacity
-                            style={styles.imagePicker}
-                            onPress={handlePickImage}
-                            activeOpacity={0.8}
-                        >
-                            {jobImage ? (
-                                <Image source={{ uri: jobImage }} style={styles.imagePreview} />
-                            ) : (
-                                <View style={styles.imagePickerContent}>
-                                    {/* Camera icon with + badge */}
-                                    <View style={styles.cameraIconWrapper}>
-                                        <Ionicons name="camera-outline" size={28} color="#1972ca" />
-                                        <View style={styles.plusBadge}>
-                                            <Ionicons name="add" size={10} color="#FFFFFF" />
-                                        </View>
-                                    </View>
-                                    <Text style={styles.uploadTitle}>Upload a header image</Text>
-                                    <Text style={styles.uploadSub}>Recommended size: 1200x630px</Text>
-                                    <View style={styles.selectFileBtn}>
-                                        <Text style={styles.selectFileBtnText}>Select File</Text>
-                                    </View>
+                        <Text style={styles.label}>Job Images ({jobImages.length}/8)</Text>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.imageScroll}>
+                            {jobImages.map((uri, index) => (
+                                <View key={index} style={styles.imageWrapper}>
+                                    <Image source={{ uri }} style={styles.thumbnail} />
+                                    <TouchableOpacity
+                                        style={styles.removeBtn}
+                                        onPress={() => handleRemoveImage(index)}
+                                    >
+                                        <Ionicons name="close-circle" size={24} color="#EF4444" />
+                                    </TouchableOpacity>
                                 </View>
+                            ))}
+                            {jobImages.length < 8 && (
+                                <TouchableOpacity
+                                    style={[styles.imagePicker, jobImages.length > 0 && styles.miniPicker]}
+                                    onPress={handlePickImage}
+                                    activeOpacity={0.8}
+                                >
+                                    <View style={styles.imagePickerContent}>
+                                        <View style={styles.cameraIconWrapper}>
+                                            <Ionicons name="camera-outline" size={jobImages.length > 0 ? 20 : 28} color="#1972ca" />
+                                            <View style={styles.plusBadge}>
+                                                <Ionicons name="add" size={jobImages.length > 0 ? 8 : 10} color="#FFFFFF" />
+                                            </View>
+                                        </View>
+                                        {jobImages.length === 0 && (
+                                            <>
+                                                <Text style={styles.uploadTitle}>Upload job photos</Text>
+                                                <Text style={styles.uploadSub}>Maximum 8 photos allowed</Text>
+                                                <View style={styles.selectFileBtn}>
+                                                    <Text style={styles.selectFileBtnText}>Select Files</Text>
+                                                </View>
+                                            </>
+                                        )}
+                                    </View>
+                                </TouchableOpacity>
                             )}
-                        </TouchableOpacity>
+                        </ScrollView>
                     </View>
 
                     {/* ── Location ── */}
@@ -370,6 +398,38 @@ const styles = StyleSheet.create({
         width: '100%',
         height: 180,
         resizeMode: 'cover',
+    },
+    imageScroll: {
+        flexDirection: 'row',
+        gap: 12,
+        paddingBottom: 4,
+    },
+    imageWrapper: {
+        position: 'relative',
+        width: 140,
+        height: 140,
+        borderRadius: 14,
+        overflow: 'hidden',
+        backgroundColor: '#F3F4F6',
+    },
+    thumbnail: {
+        width: '100%',
+        height: '100%',
+        resizeMode: 'cover',
+    },
+    removeBtn: {
+        position: 'absolute',
+        top: 4,
+        right: 4,
+        zIndex: 10,
+        backgroundColor: '#FFFFFF',
+        borderRadius: 12,
+    },
+    miniPicker: {
+        width: 140,
+        minHeight: 140,
+        height: 140,
+        borderWidth: 1.5,
     },
 
     // ── Location ──
