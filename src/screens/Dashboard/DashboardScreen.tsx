@@ -29,6 +29,8 @@ interface DashboardScreenProps {
     onLogout: () => void;
     onSettingsPress: () => void;
     onProfilePress: () => void;
+    onPostJobPress: () => void;
+    onApplicationsPress: () => void;
 }
 
 interface JobType {
@@ -93,7 +95,9 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({
     userName,
     onLogout,
     onSettingsPress,
-    onProfilePress
+    onProfilePress,
+    onPostJobPress,
+    onApplicationsPress
 }) => {
     const insets = useSafeAreaInsets();
     const [searchQuery, setSearchQuery] = useState('');
@@ -303,8 +307,22 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({
                 {/* Welcome Message - Before Search Bar */}
                 <View style={styles.headerWelcome}>
                     <Text style={styles.welcomeSub}>Welcome, {displayFirstName}</Text>
-                    <Text style={styles.welcomeTitle}>Available Jobs</Text>
-                    <Text style={styles.welcomeDesc}>Based on your location and preferences</Text>
+                    <View style={styles.welcomeHeaderRow}>
+                        <View style={{ flex: 1 }}>
+                            <Text style={styles.welcomeTitle}>Available Jobs</Text>
+                            <Text style={styles.welcomeDesc}>Based on your preferences</Text>
+                        </View>
+                        <View style={styles.quickActions}>
+                            <TouchableOpacity style={styles.actionBtn} onPress={onPostJobPress}>
+                                <Ionicons name="add-circle" size={20} color="#FFFFFF" />
+                                <Text style={styles.actionBtnText}>Post Job</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[styles.actionBtn, styles.actionBtnOutline]} onPress={onApplicationsPress}>
+                                <Ionicons name="people" size={20} color="#1972ca" />
+                                <Text style={[styles.actionBtnText, styles.actionBtnTextOutline]}>Apps</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
                 </View>
 
                 <View style={styles.searchRow}>
@@ -423,6 +441,12 @@ const styles = StyleSheet.create({
     welcomeSub: { fontSize: 14, color: '#1972ca', fontWeight: '600', marginBottom: 4 },
     welcomeTitle: { fontSize: 22, fontWeight: 'bold', color: '#111827', marginBottom: 2 },
     welcomeDesc: { fontSize: 13, color: '#6B7280' },
+    welcomeHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+    quickActions: { flexDirection: 'row', gap: 8 },
+    actionBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1972ca', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, gap: 4 },
+    actionBtnOutline: { backgroundColor: '#F0F7FF', borderWidth: 1, borderColor: '#1972ca' },
+    actionBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: 'bold' },
+    actionBtnTextOutline: { color: '#1972ca' },
     jobCard: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: '#F3F4F6', elevation: 2 },
     cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 15 },
     companyIcon: { width: 48, height: 48, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
