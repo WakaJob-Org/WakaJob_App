@@ -14,13 +14,15 @@ import {
     ScrollView,
     RefreshControl,
     Image,
+    ImageSourcePropType,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSequence, withDelay } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSequence, withDelay, FadeInUp, FadeOutUp } from 'react-native-reanimated';
 import jobService, { Job } from '../../services/jobService';
 import authService from '../../services/authService';
 import DashboardSkeleton from '../../components/DashboardSkeleton';
+import { useDebounce } from './hooks/useDebounce'; // Assuming we'll create this or use a quick local one
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -32,6 +34,7 @@ interface DashboardScreenProps {
     onSettingsPress: () => void;
     onProfilePress: () => void;
     onNotificationPress: () => void;
+    onlyShowSaved?: boolean;
 }
 
 interface JobType {
@@ -46,48 +49,151 @@ interface JobType {
     email: string;
     phone: string;
     postedAt: string;
+    imageUrl?: string;
+    localImage?: keyof typeof JOB_IMAGES;
+    tags?: string[];
+    hasApprentice?: boolean;
     requirements?: string[];
 }
 
+const JOB_IMAGES = {
+    carpentry: require('../../../assets/images/jobs/carpentry.png'),
+    welding: require('../../../assets/images/jobs/welding.png'),
+    masonry: require('../../../assets/images/jobs/masonry.png'),
+    tailoring: require('../../../assets/images/jobs/tailoring.png'),
+    mechanic: require('../../../assets/images/jobs/mechanic.png'),
+    salon: require('../../../assets/images/jobs/salon.png'),
+    farming: require('../../../assets/images/jobs/farming.png'),
+};
+
 const MOCK_JOBS: JobType[] = [
     {
-        id: '1',
-        title: 'Software Engineer',
-        company: 'TechCorp Solutions',
-        location: 'Lagos, Nigeria',
-        salary: '$2,000 - $4,000',
+        id: 'mock-1',
+        title: 'Senior Hair Stylist',
+        company: 'Glamour Beauty Salon',
+        location: 'Akwa, Douala',
+        salary: '15,000 - 30,000 FCFA',
         type: 'Full-time',
-        description: "We're looking for a talented software engineer to join our growing team. Experience with React, React Native and Node.js is required.",
-        category: 'Technology',
-        email: 'jobs@techcorp.com',
-        phone: '+234 800 123 4567',
+        description: "Professional braiding, weaving, and modern hair treatments in a high-end environment.",
+        category: 'Salon',
+        email: 'glamour@wakajob.com',
+        phone: '+237 600 000 777',
         postedAt: new Date().toISOString(),
+        localImage: 'salon',
+        tags: ['Full-time', 'Commission', 'Premium'],
+        hasApprentice: true,
     },
     {
-        id: '2',
-        title: 'UI/UX Designer',
-        company: 'Creative Hub Agency',
-        location: 'Abuja, Nigeria',
-        salary: '$1,500 - $3,000',
-        type: 'Full-time',
-        description: "Join our creative team to design exceptional user experiences. Portfolio required. Proficiency in Figma and Adobe XD.",
-        category: 'Design',
-        email: 'hr@creativehub.ng',
-        phone: '+234 800 987 6543',
+        id: 'mock-2',
+        title: 'Modern Farm Manager',
+        company: 'Green Fields Agri',
+        location: 'Santa, NW Region',
+        salary: '45,000 - 80,000 FCFA',
+        type: 'Permanent',
+        description: "Overseeing sustainable crop production and managing a team of community farmers.",
+        category: 'Farming',
+        email: 'green@wakajob.com',
+        phone: '+237 600 000 888',
         postedAt: new Date().toISOString(),
+        localImage: 'farming',
+        tags: ['Management', 'Outdoor', 'Housing provided'],
+        hasApprentice: false,
     },
     {
-        id: '3',
-        title: 'Data Analyst',
-        company: 'FinTech Innovations',
-        location: 'Lagos, Nigeria',
-        salary: '$1,800 - $3,500',
+        id: 'mock-3',
+        title: 'Custom Furniture Maker',
+        company: 'Nkwen Craft Studio',
+        location: 'mile 6 nkwen, Bamenda',
+        salary: '25,000 - 45,000 FCFA',
         type: 'Full-time',
-        description: "Analyze financial data and provide insights. Strong SQL, Python, and data visualization skills are essential.",
-        category: 'Finance',
-        email: 'careers@fintech.ng',
-        phone: '+234 800 456 7890',
+        description: "Expert furniture making and custom carpentry for residential projects.",
+        category: 'Carpentry',
+        email: 'carpentry@wakajob.com',
+        phone: '+237 600 000 001',
         postedAt: new Date().toISOString(),
+        localImage: 'carpentry',
+        tags: ['Full-time', 'Mon-fri', 'work-in'],
+        hasApprentice: true,
+    },
+    {
+        id: 'mock-4',
+        title: 'Metal Gate Specialist',
+        company: 'Elite Iron Works',
+        location: 'Bamenda Central',
+        salary: '30,000 - 55,000 FCFA',
+        type: 'Contract',
+        description: "Specialized in gate construction and decorative structural steel.",
+        category: 'Welding',
+        email: 'welding@wakajob.com',
+        phone: '+237 600 000 002',
+        postedAt: new Date().toISOString(),
+        localImage: 'welding',
+        tags: ['Expert', 'Safety-first', 'Insured'],
+        hasApprentice: true,
+    },
+    {
+        id: 'mock-5',
+        title: 'Fashion Tailor',
+        company: 'Threads of Bamenda',
+        location: 'Commercial Avenue',
+        salary: '20,000 - 35,000 FCFA',
+        type: 'Full-time',
+        description: "Creating premium traditional and modern attire with a focus on finish.",
+        category: 'Tailoring',
+        email: 'fashion@wakajob.com',
+        phone: '+237 600 000 004',
+        postedAt: new Date().toISOString(),
+        localImage: 'tailoring',
+        tags: ['Creative', 'Indoor', 'Apprentice ok'],
+        hasApprentice: true,
+    },
+    {
+        id: 'mock-6',
+        title: 'Expert Mechanic',
+        company: 'Metro Auto Care',
+        location: 'Bonaberi, Douala',
+        salary: '35,000 - 60,000 FCFA',
+        type: 'Full-time',
+        description: "Engine diagnostics and general mechanical repairs for luxury cars.",
+        category: 'Mechanics',
+        email: 'garage@wakajob.com',
+        phone: '+237 600 000 005',
+        postedAt: new Date().toISOString(),
+        localImage: 'mechanic',
+        tags: ['Full-time', 'Morning', 'Tools provided'],
+        hasApprentice: true,
+    },
+    {
+        id: 'mock-7',
+        title: 'Construction Mason',
+        company: 'Royal Construction',
+        location: 'Bastos, Yaoundé',
+        salary: '40,000 - 75,000 FCFA',
+        type: 'Full-time',
+        description: "High-end bricklaying and architectural concrete work.",
+        category: 'Construction',
+        email: 'build@wakajob.com',
+        phone: '+237 600 000 111',
+        postedAt: new Date().toISOString(),
+        localImage: 'masonry',
+        tags: ['Skilled', 'Hard-work', 'Health-plan'],
+        hasApprentice: false,
+    },
+    {
+        id: 'mock-8',
+        title: 'Bridal Gown Specialist',
+        company: 'Victoria Fashion',
+        location: 'Molyko, Buea',
+        salary: '30,000 - 50,000 FCFA',
+        type: 'Full-time',
+        description: "High-end bridal and formal wear design and production.",
+        category: 'Tailoring',
+        email: 'victoria@wakajob.com',
+        phone: '+237 600 000 222',
+        postedAt: new Date().toISOString(),
+        localImage: 'tailoring',
+        tags: ['Premium', 'High-end', 'Details'],
+        hasApprentice: true,
     }
 ];
 
@@ -97,7 +203,8 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({
     onLogout,
     onSettingsPress,
     onProfilePress,
-    onNotificationPress
+    onNotificationPress,
+    onlyShowSaved = false
 }) => {
     const insets = useSafeAreaInsets();
     const [searchQuery, setSearchQuery] = useState('');
@@ -109,6 +216,28 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [profile, setProfile] = useState<any>(null);
+    const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
+    const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+    const [selectedLocation, setSelectedLocation] = useState('');
+    const [customLocation, setCustomLocation] = useState('');
+    
+    // Debounced search query (500ms delay)
+    const [debouncedSearch, setDebouncedSearch] = useState('');
+
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedSearch(searchQuery);
+        }, 500);
+        return () => clearTimeout(handler);
+    }, [searchQuery]);
+
+    const BAMENDA_LOCATIONS = [
+        'Molyko, Buea',
+        'Mile 4, Bamenda',
+        'Commercial Avenue',
+        'Nkwen, Bamenda',
+        'Up Station, Bamenda'
+    ];
 
     // Toast Animation State
     const toastTranslateY = useSharedValue(200);
@@ -154,24 +283,53 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({
     const fetchJobs = async (isRefreshing = false) => {
         try {
             if (!isRefreshing) setLoading(true);
-            const fetchedJobs = await jobService.getJobs();
+            
+            // Prepare Query Params
+            const apiParams: any = {};
+            if (debouncedSearch.trim()) apiParams.search = debouncedSearch;
+            
+            const locationToUse = selectedLocation === 'Custom' ? customLocation : selectedLocation;
+            if (locationToUse.trim()) apiParams.location = locationToUse;
 
-            const mappedJobs: JobType[] = fetchedJobs.map(job => ({
-                id: job.id,
-                title: job.position_vacant,
-                company: 'WakaJob Partner',
-                location: job.location,
-                salary: job.salary,
-                type: job.job_type,
-                description: job.description,
-                category: job.category,
-                email: 'support@wakajob.com',
-                phone: 'N/A',
-                postedAt: job.created_at,
-                requirements: job.qualifications ? job.qualifications.split(',') : []
-            }));
+            const fetchedJobs = await jobService.getJobs(apiParams);
 
-            const finalJobs = mappedJobs.length > 0 ? mappedJobs : MOCK_JOBS;
+            const mappedJobs: JobType[] = fetchedJobs.map(job => {
+                const category = (job.category || '').toLowerCase();
+                const title = job.position_vacant || job.category || 'Professional Trade';
+                
+                let localImage: keyof typeof JOB_IMAGES | undefined;
+
+                if (category.includes('carpent')) localImage = 'carpentry';
+                else if (category.includes('weld')) localImage = 'welding';
+                else if (category.includes('mason') || category.includes('construct')) localImage = 'masonry';
+                else if (category.includes('fashion') || category.includes('tailor')) localImage = 'tailoring';
+                else if (category.includes('mechanic')) localImage = 'mechanic';
+                else if (category.includes('salon') || category.includes('hair') || category.includes('beauty')) localImage = 'salon';
+                else if (category.includes('farm') || category.includes('agri')) localImage = 'farming';
+                else {
+                    // Cyclic fallback to ensure variety even for unknown categories
+                    const fallbacks: (keyof typeof JOB_IMAGES)[] = ['carpentry', 'welding', 'masonry', 'tailoring', 'mechanic', 'salon', 'farming'];
+                    localImage = fallbacks[Math.abs(job.id.hashCode ? job.id.hashCode() : job.id.length) % fallbacks.length];
+                }
+
+                return {
+                    id: job.id,
+                    title: title,
+                    company: `${job.category || 'General'} Services Ltd`,
+                    location: job.location || 'Cameroon',
+                    salary: job.salary || 'Competitive',
+                    type: job.job_type || 'Full-time',
+                    description: job.description,
+                    category: job.category,
+                    email: 'support@wakajob.com',
+                    phone: 'N/A',
+                    postedAt: job.created_at,
+                    localImage: localImage,
+                    requirements: job.qualifications ? job.qualifications.split(',') : []
+                };
+            });
+
+            const finalJobs = mappedJobs.length > 0 ? [...mappedJobs, ...MOCK_JOBS] : MOCK_JOBS;
             setAllJobs(finalJobs);
             setFilteredJobs(finalJobs);
         } catch (error) {
@@ -188,26 +346,23 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({
 
     useEffect(() => {
         fetchJobs();
-    }, []);
+    }, [debouncedSearch, selectedLocation, customLocation]);
 
     const onRefresh = React.useCallback(() => {
         setRefreshing(true);
         fetchJobs(true);
-    }, []);
+    }, [debouncedSearch, selectedLocation, customLocation]);
 
     useEffect(() => {
-        if (searchQuery.trim()) {
-            const query = searchQuery.toLowerCase();
-            const filtered = allJobs.filter(job =>
-                job.title.toLowerCase().includes(query) ||
-                job.company.toLowerCase().includes(query) ||
-                job.description.toLowerCase().includes(query)
-            );
-            setFilteredJobs(filtered);
-        } else {
-            setFilteredJobs(allJobs);
+        let filtered = allJobs;
+        
+        // Final client-side pass for Saved Jobs mode
+        if (onlyShowSaved) {
+            filtered = filtered.filter(job => savedJobsList.includes(job.id));
         }
-    }, [searchQuery, allJobs]);
+        
+        setFilteredJobs(filtered);
+    }, [allJobs, onlyShowSaved, savedJobsList]);
 
     if (!isVisible) return null;
     if (loading) return <DashboardSkeleton />;
@@ -251,62 +406,83 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({
         return colors[charCode % colors.length];
     };
 
-    const renderJobItem = ({ item }: { item: JobType }) => (
-        <View style={styles.jobCard}>
-            <View style={styles.cardHeader}>
-                <View style={[styles.companyIcon, { backgroundColor: getCompanyColor(item.company.charAt(0)) }]}>
-                    <Ionicons
-                        name={item.category.toLowerCase() === 'technology' ? 'code-working' : 'briefcase'}
-                        size={24}
-                        color={getIconColor(item.company.charAt(0))}
-                    />
-                </View>
-                <View style={styles.jobInfo}>
-                    <Text style={styles.jobTitle}>{item.title}</Text>
-                    <Text style={styles.companyName}>{item.company}</Text>
-                </View>
-                <TouchableOpacity onPress={() => handleSaveJob(item.id)}>
-                    <Ionicons
-                        name={isJobSaved(item.id) ? "bookmark" : "bookmark-outline"}
-                        size={22}
-                        color={isJobSaved(item.id) ? "#1972ca" : "#9BA4B1"}
-                    />
-                </TouchableOpacity>
-            </View>
+    const renderJobItem = ({ item }: { item: JobType }) => {
+        const isExpanded = expandedJobId === item.id;
 
-            <Text style={styles.description} numberOfLines={2}>
-                {item.description}
-            </Text>
+        return (
+            <View style={styles.jobCard}>
+                <View style={styles.imageContainer}>
+                    {item.localImage ? (
+                        <Image source={JOB_IMAGES[item.localImage]} style={styles.jobImage} />
+                    ) : item.imageUrl ? (
+                        <Image source={{ uri: item.imageUrl }} style={styles.jobImage} />
+                    ) : (
+                        <View style={[styles.jobImage, styles.placeholderImage]}>
+                            <Ionicons name="image-outline" size={40} color="#9BA4B1" />
+                        </View>
+                    )}
+                    
+                    {/* Save Button Overlay */}
+                    <TouchableOpacity 
+                        style={styles.saveBadgeSmall} 
+                        onPress={() => handleSaveJob(item.id)}
+                        activeOpacity={0.8}
+                    >
+                        <Ionicons 
+                            name={isJobSaved(item.id) ? "bookmark" : "bookmark-outline"} 
+                            size={18} 
+                            color={isJobSaved(item.id) ? "#1972ca" : "#FFFFFF"} 
+                        />
+                    </TouchableOpacity>
+                </View>
 
-            <View style={styles.infoGrid}>
-                <View style={styles.infoItem}>
-                    <Ionicons name="location" size={16} color="#4B5563" />
-                    <Text style={styles.infoText}>{item.location}</Text>
-                </View>
-                <View style={styles.infoItem}>
-                    <Ionicons name="time" size={16} color="#4B5563" />
-                    <Text style={styles.infoText}>{item.type}</Text>
-                </View>
-                <View style={styles.infoItem}>
-                    <Ionicons name="mail" size={16} color="#4B5563" />
-                    <Text style={styles.infoText} numberOfLines={1}>{item.email}</Text>
-                </View>
-                <View style={styles.infoItem}>
-                    <Ionicons name="call" size={16} color="#4B5563" />
-                    <Text style={styles.infoText}>{item.phone}</Text>
+                {/* Content Section */}
+                <View style={styles.cardBody}>
+                    <Text style={styles.jobTitleText} numberOfLines={1}>{item.title}</Text>
+                    <Text style={styles.companySubText} numberOfLines={1}>{item.company}</Text>
+                    <Text style={styles.locationText} numberOfLines={1}>Location: {item.location}</Text>
+
+                    {/* Tags */}
+                    <View style={styles.tagRow}>
+                        {(item.tags || [item.type, 'Mon-fri', 'work-in']).map((tag, idx) => (
+                            <View key={idx} style={[styles.tag, idx === 0 ? styles.activeTag : null]}>
+                                <Text style={[styles.tagText, idx === 0 ? styles.activeTagText : null]}>{tag}</Text>
+                            </View>
+                        ))}
+                    </View>
+
+                    {/* Action Row */}
+                    <View style={styles.actionRow}>
+                        <TouchableOpacity style={styles.mainApplyBtn} onPress={() => handleJobPress(item)}>
+                            <Text style={styles.mainApplyBtnText}>Apply Now</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity 
+                            style={styles.dropdownBtn}
+                            onPress={() => setExpandedJobId(isExpanded ? null : item.id)}
+                        >
+                            <Ionicons name={isExpanded ? "chevron-up" : "chevron-down"} size={22} color="#1972ca" />
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* Dropdown Content */}
+                    {isExpanded && (
+                        <View style={styles.expandedContent}>
+                            <TouchableOpacity 
+                                style={styles.apprenticeOption}
+                                onPress={() => {
+                                    Alert.alert("Apprenticeship", "You are applying as an apprentice for this position.");
+                                    setExpandedJobId(null);
+                                }}
+                            >
+                                <Ionicons name="school-outline" size={18} color="#1972ca" />
+                                <Text style={styles.apprenticeText}>Apply as Apprentice</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
                 </View>
             </View>
-
-            <View style={styles.cardFooter}>
-                <TouchableOpacity style={styles.applyButton} onPress={() => handleJobPress(item)}>
-                    <Text style={styles.applyButtonText}>Apply Now</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.apprenticeButton} onPress={() => handleJobPress(item)}>
-                    <Text style={styles.apprenticeButtonText}>Apprentice</Text>
-                </TouchableOpacity>
-            </View>
-        </View>
-    );
+        );
+    };
 
     return (
         <View style={styles.container}>
@@ -351,10 +527,64 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({
                             onChangeText={setSearchQuery}
                         />
                     </View>
-                    <TouchableOpacity style={styles.filterBtn}>
+                    <TouchableOpacity 
+                        style={[styles.filterBtn, (selectedLocation || customLocation) ? styles.filterBtnActive : null]} 
+                        onPress={() => setShowFilterDropdown(!showFilterDropdown)}
+                    >
                         <Ionicons name="options-outline" size={24} color="#FFFFFF" />
                     </TouchableOpacity>
                 </View>
+
+                {/* Inline Filter Dropdown */}
+                {showFilterDropdown && (
+                    <Animated.View entering={FadeInUp} exiting={FadeOutUp} style={styles.filterDropdown}>
+                        <View style={styles.filterRow}>
+                             <Text style={styles.filterDropdownTitle}>Filter by Location</Text>
+                             <TouchableOpacity onPress={() => setShowFilterDropdown(false)}>
+                                 <Ionicons name="close" size={20} color="#9BA4B1" />
+                             </TouchableOpacity>
+                        </View>
+
+                        {/* Location preset chips */}
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.locationScroll}>
+                            <TouchableOpacity 
+                                style={[styles.locationChip, (selectedLocation === '' && !customLocation) && styles.locationChipActive]}
+                                onPress={() => { setSelectedLocation(''); setCustomLocation(''); }}
+                            >
+                                <Text style={[styles.locationChipText, (selectedLocation === '' && !customLocation) && styles.locationChipTextActive]}>All</Text>
+                            </TouchableOpacity>
+                            {BAMENDA_LOCATIONS.map(loc => (
+                                <TouchableOpacity 
+                                    key={loc} 
+                                    style={[styles.locationChip, selectedLocation === loc && styles.locationChipActive]}
+                                    onPress={() => { setSelectedLocation(loc); setCustomLocation(''); }}
+                                >
+                                    <Text style={[styles.locationChipText, selectedLocation === loc && styles.locationChipTextActive]}>{loc}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+
+                        {/* Custom Location Search Input */}
+                        <View style={styles.customLocSearch}>
+                            <Ionicons name="location-outline" size={18} color="#1972ca" style={{ marginRight: 8 }} />
+                            <TextInput
+                                style={styles.customLocSearchInput}
+                                placeholder="Type a specific neighborhood..."
+                                value={customLocation}
+                                onChangeText={(text) => {
+                                    setCustomLocation(text);
+                                    if (text) setSelectedLocation(''); // Clear preset if typing custom
+                                }}
+                                placeholderTextColor="#9BA4B1"
+                            />
+                            {customLocation.length > 0 && (
+                                <TouchableOpacity onPress={() => setShowFilterDropdown(false)}>
+                                    <Ionicons name="checkmark-circle" size={24} color="#10B981" />
+                                </TouchableOpacity>
+                            )}
+                        </View>
+                    </Animated.View>
+                )}
             </View>
 
             <FlatList
@@ -374,8 +604,17 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({
                 ListHeaderComponent={<View style={{ height: 10 }} />}
                 ListEmptyComponent={
                     <View style={styles.empty}>
-                        <Ionicons name="search-outline" size={60} color="#CCC" />
-                        <Text style={styles.emptyTitle}>No jobs found</Text>
+                        <Ionicons 
+                            name={onlyShowSaved ? "bookmark-outline" : "search-outline"} 
+                            size={60} 
+                            color="#CCC" 
+                        />
+                        <Text style={styles.emptyTitle}>
+                            {onlyShowSaved ? "No saved jobs yet" : "No jobs found"}
+                        </Text>
+                        {onlyShowSaved && (
+                            <Text style={styles.emptySubtitle}>Bookmark jobs to see them here</Text>
+                        )}
                     </View>
                 }
             />
@@ -461,28 +700,201 @@ const styles = StyleSheet.create({
     searchInputWrapper: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', borderRadius: 12, paddingHorizontal: 15, height: 48 },
     input: { fontSize: 15, color: '#1F2937' },
     filterBtn: { width: 48, height: 48, backgroundColor: '#1972ca', borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+    filterBtnActive: { backgroundColor: '#E91E63' },
+    filterDropdown: {
+        backgroundColor: '#FFFFFF',
+        marginTop: 15,
+        borderRadius: 15,
+        padding: 15,
+        borderWidth: 1,
+        borderColor: '#F1F5F9',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 5,
+        elevation: 2,
+    },
+    filterDropdownTitle: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#1F2937',
+        marginBottom: 12,
+    },
+    locationScroll: {
+        marginBottom: 5,
+    },
+    locationChip: {
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        backgroundColor: '#F3F4F6',
+        borderRadius: 20,
+        marginRight: 10,
+        height: 36,
+    },
+    locationChipActive: {
+        backgroundColor: '#1972ca',
+    },
+    locationChipText: {
+        fontSize: 13,
+        color: '#6B7280',
+        fontWeight: '600',
+    },
+    locationChipTextActive: {
+        color: '#FFFFFF',
+    },
+    filterRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 12,
+    },
+    customLocSearch: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#F8FAFC',
+        borderRadius: 15,
+        borderWidth: 1.5,
+        borderColor: '#E2E8F0',
+        paddingHorizontal: 12,
+        height: 52,
+        marginTop: 10,
+    },
+    customLocSearchInput: {
+        flex: 1,
+        fontSize: 14,
+        color: '#1E293B',
+        fontWeight: '500',
+    },
     listContent: { paddingHorizontal: 20, paddingBottom: 100 },
     headerWelcome: { marginTop: 10, marginBottom: 5 },
     welcomeSub: { fontSize: 14, color: '#1972ca', fontWeight: '600', marginBottom: 4 },
     welcomeTitle: { fontSize: 22, fontWeight: 'bold', color: '#111827', marginBottom: 2 },
     welcomeDesc: { fontSize: 13, color: '#6B7280' },
-    jobCard: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: '#F3F4F6', elevation: 2 },
-    cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 15 },
-    companyIcon: { width: 48, height: 48, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-    jobInfo: { flex: 1 },
-    jobTitle: { fontSize: 18, fontWeight: 'bold', color: '#111827' },
-    companyName: { fontSize: 14, color: '#6B7280' },
-    description: { fontSize: 14, color: '#374151', lineHeight: 20, marginBottom: 20 },
-    infoGrid: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 20, rowGap: 12 },
-    infoItem: { width: '50%', flexDirection: 'row', alignItems: 'center', gap: 8 },
-    infoText: { fontSize: 12, color: '#4B5563', flex: 1 },
-    cardFooter: { flexDirection: 'row', gap: 12 },
-    applyButton: { flex: 1, backgroundColor: '#1972ca', height: 48, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-    applyButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: 'bold' },
-    apprenticeButton: { flex: 1, backgroundColor: 'transparent', height: 48, borderRadius: 12, borderWidth: 1, borderColor: '#1972ca', justifyContent: 'center', alignItems: 'center' },
-    apprenticeButtonText: { color: '#1972ca', fontSize: 16, fontWeight: 'bold' },
-    empty: { alignItems: 'center', marginTop: 40 },
-    emptyTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', marginTop: 16 },
+    jobCard: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 24,
+        marginBottom: 20,
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: '#F1F5F9',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.05,
+        shadowRadius: 12,
+        elevation: 3,
+    },
+    imageContainer: {
+        width: '100%',
+        height: 160,
+        position: 'relative',
+    },
+    saveBadgeSmall: {
+        position: 'absolute',
+        top: 12,
+        right: 12,
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: 'rgba(0,0,0,0.3)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        backdropFilter: 'blur(4px)',
+    },
+    jobImage: {
+        width: '100%',
+        height: '100%',
+        resizeMode: 'cover',
+    },
+    placeholderImage: {
+        backgroundColor: '#F1F5F9',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    cardBody: {
+        padding: 16,
+    },
+    jobTitleText: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#111827',
+        marginBottom: 2,
+    },
+    companySubText: {
+        fontSize: 14,
+        color: '#9BA4B1',
+        marginBottom: 4,
+    },
+    locationText: {
+        fontSize: 14,
+        color: '#9BA4B1',
+        marginBottom: 16,
+    },
+    tagRow: {
+        flexDirection: 'row',
+        gap: 8,
+        marginBottom: 20,
+    },
+    tag: {
+        backgroundColor: '#F8FAFC',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 10,
+    },
+    activeTag: {
+        backgroundColor: '#EBF4FF',
+    },
+    tagText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#64748B',
+    },
+    activeTagText: {
+        color: '#1972ca',
+    },
+    actionRow: {
+        flexDirection: 'row',
+        gap: 12,
+    },
+    mainApplyBtn: {
+        flex: 1,
+        backgroundColor: '#1972ca',
+        height: 50,
+        borderRadius: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    mainApplyBtnText: {
+        color: '#FFFFFF',
+        fontSize: 16,
+        fontWeight: '700',
+    },
+    dropdownBtn: {
+        width: 50,
+        height: 50,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#F8FAFC',
+    },
+    expandedContent: {
+        marginTop: 12,
+        paddingTop: 12,
+        borderTopWidth: 1,
+        borderTopColor: '#F1F5F9',
+    },
+    apprenticeOption: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        paddingVertical: 10,
+    },
+    apprenticeText: {
+        fontSize: 15,
+        fontWeight: '600',
+        color: '#1972ca',
+    },
     modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
     modalContent: { flex: 1, backgroundColor: '#FFFFFF', marginTop: 50, borderTopLeftRadius: 25, borderTopRightRadius: 25 },
     modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
@@ -536,6 +948,9 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '600',
     },
+    empty: { alignItems: 'center', marginTop: 40 },
+    emptyTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', marginTop: 16 },
+    emptySubtitle: { fontSize: 14, color: '#9BA4B1', marginTop: 8 },
 });
 
 export default DashboardScreen;

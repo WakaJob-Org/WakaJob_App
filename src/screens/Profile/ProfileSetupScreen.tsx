@@ -34,6 +34,7 @@ const ProfileSetupScreen: React.FC<ProfileSetupScreenProps> = ({ isVisible, onCo
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [userId, setUserId] = useState<string | null>(null);
+    const [tempDate, setTempDate] = useState<Date | null>(null);
 
     const insets = useSafeAreaInsets();
 
@@ -58,10 +59,34 @@ const ProfileSetupScreen: React.FC<ProfileSetupScreenProps> = ({ isVisible, onCo
     }, [isVisible]);
 
     const handleDateChange = (event: any, selectedDate?: Date) => {
-        setShowDatePicker(false);
-        if (selectedDate) {
-            setDob(selectedDate);
+        // Handle dismissals (User tapped cancel)
+        if (event.type === 'dismissed') {
+            setShowDatePicker(false);
+            return;
         }
+
+        // Keep internal draft state while user is scrolling/selecting
+        if (selectedDate) {
+            // Set to noon local time to avoid ANY timezone jumping forward or backward
+            const safeDate = new Date(selectedDate);
+            safeDate.setHours(12, 0, 0, 0);
+            
+            setTempDate(safeDate);
+            
+            // On Android, we immediately confirm because the native picker 
+            // has its own 'OK' button.
+            if (Platform.OS === 'android') {
+                setShowDatePicker(false);
+                setDob(safeDate);
+            }
+        }
+    };
+
+    const commitDate = () => {
+        if (tempDate) {
+            setDob(tempDate);
+        }
+        setShowDatePicker(false);
     };
 
     const validateCameroonPhone = (number: string) => {
@@ -91,10 +116,17 @@ const ProfileSetupScreen: React.FC<ProfileSetupScreenProps> = ({ isVisible, onCo
 
         try {
             setSaving(true);
+            
+            // Format date for backend (YYYY-MM-DD in local time)
+            const year = dob.getFullYear();
+            const month = String(dob.getMonth() + 1).padStart(2, '0');
+            const day = String(dob.getDate()).padStart(2, '0');
+            const formattedDob = `${year}-${month}-${day}`;
+
             const payload = {
                 full_name: username,
                 phone_number: `+237${phone}`,
-                date_of_birth: dob.toISOString().split('T')[0],
+                date_of_birth: formattedDob,
                 bio: bio,
                 skills: skills,
             };
@@ -132,10 +164,15 @@ const ProfileSetupScreen: React.FC<ProfileSetupScreenProps> = ({ isVisible, onCo
 
     return (
         <View style={styles.container}>
-            {/* Header */}
-            <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-                <Text style={styles.headerTitle}>Complete Your Profile</Text>
-                <Text style={styles.headerSubtitle}>Almost there! Let's get to know you.</Text>
+            {/* Minimal Centered Header */}
+            <View style={[styles.miniHeader, { paddingTop: Math.max(insets.top, 20) }]}>
+                 <TouchableOpacity onPress={() => onComplete()} style={styles.backButton}>
+                    <Ionicons name="arrow-back" size={24} color="#333" />
+                </TouchableOpacity>
+                <View style={styles.titleContainer}>
+                    <Text style={styles.headerTitle}>Complete Profile</Text>
+                </View>
+                <View style={{ width: 40 }} /> 
             </View>
 
             <KeyboardAvoidingView
@@ -185,13 +222,14 @@ const ProfileSetupScreen: React.FC<ProfileSetupScreenProps> = ({ isVisible, onCo
                                     <Text style={styles.countryCodeText}>+237</Text>
                                 </View>
                                 <TextInput
-                                    style={styles.input}
+                                    style={[styles.input, { flex: 1 }]}
                                     value={phone}
                                     onChangeText={setPhone}
                                     placeholder="6xx xxx xxx"
                                     placeholderTextColor="#9BA4B1"
-                                    keyboardType="phone-pad"
+                                    keyboardType="number-pad"
                                     maxLength={9}
+                                    textContentType="telephoneNumber"
                                 />
                             </View>
                             <Text style={styles.helperText}>Only Cameroon numbers are accepted</Text>
@@ -202,24 +240,37 @@ const ProfileSetupScreen: React.FC<ProfileSetupScreenProps> = ({ isVisible, onCo
                             <Text style={styles.label}>Date of Birth</Text>
                             <TouchableOpacity 
                                 style={styles.inputWrapper} 
-                                onPress={() => setShowDatePicker(true)}
+                                onPress={() => {
+                                    const initialDate = dob || new Date();
+                                    initialDate.setHours(12, 0, 0, 0); // Always start at noon
+                                    setTempDate(initialDate);
+                                    setShowDatePicker(true);
+                                }}
                             >
                                 <Ionicons name="calendar-outline" size={20} color="#9BA4B1" style={styles.leftIcon} />
                                 <View style={styles.dateDisplay}>
                                     <Text style={[styles.dateText, !dob && { color: '#9BA4B1' }]}>
-                                        {dob ? dob.toLocaleDateString() : 'Select your birthday'}
+                                        {dob ? dob.toLocaleDateString('en-GB') : 'Select your birthday'}
                                     </Text>
                                 </View>
                                 <Ionicons name="chevron-forward" size={18} color="#9BA4B1" style={styles.rightIcon} />
                             </TouchableOpacity>
                             {showDatePicker && (
                                 <DateTimePicker
-                                    value={dob || new Date()}
+                                    value={tempDate || dob || new Date()}
                                     mode="date"
                                     display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                                     onChange={handleDateChange}
                                     maximumDate={new Date()}
                                 />
+                            )}
+                            {Platform.OS === 'ios' && showDatePicker && (
+                                <TouchableOpacity 
+                                    style={styles.doneButtonIOS} 
+                                    onPress={commitDate}
+                                >
+                                    <Text style={styles.doneButtonTextIOS}>Confirm Selection</Text>
+                                </TouchableOpacity>
                             )}
                         </View>
 
@@ -305,22 +356,33 @@ const styles = StyleSheet.create({
         color: '#666',
         fontSize: 16,
     },
-    header: {
-        backgroundColor: '#1972ca',
-        paddingHorizontal: 24,
-        paddingBottom: 30,
-        borderBottomLeftRadius: 30,
-        borderBottomRightRadius: 30,
+    miniHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        paddingBottom: 15,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F3F4F6',
+    },
+    backButton: {
+        width: 40,
+        height: 40,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    titleContainer: {
+        flex: 1,
+        alignItems: 'center',
     },
     headerTitle: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: '#FFFFFF',
-        marginBottom: 8,
+        fontSize: 20,
+        fontWeight: '800',
+        color: '#111827',
     },
     headerSubtitle: {
-        fontSize: 14,
-        color: 'rgba(255, 255, 255, 0.8)',
+        fontSize: 12,
+        color: '#9BA4B1',
+        marginTop: 2,
     },
     scrollContent: {
         paddingBottom: 40,
@@ -369,8 +431,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         borderRightWidth: 1,
         borderRightColor: '#E5E7EB',
-        paddingRight: 10,
-        marginRight: 5,
+        paddingRight: 8,
+        marginRight: 8,
         height: '60%',
     },
     flagEmoji: {
@@ -448,6 +510,50 @@ const styles = StyleSheet.create({
     nextButtonText: {
         color: '#FFFFFF',
         fontSize: 18,
+        fontWeight: 'bold',
+    },
+    // iOS Picker Styles
+    iosPickerContainer: {
+        backgroundColor: '#FFFFFF',
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        zIndex: 1000,
+        borderTopWidth: 1,
+        borderTopColor: '#E5E7EB',
+        paddingBottom: 20,
+    },
+    pickerHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        paddingVertical: 12,
+        backgroundColor: '#F9FAFB',
+        borderBottomWidth: 1,
+        borderBottomColor: '#F3F4F6',
+    },
+    pickerCancelText: {
+        fontSize: 16,
+        color: '#6B7280',
+        fontWeight: '500',
+    },
+    pickerDoneText: {
+        fontSize: 16,
+        color: '#1972ca',
+        fontWeight: '700',
+    },
+    doneButtonIOS: {
+        backgroundColor: '#1972ca',
+        paddingVertical: 12,
+        borderRadius: 12,
+        alignItems: 'center',
+        marginTop: 10,
+    },
+    doneButtonTextIOS: {
+        color: '#FFFFFF',
+        fontSize: 16,
         fontWeight: 'bold',
     },
 });

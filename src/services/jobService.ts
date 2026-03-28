@@ -1,4 +1,6 @@
 import api from './api';
+import * as SecureStore from 'expo-secure-store';
+import { jwtDecode } from 'jwt-decode';
 
 export interface Job {
     id: string;
@@ -26,9 +28,9 @@ export interface CreateJobData {
 }
 
 const jobService = {
-    getJobs: async (): Promise<Job[]> => {
+    getJobs: async (params?: { search?: string, location?: string, category?: string, job_type?: string }): Promise<Job[]> => {
         try {
-            const response = await api.get('/jobs');
+            const response = await api.get('/jobs', { params });
             const raw = response.data;
             // Backend may return a wrapped object: {jobs:[]}, {data:[]}, {results:[]}, or a plain array
             if (Array.isArray(raw)) return raw;
@@ -71,7 +73,20 @@ const jobService = {
 
     saveJob: async (jobId: string) => {
         try {
-            const response = await api.post(`/jobs/save`, { jobId });
+            // Extract UUID from token to satisfy Supabase RLS policies
+            let userId: string | undefined;
+            const token = await SecureStore.getItemAsync('auth_token');
+            if (token) {
+                try {
+                    const decoded: any = jwtDecode(token);
+                    userId = decoded.sub || decoded.id;
+                } catch (e) {}
+            }
+
+            const response = await api.post(`/jobs/save`, { 
+                jobId,
+                user_id: userId // Explicitly providing ID for RLS compliance
+            });
             return response.data;
         } catch (error: any) {
             throw error.response?.data?.message || 'Failed to save job';

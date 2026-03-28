@@ -122,7 +122,9 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ isVisible, onClose, onSwitc
             console.error('Signup error:', error.message);
             const errorMessage = error?.message || 'Signup failed. Please check your details.';
 
-            if (errorMessage.toLowerCase().includes('email')) {
+            if (errorMessage.toLowerCase().includes('already') || errorMessage.toLowerCase().includes('duplicate') || error?.status === 409) {
+                setErrors({ ...newErrors, email: 'This email is already registered. Please log in instead.' });
+            } else if (errorMessage.toLowerCase().includes('email')) {
                 setErrors({ ...newErrors, email: errorMessage });
             } else if (errorMessage.toLowerCase().includes('password')) {
                 setErrors({ ...newErrors, password: errorMessage });
@@ -157,7 +159,6 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ isVisible, onClose, onSwitc
                             <View style={styles.iconContainer}>
                                 <Ionicons name="briefcase" size={32} color="#FFFFFF" />
                             </View>
-                            <Text style={styles.title}>Wakajob</Text>
                             <Text style={styles.subtitle}>Create an Account</Text>
                             <Text style={styles.description}>Join thousands of professionals finding their dream jobs</Text>
                         </View>

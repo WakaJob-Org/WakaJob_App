@@ -7,6 +7,7 @@ import {
     FlatList,
     Dimensions,
     StatusBar,
+    RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -83,6 +84,7 @@ const NotificationsScreen: React.FC<NotificationsScreenProps> = ({ isVisible, on
     const insets = useSafeAreaInsets();
     const [activeTab, setActiveTab] = useState('All');
     const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS);
+    const [refreshing, setRefreshing] = useState(false);
 
     const getIcon = (type: string) => {
         switch (type) {
@@ -95,38 +97,59 @@ const NotificationsScreen: React.FC<NotificationsScreenProps> = ({ isVisible, on
         }
     };
 
+    const handleMarkAllRead = () => {
+        setNotifications(notifications.map(n => ({ ...n, isUnread: false })));
+    };
+
+    const handleNotificationPress = (id: string) => {
+        setNotifications(notifications.map(n => 
+            n.id === id ? { ...n, isUnread: false } : n
+        ));
+    };
+
+    const onRefresh = () => {
+        setRefreshing(true);
+        // Simulate loading
+        setTimeout(() => setRefreshing(false), 1500);
+    };
+
     const renderItem = ({ item, index }: { item: Notification, index: number }) => {
         const iconConfig = getIcon(item.type);
 
         return (
-            <Animated.View
-                entering={FadeInRight.delay(index * 100).duration(500)}
-                style={[
-                    styles.notificationItem,
-                    item.isUnread && styles.unreadItem
-                ]}
+            <TouchableOpacity 
+                onPress={() => handleNotificationPress(item.id)}
+                activeOpacity={0.7}
             >
-                {item.isUnread && <View style={styles.unreadIndicatorBar} />}
+                <Animated.View
+                    entering={FadeInRight.delay(index * 100).duration(500)}
+                    style={[
+                        styles.notificationItem,
+                        item.isUnread && styles.unreadItem
+                    ]}
+                >
+                    {item.isUnread && <View style={styles.unreadIndicatorBar} />}
 
-                <View style={[styles.iconContainer, { backgroundColor: iconConfig.bg }]}>
-                    <Ionicons name={iconConfig.name as any} size={24} color={iconConfig.color} />
-                </View>
-
-                <View style={styles.contentContainer}>
-                    <View style={styles.itemHeader}>
-                        <Text style={styles.title}>{item.title}</Text>
-                        <Text style={styles.time}>{item.time}</Text>
+                    <View style={[styles.iconContainer, { backgroundColor: iconConfig.bg }]}>
+                        <Ionicons name={iconConfig.name as any} size={24} color={iconConfig.color} />
                     </View>
-                    <Text style={styles.description}>{item.description}</Text>
 
-                    {item.isUnread && (
-                        <View style={styles.unreadLabelContainer}>
-                            <View style={styles.unreadDot} />
-                            <Text style={styles.unreadText}>UNREAD</Text>
+                    <View style={styles.contentContainer}>
+                        <View style={styles.itemHeader}>
+                            <Text style={styles.title}>{item.title}</Text>
+                            <Text style={styles.time}>{item.time}</Text>
                         </View>
-                    )}
-                </View>
-            </Animated.View>
+                        <Text style={styles.description}>{item.description}</Text>
+
+                        {item.isUnread && (
+                            <View style={styles.unreadLabelContainer}>
+                                <View style={styles.unreadDot} />
+                                <Text style={styles.unreadText}>UNREAD</Text>
+                            </View>
+                        )}
+                    </View>
+                </Animated.View>
+            </TouchableOpacity>
         );
     };
 
@@ -141,7 +164,7 @@ const NotificationsScreen: React.FC<NotificationsScreenProps> = ({ isVisible, on
                     <Ionicons name="arrow-back" size={24} color="#333" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Notifications</Text>
-                <TouchableOpacity onPress={() => { }}>
+                <TouchableOpacity onPress={handleMarkAllRead}>
                     <Text style={styles.markReadText}>Mark all as read</Text>
                 </TouchableOpacity>
             </View>
@@ -164,6 +187,9 @@ const NotificationsScreen: React.FC<NotificationsScreenProps> = ({ isVisible, on
                 keyExtractor={(item) => item.id}
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.listContent}
+                refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#1972ca']} />
+                }
                 ListFooterComponent={
                     <TouchableOpacity style={styles.loadMoreBtn}>
                         <Text style={styles.loadMoreText}>LOAD OLDER NOTIFICATIONS</Text>
