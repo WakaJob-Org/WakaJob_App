@@ -90,7 +90,9 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
             console.error('Signup error:', error.message);
             const errorMessage = error?.message || 'Signup failed. Please check your details.';
 
-            if (errorMessage.toLowerCase().includes('email')) {
+            if (errorMessage.toLowerCase().includes('already') || errorMessage.toLowerCase().includes('duplicate') || error?.status === 409) {
+                setErrors({ ...newErrors, email: 'This email is already registered. Please log in instead.' });
+            } else if (errorMessage.toLowerCase().includes('email')) {
                 setErrors({ ...newErrors, email: errorMessage });
             } else if (errorMessage.toLowerCase().includes('password')) {
                 setErrors({ ...newErrors, password: errorMessage });

@@ -329,12 +329,12 @@ const ProfileScreen: React.FC = () => {
                         {/* Contact Information */}
                         <View style={styles.fieldGroup}>
                             <Text style={styles.label}>Contact Information</Text>
-                            <View style={[styles.inputWrapper, { marginBottom: 12 }]}>
+                            <View style={[styles.inputWrapper, styles.disabledInput, { marginBottom: 12 }]}>
                                 <Ionicons name="mail-outline" size={20} color="#9BA4B1" style={styles.leftIcon} />
                                 <TextInput
-                                    style={styles.input}
+                                    style={[styles.input, { color: '#9BA4B1' }]}
                                     value={email}
-                                    onChangeText={setEmail}
+                                    editable={false}
                                     placeholder="Email address"
                                     placeholderTextColor="#9BA4B1"
                                     keyboardType="email-address"
@@ -473,6 +473,10 @@ const styles = StyleSheet.create({
         borderColor: '#E5E7EB',
         borderRadius: 12,
         backgroundColor: '#FFFFFF',
+    },
+    disabledInput: {
+        backgroundColor: '#F3F4F6',
+        borderColor: '#E5E7EB',
     },
     input: {
         flex: 1,

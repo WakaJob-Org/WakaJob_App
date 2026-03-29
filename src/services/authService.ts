@@ -176,15 +176,34 @@ const authService = {
 
   async isAuthenticated(): Promise<boolean> {
     if (currentToken) {
-      console.log('--- Auth confirmed from memory ---');
-      return true;
+      try {
+        const decoded: any = jwtDecode(currentToken);
+        if (decoded.exp && decoded.exp * 1000 > Date.now()) {
+          return true;
+        }
+        console.log('--- Memory token expired ---');
+        currentToken = null;
+      } catch (e) { }
     }
+
     try {
       const token = await SecureStore.getItemAsync('auth_token');
       console.log('--- Checking storage for token ---:', token ? 'Token exists' : 'Storage EMPTY');
       if (token) {
-        currentToken = token;
-        return true;
+        try {
+          const decoded: any = jwtDecode(token);
+          if (decoded.exp && decoded.exp * 1000 > Date.now()) {
+            currentToken = token;
+            return true;
+          }
+          console.log('--- Storage token expired ---');
+          await SecureStore.deleteItemAsync('auth_token');
+        } catch (e) {
+          // If decode fails, assume it's just a non-JWT string or corrupt and use as is (backward compat)
+          // or just delete it if you want strict JWT. Let's be semi-strict.
+          currentToken = token;
+          return true;
+        }
       }
     } catch (e) {
       console.error('--- SecureStore Read Error ---:', e);
@@ -362,16 +381,26 @@ const authService = {
     try {
       console.log('--- SUBMITTING EMPLOYER VERIFICATION ---');
       // Using /profiles/verify as the standard endpoint for professional validation
-      // Fallback to updateProfile if specific endpoint doesn't exist
       const response = await api.post('/profiles/verify', formData);
       return response.data;
     } catch (error: any) {
+      // If 404 (Missing Endpoint) or 500 (Server Error with Images), attempt a one-time general update
       if (error.response?.status === 404) {
-        // If specific verify endpoint is missing, try general profile update
+        console.log('verifyEmployer: /profiles/verify 404, falling back to profile update');
         return this.updateProfile('me', formData);
       }
+      
       const msg = parseError(error);
       console.error('Employer Verification failure:', msg);
+      
+      // If it's a 500 error specifically related to image processing on the backend, 
+      // we might want to let the user proceed to "Pending" anyway if the database record was created.
+      if (error.response?.status === 500) {
+          console.warn('Backend 500 error detected - proceeding with caution');
+          // We throw so the UI shows an error, but with a clearer message
+          throw new Error("Server error processing images. Please try with smaller photos or wait a moment.");
+      }
+
       throw new Error(msg);
     }
   }
