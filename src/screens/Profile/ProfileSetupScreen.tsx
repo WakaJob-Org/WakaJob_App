@@ -17,12 +17,10 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import authService from '../../services/authService';
 
-interface ProfileSetupScreenProps {
-    isVisible: boolean;
-    onComplete: () => void;
-}
+import { useNavigation } from '@react-navigation/native';
 
-const ProfileSetupScreen: React.FC<ProfileSetupScreenProps> = ({ isVisible, onComplete }) => {
+const ProfileSetupScreen: React.FC = () => {
+    const navigation = useNavigation<any>();
     const [username, setUsername] = useState('');
     const [email, setEmail] = useState('');
     const [phone, setPhone] = useState('');
@@ -55,8 +53,8 @@ const ProfileSetupScreen: React.FC<ProfileSetupScreenProps> = ({ isVisible, onCo
             }
         };
 
-        if (isVisible) fetchUserData();
-    }, [isVisible]);
+        fetchUserData();
+    }, []);
 
     const handleDateChange = (event: any, selectedDate?: Date) => {
         // Handle dismissals (User tapped cancel)
@@ -132,7 +130,7 @@ const ProfileSetupScreen: React.FC<ProfileSetupScreenProps> = ({ isVisible, onCo
             };
 
             await authService.updateProfile(userId || 'me', payload);
-            onComplete();
+            navigation.navigate('App');
         } catch (error: any) {
             Alert.alert('Error', error.message || 'Failed to update profile');
         } finally {
@@ -150,8 +148,6 @@ const ProfileSetupScreen: React.FC<ProfileSetupScreenProps> = ({ isVisible, onCo
     const removeSkill = (skill: string) => {
         setSkills(skills.filter(s => s !== skill));
     };
-
-    if (!isVisible) return null;
 
     if (loading) {
         return (
@@ -238,14 +234,9 @@ const ProfileSetupScreen: React.FC<ProfileSetupScreenProps> = ({ isVisible, onCo
                         {/* Date of Birth with Calendar picker */}
                         <View style={styles.fieldGroup}>
                             <Text style={styles.label}>Date of Birth</Text>
-                            <TouchableOpacity 
-                                style={styles.inputWrapper} 
-                                onPress={() => {
-                                    const initialDate = dob || new Date();
-                                    initialDate.setHours(12, 0, 0, 0); // Always start at noon
-                                    setTempDate(initialDate);
-                                    setShowDatePicker(true);
-                                }}
+                            <TouchableOpacity
+                                style={styles.inputWrapper}
+                                onPress={() => setShowDatePicker(true)}
                             >
                                 <Ionicons name="calendar-outline" size={20} color="#9BA4B1" style={styles.leftIcon} />
                                 <View style={styles.dateDisplay}>

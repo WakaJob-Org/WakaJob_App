@@ -9,12 +9,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import authService from '../../services/authService';
-
-interface VerificationSuccessScreenProps {
-    isVisible: boolean;
-    onProfilePress?: () => void;
-    onStartNow?: () => void;
-}
+import { useNavigation } from '@react-navigation/native';
+import { useAuth } from '../../context/AuthContext';
 
 // Illustration: card with verified checkmark badge
 const SuccessIllustration = () => (
@@ -51,7 +47,6 @@ const SuccessIllustration = () => (
             <View style={illustrationStyles.badge}>
                 <Text style={illustrationStyles.checkmark}>✓</Text>
             </View>
-            {/* Small notch decorations to simulate verified badge shape */}
             <View style={illustrationStyles.notchLeft} />
             <View style={illustrationStyles.notchRight} />
             <View style={illustrationStyles.notchBottom} />
@@ -164,6 +159,7 @@ const illustrationStyles = StyleSheet.create({
         backgroundColor: '#1972ca',
         justifyContent: 'center',
         alignItems: 'center',
+        zIndex: 10,
         elevation: 4,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
@@ -205,13 +201,11 @@ const illustrationStyles = StyleSheet.create({
     },
 });
 
-const VerificationSuccessScreen: React.FC<VerificationSuccessScreenProps> = ({
-    isVisible,
-    onProfilePress,
-    onStartNow,
-}) => {
+const VerificationSuccessScreen: React.FC = () => {
+    const { user, refreshUser } = useAuth();
+    const navigation = useNavigation<any>();
     const insets = useSafeAreaInsets();
-    const [profile, setProfile] = useState<any>(null);
+    const [profile, setProfile] = useState<any>(user);
 
     useEffect(() => {
         const loadProfile = async () => {
@@ -224,10 +218,14 @@ const VerificationSuccessScreen: React.FC<VerificationSuccessScreenProps> = ({
                 console.error('Error loading profile:', error);
             }
         };
-        if (isVisible) loadProfile();
-    }, [isVisible]);
+        loadProfile();
+    }, []);
 
-    if (!isVisible) return null;
+    const handleStartNow = async () => {
+        await refreshUser();
+        // Since RootNavigator switches stacks automatically based on user.is_verified,
+        // refreshing user will trigger the transition to AppStack.
+    };
 
     const avatarInitials = profile?.full_name
         ? profile.full_name
@@ -246,7 +244,7 @@ const VerificationSuccessScreen: React.FC<VerificationSuccessScreenProps> = ({
                         <Text style={styles.logoText}>WakaJob</Text>
                     </View>
 
-                    <TouchableOpacity style={styles.avatar} onPress={onProfilePress}>
+                    <TouchableOpacity style={styles.avatar}>
                         {profile?.profile_photo ? (
                             <Image source={{ uri: profile.profile_photo }} style={styles.avatarImage} />
                         ) : (
@@ -277,7 +275,7 @@ const VerificationSuccessScreen: React.FC<VerificationSuccessScreenProps> = ({
                 {/* Start Now Button */}
                 <TouchableOpacity
                     style={styles.startButton}
-                    onPress={onStartNow}
+                    onPress={handleStartNow}
                     activeOpacity={0.8}
                 >
                     <Text style={styles.startButtonText}>Start Now</Text>

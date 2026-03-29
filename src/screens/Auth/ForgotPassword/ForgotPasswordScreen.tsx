@@ -22,14 +22,10 @@ import authService from '../../../services/authService';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-interface ForgotPasswordScreenProps {
-    isVisible: boolean;
-    onClose: () => void;
-    onSuccess: () => void; // Triggered when password successfully reset
-}
+import { useNavigation } from '@react-navigation/native';
 
-const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ isVisible, onClose, onSuccess }) => {
-    const translateY = useSharedValue(SCREEN_HEIGHT);
+const ForgotPasswordScreen: React.FC = () => {
+    const navigation = useNavigation<any>();
     const [step, setStep] = useState<'request' | 'reset'>('request');
     const [loading, setLoading] = useState(false);
 
@@ -44,26 +40,6 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ isVisible, 
 
     const [errors, setErrors] = useState<any>({});
 
-    useEffect(() => {
-        if (isVisible) {
-            translateY.value = withTiming(0, { duration: 800 });
-        } else {
-            translateY.value = withTiming(SCREEN_HEIGHT, { duration: 600 });
-            // Reset state when hiding
-            setTimeout(() => {
-                setStep('request');
-                setEmail('');
-                setOtp('');
-                setNewPassword('');
-                setConfirmPassword('');
-                setErrors({});
-            }, 600);
-        }
-    }, [isVisible]);
-
-    const animatedStyle = useAnimatedStyle(() => ({
-        transform: [{ translateY: translateY.value }],
-    }));
 
     const handleSendCode = async () => {
         if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -101,7 +77,7 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ isVisible, 
         try {
             await authService.resetPassword({ email, otp, new_password: newPassword });
             Alert.alert('Success', 'Your password has been successfully reset. You can now login.');
-            onSuccess(); // Close and switch to login
+            navigation.navigate('Login');
         } catch (error: any) {
             Alert.alert('Reset Failed', error || 'Failed to reset password.');
         } finally {
@@ -109,10 +85,8 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ isVisible, 
         }
     };
 
-    if (!isVisible && translateY.value === SCREEN_HEIGHT) return null;
-
     return (
-        <Animated.View style={[styles.container, animatedStyle]}>
+        <View style={styles.container}>
             <View style={styles.handleContainer}>
                 <View style={styles.handle} />
             </View>
@@ -122,7 +96,7 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ isVisible, 
                 style={{ flex: 1 }}
             >
                 <View style={styles.headerTitleRow}>
-                    <TouchableOpacity onPress={onClose} style={styles.backButton}>
+                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                         <Ionicons name="close" size={24} color="#333" />
                     </TouchableOpacity>
                     <Text style={styles.topTitle}>{step === 'request' ? 'Forgot Password' : 'Reset Password'}</Text>
@@ -244,26 +218,14 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ isVisible, 
                     )}
                 </ScrollView>
             </KeyboardAvoidingView>
-        </Animated.View>
+        </View>
     );
 };
 
 const styles = StyleSheet.create({
     container: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        height: SCREEN_HEIGHT * 0.9,
+        flex: 1,
         backgroundColor: '#FFFFFF',
-        borderTopLeftRadius: 30,
-        borderTopRightRadius: 30,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: -5 },
-        shadowOpacity: 0.1,
-        shadowRadius: 10,
-        elevation: 20,
-        zIndex: 1100, // Higher than Login Screen
     },
     handleContainer: {
         alignItems: 'center',
