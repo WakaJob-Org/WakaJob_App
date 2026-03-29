@@ -14,10 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import jobService from '../../services/jobService';
 import ApplicationsSkeleton from '../../components/ApplicationsSkeleton';
 
-interface ApplicationsScreenProps {
-    isVisible: boolean;
-    onBack?: () => void;
-}
+import { useNavigation } from '@react-navigation/native';
 
 const TABS = ['All', 'Pending', 'Accepted', 'Rejected'];
 
@@ -56,7 +53,8 @@ const MOCK_APPLICATIONS = [
     },
 ];
 
-const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ isVisible, onBack }) => {
+const ApplicationsScreen: React.FC = () => {
+    const navigation = useNavigation();
     const [activeTab, setActiveTab] = useState('All');
     const [applications, setApplications] = useState<any[]>(MOCK_APPLICATIONS);
     const [loading, setLoading] = useState(true);
@@ -78,8 +76,8 @@ const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ isVisible, onBa
     };
 
     React.useEffect(() => {
-        if (isVisible) fetchApplications();
-    }, [isVisible]);
+        fetchApplications();
+    }, []);
 
     const onRefresh = React.useCallback(() => {
         setRefreshing(true);
@@ -88,7 +86,6 @@ const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ isVisible, onBa
 
     const insets = useSafeAreaInsets();
 
-    if (!isVisible) return null;
     if (loading) return <ApplicationsSkeleton />;
 
     const filteredApplications = applications.filter(app => {
@@ -150,7 +147,7 @@ const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ isVisible, onBa
         <View style={styles.container}>
             <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
                 <View style={styles.headerTop}>
-                    <TouchableOpacity onPress={onBack} style={styles.iconButton}>
+                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconButton}>
                         <Ionicons name="chevron-back" size={28} color="#1972ca" />
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.iconButton}>

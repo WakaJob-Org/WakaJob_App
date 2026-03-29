@@ -17,22 +17,19 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import { StackNavigationProp } from '@react-navigation/stack';
+import { CompositeNavigationProp, useNavigation } from '@react-navigation/native';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSequence, withDelay } from 'react-native-reanimated';
 import jobService, { Job } from '../../services/jobService';
 import authService from '../../services/authService';
-import DashboardSkeleton from '../../components/DashboardSkeleton';
+import { useAuth } from '../../context/AuthContext';
+import { AppStackParamList, MainTabParamList } from '../../navigation/types';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
-interface DashboardScreenProps {
-    isVisible: boolean;
-    userName: string;
-    userProfile?: any;
-    onLogout: () => void;
-    onSettingsPress: () => void;
-    onProfilePress: () => void;
-    onNotificationPress: () => void;
-}
+type DashboardNavigationProp = CompositeNavigationProp<
+    BottomTabNavigationProp<MainTabParamList, 'Jobs'>,
+    StackNavigationProp<AppStackParamList>
+>;
 
 interface JobType {
     id: string;
@@ -91,14 +88,14 @@ const MOCK_JOBS: JobType[] = [
     }
 ];
 
-const DashboardScreen: React.FC<DashboardScreenProps> = ({
-    isVisible,
-    userName,
-    onLogout,
-    onSettingsPress,
-    onProfilePress,
-    onNotificationPress
-}) => {
+import DashboardSkeleton from '../../components/DashboardSkeleton';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+// ... other code ...
+
+const DashboardScreen: React.FC = () => {
+    const { user, logout } = useAuth();
+    const navigation = useNavigation<DashboardNavigationProp>();
     const insets = useSafeAreaInsets();
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedJob, setSelectedJob] = useState<JobType | null>(null);
@@ -129,16 +126,15 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({
     useEffect(() => {
         const loadProfile = async () => {
             try {
-                const userData = await authService.getUser();
-                if (userData) {
-                    setProfile(userData);
+                if (user) {
+                    setProfile(user);
                 }
             } catch (error) {
                 console.error('Error loading dashboard profile:', error);
             }
         };
-        if (isVisible) loadProfile();
-    }, [isVisible]);
+        loadProfile();
+    }, [user]);
 
     const getInitials = (name: string) => {
         if (!name) return 'U';
@@ -148,7 +144,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({
         return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
     };
 
-    const displayName = profile?.full_name || userName;
+    const displayName = profile?.full_name || user?.full_name || 'User';
     const avatarInitials = getInitials(displayName);
 
     const fetchJobs = async (isRefreshing = false) => {
@@ -209,7 +205,6 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({
         }
     }, [searchQuery, allJobs]);
 
-    if (!isVisible) return null;
     if (loading) return <DashboardSkeleton />;
 
     const handleJobPress = (job: JobType) => {
@@ -317,11 +312,11 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({
                         <View style={styles.pinkDot} />
                     </View>
                     <View style={styles.headerActions}>
-                        <TouchableOpacity style={styles.iconButton} onPress={onNotificationPress}>
+                        <TouchableOpacity style={styles.iconButton} onPress={() => navigation.navigate('Notifications')}>
                             <Ionicons name="notifications-outline" size={24} color="#1972ca" />
                             <View style={styles.notifDot} />
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.avatar} onPress={onProfilePress}>
+                        <TouchableOpacity style={styles.avatar} onPress={() => navigation.navigate('Profile')}>
                             {profile?.profile_image_url ? (
                                 <Image source={{ uri: profile.profile_image_url }} style={styles.avatarImage} />
                             ) : (
@@ -380,7 +375,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({
                 }
             />
 
-            <Modal visible={showDetails} animationType="slide" transparent>
+            <Modal visible={!!showDetails} animationType="slide" transparent={true}>
                 <View style={styles.modalBg}>
                     <View style={styles.modalContent}>
                         <SafeAreaView style={styles.modalHeader}>
@@ -428,6 +423,17 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({
                     </View>
                 </View>
             </Modal>
+
+            {/* Floating Action Button for Employers */}
+            {user?.role === 'employer' && (
+                <TouchableOpacity
+                    style={styles.fab}
+                    onPress={() => navigation.navigate('CreateJob')}
+                    activeOpacity={0.8}
+                >
+                    <Ionicons name="add" size={30} color="#FFFFFF" />
+                </TouchableOpacity>
+            )}
 
             {/* Toast Notification */}
             <Animated.View pointerEvents="none" style={[styles.toastContainer, toastStyle]}>
@@ -535,6 +541,22 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontSize: 14,
         fontWeight: '600',
+    },
+    fab: {
+        position: 'absolute',
+        bottom: 100,
+        right: 20,
+        width: 60,
+        height: 60,
+        borderRadius: 30,
+        backgroundColor: '#1972ca',
+        justifyContent: 'center',
+        alignItems: 'center',
+        elevation: 10,
+        shadowColor: '#1972ca',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 10,
     },
 });
 

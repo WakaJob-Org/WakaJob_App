@@ -6,7 +6,6 @@ import {
     TouchableOpacity,
     ScrollView,
     TextInput,
-    Modal,
     SafeAreaView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,13 +14,10 @@ import authService from '../../services/authService';
 import Header from '../../components/Header';
 import { Alert } from 'react-native';
 
-interface CreateJobScreenProps {
-    isVisible: boolean;
-    onClose: () => void;
-    onPost: (jobData: any) => void;
-}
+import { useNavigation } from '@react-navigation/native';
 
-const CreateJobScreen: React.FC<CreateJobScreenProps> = ({ isVisible, onClose, onPost }) => {
+const CreateJobScreen: React.FC = () => {
+    const navigation = useNavigation();
     const [loading, setLoading] = useState(false);
     const [jobData, setJobData] = useState({
         title: '',
@@ -60,9 +56,8 @@ const CreateJobScreen: React.FC<CreateJobScreenProps> = ({ isVisible, onClose, o
                 qualifications: 'None' // Default for now
             };
 
-            const createdJob = await jobService.createJob(backendData);
-            onPost(createdJob);
-            onClose();
+            await jobService.createJob(backendData);
+            navigation.goBack();
         } catch (error: any) {
             Alert.alert("Post Failed", typeof error === 'string' ? error : "Could not create job listing.");
         } finally {
@@ -71,107 +66,101 @@ const CreateJobScreen: React.FC<CreateJobScreenProps> = ({ isVisible, onClose, o
     };
 
     return (
-        <Modal
-            visible={isVisible}
-            animationType="slide"
-            onRequestClose={onClose}
-        >
-            <SafeAreaView style={styles.container}>
-                <Header
-                    title="Post a Job"
-                    showBackButton={true}
-                    onBackPress={onClose}
-                    showSettings={false}
-                />
+        <SafeAreaView style={styles.container}>
+            <Header
+                title="Post a Job"
+                showBackButton={true}
+                onBackPress={() => navigation.goBack()}
+                showSettings={false}
+            />
 
-                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-                    <View style={styles.form}>
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Job Title</Text>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+                <View style={styles.form}>
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>Job Title</Text>
+                        <TextInput
+                            style={styles.input}
+                            placeholder="e.g. Senior Developer"
+                            value={jobData.title}
+                            onChangeText={(text) => setJobData({ ...jobData, title: text })}
+                        />
+                    </View>
+
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>Company Name</Text>
+                        <TextInput
+                            style={styles.input}
+                            placeholder="e.g. TechCorp"
+                            value={jobData.company}
+                            onChangeText={(text) => setJobData({ ...jobData, company: text })}
+                        />
+                    </View>
+
+                    <View style={styles.row}>
+                        <View style={[styles.inputGroup, { flex: 1 }]}>
+                            <Text style={styles.label}>Location</Text>
                             <TextInput
                                 style={styles.input}
-                                placeholder="e.g. Senior Developer"
-                                value={jobData.title}
-                                onChangeText={(text) => setJobData({ ...jobData, title: text })}
+                                placeholder="e.g. Lagos, NG"
+                                value={jobData.location}
+                                onChangeText={(text) => setJobData({ ...jobData, location: text })}
                             />
                         </View>
-
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Company Name</Text>
+                        <View style={[styles.inputGroup, { flex: 1 }]}>
+                            <Text style={styles.label}>Salary Range</Text>
                             <TextInput
                                 style={styles.input}
-                                placeholder="e.g. TechCorp"
-                                value={jobData.company}
-                                onChangeText={(text) => setJobData({ ...jobData, company: text })}
-                            />
-                        </View>
-
-                        <View style={styles.row}>
-                            <View style={[styles.inputGroup, { flex: 1 }]}>
-                                <Text style={styles.label}>Location</Text>
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="e.g. Lagos, NG"
-                                    value={jobData.location}
-                                    onChangeText={(text) => setJobData({ ...jobData, location: text })}
-                                />
-                            </View>
-                            <View style={[styles.inputGroup, { flex: 1 }]}>
-                                <Text style={styles.label}>Salary Range</Text>
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="e.g. $2k - $4k"
-                                    value={jobData.salary}
-                                    onChangeText={(text) => setJobData({ ...jobData, salary: text })}
-                                />
-                            </View>
-                        </View>
-
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Job Description</Text>
-                            <TextInput
-                                style={[styles.input, styles.textArea]}
-                                placeholder="Tell us about the role..."
-                                multiline
-                                numberOfLines={5}
-                                value={jobData.description}
-                                onChangeText={(text) => setJobData({ ...jobData, description: text })}
-                            />
-                        </View>
-
-                        <View style={styles.sectionDivider} />
-
-                        <Text style={styles.sectionTitle}>Contact Info</Text>
-
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Email for Applications</Text>
-                            <TextInput
-                                style={styles.input}
-                                placeholder="jobs@company.com"
-                                keyboardType="email-address"
-                                value={jobData.email}
-                                onChangeText={(text) => setJobData({ ...jobData, email: text })}
-                            />
-                        </View>
-
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Phone Number</Text>
-                            <TextInput
-                                style={styles.input}
-                                placeholder="+234 ..."
-                                keyboardType="phone-pad"
-                                value={jobData.phone}
-                                onChangeText={(text) => setJobData({ ...jobData, phone: text })}
+                                placeholder="e.g. $2k - $4k"
+                                value={jobData.salary}
+                                onChangeText={(text) => setJobData({ ...jobData, salary: text })}
                             />
                         </View>
                     </View>
 
-                    <TouchableOpacity style={styles.postButton} onPress={handlePost}>
-                        <Text style={styles.postButtonText}>Post Job Listing</Text>
-                    </TouchableOpacity>
-                </ScrollView>
-            </SafeAreaView>
-        </Modal>
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>Job Description</Text>
+                        <TextInput
+                            style={[styles.input, styles.textArea]}
+                            placeholder="Tell us about the role..."
+                            multiline
+                            numberOfLines={5}
+                            value={jobData.description}
+                            onChangeText={(text) => setJobData({ ...jobData, description: text })}
+                        />
+                    </View>
+
+                    <View style={styles.sectionDivider} />
+
+                    <Text style={styles.sectionTitle}>Contact Info</Text>
+
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>Email for Applications</Text>
+                        <TextInput
+                            style={styles.input}
+                            placeholder="jobs@company.com"
+                            keyboardType="email-address"
+                            value={jobData.email}
+                            onChangeText={(text) => setJobData({ ...jobData, email: text })}
+                        />
+                    </View>
+
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>Phone Number</Text>
+                        <TextInput
+                            style={styles.input}
+                            placeholder="+234 ..."
+                            keyboardType="phone-pad"
+                            value={jobData.phone}
+                            onChangeText={(text) => setJobData({ ...jobData, phone: text })}
+                        />
+                    </View>
+                </View>
+
+                <TouchableOpacity style={styles.postButton} onPress={handlePost}>
+                    <Text style={styles.postButtonText}>Post Job Listing</Text>
+                </TouchableOpacity>
+            </ScrollView>
+        </SafeAreaView>
     );
 };
 

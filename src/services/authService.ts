@@ -202,9 +202,15 @@ const authService = {
     return currentToken;
   },
 
-  async logout(): Promise<void> {
+  clearMemoryToken(): void {
     currentToken = null;
+  },
+
+  async logout(): Promise<void> {
+    console.log('--- LOGOUT INITIATED ---');
+    this.clearMemoryToken();
     await SecureStore.deleteItemAsync('auth_token');
+    await SecureStore.deleteItemAsync('cached_user_name');
   },
 
   async setToken(token: string): Promise<void> {
@@ -351,7 +357,7 @@ const authService = {
       }
     }
   },
-  
+
   async verifyEmployer(formData: FormData): Promise<any> {
     try {
       console.log('--- SUBMITTING EMPLOYER VERIFICATION ---');

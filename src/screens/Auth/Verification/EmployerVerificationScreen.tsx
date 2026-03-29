@@ -22,17 +22,10 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 
 const { width } = Dimensions.get('window');
 
-interface EmployerVerificationScreenProps {
-    isVisible: boolean;
-    onClose: () => void;
-    onSubmit: () => void;
-}
+import { useNavigation, NavigationProp } from '@react-navigation/native';
 
-const EmployerVerificationScreen: React.FC<EmployerVerificationScreenProps> = ({
-    isVisible,
-    onClose,
-    onSubmit
-}) => {
+const EmployerVerificationScreen: React.FC = () => {
+    const navigation = useNavigation<any>();
     const insets = useSafeAreaInsets();
     const [bio, setBio] = useState('');
     const [location, setLocation] = useState('');
@@ -60,7 +53,7 @@ const EmployerVerificationScreen: React.FC<EmployerVerificationScreenProps> = ({
 
         if (!result.canceled && result.assets[0].uri) {
             const uri = result.assets[0].uri;
-            switch(type) {
+            switch (type) {
                 case 'Work Location Image': setWorkLocationPic(uri); break;
                 case 'Council Permit': setPermitDoc(uri); break;
                 case 'ID Front': setIdFrontPic(uri); break;
@@ -112,7 +105,7 @@ const EmployerVerificationScreen: React.FC<EmployerVerificationScreenProps> = ({
             Alert.alert(
                 "Verification Submitted",
                 "Your details have been saved successfully. Our team will review your professional status shortly.",
-                [{ text: "OK", onPress: onSubmit }]
+                [{ text: "OK", onPress: () => navigation.navigate('VerificationPending') }]
             );
         } catch (error: any) {
             Alert.alert("Submission Failed", error.message || "Could not save verification data.");
@@ -121,15 +114,13 @@ const EmployerVerificationScreen: React.FC<EmployerVerificationScreenProps> = ({
         }
     };
 
-    if (!isVisible) return null;
-
     return (
         <View style={styles.container}>
             <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-                <TouchableOpacity onPress={onClose} style={styles.backButton}>
+                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color="#333" />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Proffessional Verification</Text>
+                <Text style={styles.headerTitle}>Professional Verification</Text>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
@@ -253,8 +244,8 @@ const EmployerVerificationScreen: React.FC<EmployerVerificationScreenProps> = ({
                     </View>
 
                     {/* Submit Button */}
-                    <TouchableOpacity 
-                        style={[styles.submitButton, loading && styles.submitButtonDisabled]} 
+                    <TouchableOpacity
+                        style={[styles.submitButton, loading && styles.submitButtonDisabled]}
                         onPress={handleSubmit}
                         disabled={loading}
                     >
