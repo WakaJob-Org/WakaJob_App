@@ -20,13 +20,12 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import authService from '../../services/authService';
 import ProfileSkeleton from '../../components/ProfileSkeleton';
 
-interface ProfileScreenProps {
-    isVisible: boolean;
-    onBack?: () => void;
-    onLogout?: () => void;
-}
+import { useNavigation } from '@react-navigation/native';
+import { useAuth } from '../../context/AuthContext';
 
-const ProfileScreen: React.FC<ProfileScreenProps> = ({ isVisible, onBack, onLogout }) => {
+const ProfileScreen: React.FC = () => {
+    const { logout } = useAuth();
+    const navigation = useNavigation();
     const [username, setUsername] = useState('');
     const [dob, setDob] = useState('March 15, 1992');
     const [bio, setBio] = useState('Passionate UX designer with 5+ years of experience');
@@ -72,8 +71,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ isVisible, onBack, onLogo
             }
         };
 
-        if (isVisible) fetchProfile();
-    }, [isVisible]);
+        fetchProfile();
+    }, []);
 
     const handleSave = async () => {
         try {
@@ -91,7 +90,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ isVisible, onBack, onLogo
                 formData.append('bio', bio);
                 formData.append('phone_number', phone.startsWith('+237') ? phone : `+237${phone}`);
                 formData.append('date_of_birth', dob);
-                
+
                 // Many backends prefer arrays as JSON strings in FormData
                 formData.append('skills', JSON.stringify(skills.map(s => s.name)));
 
@@ -100,13 +99,13 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ isVisible, onBack, onLogo
                     const filename = uri.split('/').pop() || 'profile.jpg';
                     const match = /\.(\w+)$/.exec(filename);
                     const type = match ? `image/${match[1]}` : `image/jpeg`;
-                    
+
                     const fileObj = {
                         uri: Platform.OS === 'android' ? uri : uri.replace('file://', ''),
                         name: filename,
                         type,
                     };
-                    
+
                     // Try 'profile_image' first, as suggested by your logs
                     formData.append('profile_image', fileObj as any);
                 }
@@ -125,9 +124,12 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ isVisible, onBack, onLogo
 
             console.log('--- SAVING PROFILE ---', isLocalFile ? 'FORM DATA' : 'JSON');
             await authService.updateProfile(userId || 'me', payload);
-            
+
             // Immediate navigation without popup for smoother UX
-            if (onBack) onBack();
+            await authService.updateProfile(userId || 'me', payload);
+
+            // Immediate navigation without popup for smoother UX
+            navigation.goBack();
         } catch (error: any) {
             console.error('Save profile error:', error);
             Alert.alert('Error', error.message || 'Failed to update profile');
@@ -174,7 +176,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ isVisible, onBack, onLogo
         }
     };
 
-    if (!isVisible) return null;
     if (loading) return <ProfileSkeleton />;
 
     return (
@@ -182,7 +183,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ isVisible, onBack, onLogo
             {/* Custom Header */}
             <View style={[styles.header, { paddingTop: insets.top }]}>
                 <View style={styles.headerContent}>
-                    <TouchableOpacity onPress={onBack} style={styles.headerIconButton}>
+                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerIconButton}>
                         <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>Edit Profile</Text>
@@ -243,7 +244,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ isVisible, onBack, onLogo
 
                         <View style={styles.fieldGroup}>
                             <Text style={styles.label}>Date of Birth</Text>
-                            <TouchableOpacity 
+                            <TouchableOpacity
                                 style={styles.inputWrapper}
                                 onPress={() => setShowDatePicker(true)}
                             >
@@ -366,24 +367,22 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ isVisible, onBack, onLogo
                         <Text style={styles.saveChangesText}>{saving ? 'Saving...' : 'Save Changes'}</Text>
                     </TouchableOpacity>
 
-                    {onLogout && (
-                        <TouchableOpacity
-                            style={styles.logoutBtn}
-                            onPress={() => {
-                                Alert.alert(
-                                    'Logout',
-                                    'Are you sure you want to log out?',
-                                    [
-                                        { text: 'Cancel', style: 'cancel' },
-                                        { text: 'Logout', style: 'destructive', onPress: onLogout }
-                                    ]
-                                );
-                            }}
-                        >
-                            <Ionicons name="log-out-outline" size={20} color="#FF3B30" />
-                            <Text style={styles.logoutText}>Logout</Text>
-                        </TouchableOpacity>
-                    )}
+                    <TouchableOpacity
+                        style={styles.logoutBtn}
+                        onPress={() => {
+                            Alert.alert(
+                                'Logout',
+                                'Are you sure you want to log out?',
+                                [
+                                    { text: 'Cancel', style: 'cancel' },
+                                    { text: 'Logout', style: 'destructive', onPress: logout }
+                                ]
+                            );
+                        }}
+                    >
+                        <Ionicons name="log-out-outline" size={20} color="#FF3B30" />
+                        <Text style={styles.logoutText}>Logout</Text>
+                    </TouchableOpacity>
                 </ScrollView>
             </KeyboardAvoidingView>
         </View>

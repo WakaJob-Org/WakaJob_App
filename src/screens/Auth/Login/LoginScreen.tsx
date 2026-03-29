@@ -12,28 +12,23 @@ import {
     KeyboardAvoidingView,
     Platform,
 } from 'react-native';
-import authService from '../../../services/authService';
-import GoogleIcon from '../../../components/GoogleIcon';
-import Animated, {
-    useSharedValue,
-    useAnimatedStyle,
-    withTiming,
-} from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import * as ScreenCapture from 'expo-screen-capture';
+import Animated from 'react-native-reanimated';
+import { StackNavigationProp } from '@react-navigation/stack';
+import { AuthStackParamList } from '../../../navigation/types';
+import { useAuth } from '../../../context/AuthContext';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
+type LoginScreenNavigationProp = StackNavigationProp<AuthStackParamList, 'Login'>;
+
 interface LoginScreenProps {
-    isVisible: boolean;
-    onClose: () => void;
-    onSwitchToSignup: () => void;
-    onForgotPassword?: () => void;
-    onLogin: () => void;
+    navigation: LoginScreenNavigationProp;
 }
 
-const LoginScreen: React.FC<LoginScreenProps> = ({ isVisible, onClose, onSwitchToSignup, onForgotPassword, onLogin }) => {
-    const translateY = useSharedValue(SCREEN_HEIGHT);
+const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
+    const { login } = useAuth();
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
 
@@ -48,21 +43,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ isVisible, onClose, onSwitchT
         email: '',
         password: '',
     });
-
-    useEffect(() => {
-        if (isVisible) {
-            // Smooth, non-bouncy entry - slowed down for visual clarity
-            translateY.value = withTiming(0, {
-                duration: 800,
-            });
-        } else {
-            translateY.value = withTiming(SCREEN_HEIGHT, { duration: 600 });
-        }
-    }, [isVisible]);
-
-    const animatedStyle = useAnimatedStyle(() => ({
-        transform: [{ translateY: translateY.value }],
-    }));
 
     const handleLogin = async () => {
         // Reset and check errors
@@ -91,8 +71,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ isVisible, onClose, onSwitchT
 
         setLoading(true);
         try {
-            await authService.signin({ email, password });
-            onLogin();
+            await login({ email, password });
+            // RootNavigator handles redirection
         } catch (error: any) {
             console.error('Login error detail:', error);
             const errorMessage = error instanceof Error ? error.message : (error || 'Invalid email or password. Please try again.');
@@ -102,127 +82,110 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ isVisible, onClose, onSwitchT
         }
     };
 
-    if (!isVisible && translateY.value === SCREEN_HEIGHT) return null;
-
     return (
-        <>
-            <Animated.View style={[styles.container, animatedStyle]}>
-                <View style={styles.handleContainer}>
-                    <View style={styles.handle} />
-                </View>
+        <View style={styles.container}>
+            <View style={styles.handleContainer}>
+                <View style={styles.handle} />
+            </View>
 
-                <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                    style={{ flex: 1 }}
-                    keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+            <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                style={styles.container}
+            >
+                <ScrollView
+                    contentContainerStyle={styles.scrollContent}
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
                 >
-                    <ScrollView
-                        contentContainerStyle={styles.scrollContent}
-                        showsVerticalScrollIndicator={false}
-                        keyboardShouldPersistTaps="handled"
-                    >
-                        <View style={styles.header}>
-                            <View style={styles.iconContainer}>
-                                <Ionicons name="briefcase" size={32} color="#FFFFFF" />
-                            </View>
-                            <Text style={styles.title}>Wakajob</Text>
-                            <Text style={styles.welcomeText}>Welcome back to your career journey</Text>
+                    <View style={styles.header}>
+                        <View style={styles.iconContainer}>
+                            <Ionicons name="briefcase" size={32} color="#FFFFFF" />
+                        </View>
+                        <Text style={styles.title}>Wakajob</Text>
+                        <Text style={styles.welcomeText}>Welcome back to your career journey</Text>
 
-                            <View style={styles.titleSection}>
-                                <Text style={styles.loginTitle}>Log In to your account</Text>
-                                <Text style={styles.loginSubtitle}>Enter your credentials to access your account</Text>
+                        <View style={styles.titleSection}>
+                            <Text style={styles.loginTitle}>Log In to your account</Text>
+                            <Text style={styles.loginSubtitle}>Enter your credentials to access your account</Text>
+                        </View>
+                    </View>
+
+                    <View style={styles.form}>
+                        <View style={styles.inputWrapper}>
+                            <Text style={styles.label}>Email Address</Text>
+                            <View style={[styles.inputContainer, errors.email ? styles.inputError : null]}>
+                                <Ionicons name="mail-outline" size={20} color={errors.email ? "#FF3B30" : "#666"} style={styles.inputIcon} />
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="Enter your email"
+                                    keyboardType="email-address"
+                                    placeholderTextColor="#999"
+                                    autoCapitalize="none"
+                                    value={email}
+                                    onChangeText={(text) => {
+                                        setEmail(text);
+                                        if (errors.email) setErrors({ ...errors, email: '' });
+                                    }}
+                                />
                             </View>
+                            {errors.email ? <Text style={styles.errorText}>{errors.email}</Text> : null}
                         </View>
 
-                        <View style={styles.form}>
-                            <View style={styles.inputWrapper}>
-                                <Text style={styles.label}>Email Address</Text>
-                                <View style={[styles.inputContainer, errors.email ? styles.inputError : null]}>
-                                    <Ionicons name="mail-outline" size={20} color={errors.email ? "#FF3B30" : "#666"} style={styles.inputIcon} />
-                                    <TextInput
-                                        style={styles.input}
-                                        placeholder="Enter your email"
-                                        keyboardType="email-address"
-                                        placeholderTextColor="#999"
-                                        autoCapitalize="none"
-                                        value={email}
-                                        onChangeText={(text) => {
-                                            setEmail(text);
-                                            if (errors.email) setErrors({ ...errors, email: '' });
-                                        }}
-                                    />
-                                </View>
-                                {errors.email ? <Text style={styles.errorText}>{errors.email}</Text> : null}
-                            </View>
-
-                            <View style={styles.inputWrapper}>
-                                <Text style={styles.label}>Password</Text>
-                                <View style={[styles.inputContainer, errors.password ? styles.inputError : null]}>
-                                    <Ionicons name="lock-closed-outline" size={20} color={errors.password ? "#FF3B30" : "#666"} style={styles.inputIcon} />
-                                    <TextInput
-                                        style={styles.input}
-                                        placeholder="Enter your password"
-                                        secureTextEntry={!showPassword}
-                                        placeholderTextColor="#999"
-                                        value={password}
-                                        onChangeText={(text) => {
-                                            setPassword(text);
-                                            if (errors.password) setErrors({ ...errors, password: '' });
-                                        }}
-                                    />
-                                    <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-                                        <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color="#666" />
-                                    </TouchableOpacity>
-                                </View>
-                                {errors.password ? <Text style={styles.errorText}>{errors.password}</Text> : null}
-                                <TouchableOpacity style={styles.forgotPassword} onPress={onForgotPassword}>
-                                    <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+                        <View style={styles.inputWrapper}>
+                            <Text style={styles.label}>Password</Text>
+                            <View style={[styles.inputContainer, errors.password ? styles.inputError : null]}>
+                                <Ionicons name="lock-closed-outline" size={20} color={errors.password ? "#FF3B30" : "#666"} style={styles.inputIcon} />
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="Enter your password"
+                                    secureTextEntry={!showPassword}
+                                    placeholderTextColor="#999"
+                                    value={password}
+                                    onChangeText={(text) => {
+                                        setPassword(text);
+                                        if (errors.password) setErrors({ ...errors, password: '' });
+                                    }}
+                                />
+                                <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                                    <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color="#666" />
                                 </TouchableOpacity>
                             </View>
-
-                            <TouchableOpacity
-                                style={styles.signInButton}
-                                activeOpacity={0.8}
-                                onPress={handleLogin}
-                                disabled={loading}
-                            >
-                                {loading ? (
-                                    <ActivityIndicator color="#FFFFFF" />
-                                ) : (
-                                    <Text style={styles.signInButtonText}>Sign In</Text>
-                                )}
+                            {errors.password ? <Text style={styles.errorText}>{errors.password}</Text> : null}
+                            <TouchableOpacity style={styles.forgotPassword} onPress={() => navigation.navigate('ForgotPassword', { email })}>
+                                <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
                             </TouchableOpacity>
-
-                            <View style={styles.signupContainer}>
-                                <Text style={styles.signupText}>Don't have an account? </Text>
-                                <TouchableOpacity onPress={onSwitchToSignup}>
-                                    <Text style={styles.signupLink}>Sign Up</Text>
-                                </TouchableOpacity>
-                            </View>
                         </View>
-                    </ScrollView>
-                </KeyboardAvoidingView>
-            </Animated.View>
-        </>
+
+                        <TouchableOpacity
+                            style={styles.signInButton}
+                            activeOpacity={0.8}
+                            onPress={handleLogin}
+                            disabled={loading}
+                        >
+                            {loading ? (
+                                <ActivityIndicator color="#FFFFFF" />
+                            ) : (
+                                <Text style={styles.signInButtonText}>Sign In</Text>
+                            )}
+                        </TouchableOpacity>
+
+                        <View style={styles.signupContainer}>
+                            <Text style={styles.signupText}>Don't have an account? </Text>
+                            <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
+                                <Text style={styles.signupLink}>Sign Up</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </ScrollView>
+            </KeyboardAvoidingView>
+        </View>
     );
 };
 
 const styles = StyleSheet.create({
     container: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        height: SCREEN_HEIGHT * 0.9,
+        flex: 1,
         backgroundColor: '#FFFFFF',
-        borderTopLeftRadius: 30,
-        borderTopRightRadius: 30,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: -5 },
-        shadowOpacity: 0.1,
-        shadowRadius: 10,
-        elevation: 20,
-        zIndex: 1000,
     },
     handleContainer: {
         alignItems: 'center',

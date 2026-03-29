@@ -167,13 +167,12 @@ const illustrationStyles = StyleSheet.create({
     },
 });
 
-const VerificationFailedScreen: React.FC<VerificationFailedScreenProps> = ({
-    isVisible,
-    onProfilePress,
-    onContactSupport,
-}) => {
+import { useAuth } from '../../context/AuthContext';
+
+const VerificationFailedScreen: React.FC = () => {
+    const { user } = useAuth();
     const insets = useSafeAreaInsets();
-    const [profile, setProfile] = useState<any>(null);
+    const [profile, setProfile] = useState<any>(user);
 
     useEffect(() => {
         const loadProfile = async () => {
@@ -186,10 +185,8 @@ const VerificationFailedScreen: React.FC<VerificationFailedScreenProps> = ({
                 console.error('Error loading profile:', error);
             }
         };
-        if (isVisible) loadProfile();
-    }, [isVisible]);
-
-    if (!isVisible) return null;
+        loadProfile();
+    }, []);
 
     const avatarInitials = profile?.full_name
         ? profile.full_name
@@ -200,11 +197,6 @@ const VerificationFailedScreen: React.FC<VerificationFailedScreenProps> = ({
         : 'FW';
 
     const handleContactSupport = () => {
-        if (onContactSupport) {
-            onContactSupport();
-            return;
-        }
-
         const email = 'wakajob@gmail.com';
         const subject = 'Account Verification Issue';
         const body =
@@ -241,7 +233,7 @@ const VerificationFailedScreen: React.FC<VerificationFailedScreenProps> = ({
                         <Text style={styles.logoText}>WakaJob</Text>
                     </View>
 
-                    <TouchableOpacity style={styles.avatar} onPress={onProfilePress}>
+                    <TouchableOpacity style={styles.avatar}>
                         {profile?.profile_photo ? (
                             <Image source={{ uri: profile.profile_photo }} style={styles.avatarImage} />
                         ) : (

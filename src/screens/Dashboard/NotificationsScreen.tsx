@@ -75,12 +75,10 @@ const MOCK_NOTIFICATIONS: Notification[] = [
     },
 ];
 
-interface NotificationsScreenProps {
-    isVisible: boolean;
-    onClose: () => void;
-}
+import { useNavigation } from '@react-navigation/native';
 
-const NotificationsScreen: React.FC<NotificationsScreenProps> = ({ isVisible, onClose }) => {
+const NotificationsScreen: React.FC = () => {
+    const navigation = useNavigation();
     const insets = useSafeAreaInsets();
     const [activeTab, setActiveTab] = useState('All');
     const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS);
@@ -153,14 +151,11 @@ const NotificationsScreen: React.FC<NotificationsScreenProps> = ({ isVisible, on
         );
     };
 
-    if (!isVisible) return null;
-
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
-            <StatusBar barStyle="dark-content" />
 
             <View style={styles.header}>
-                <TouchableOpacity onPress={onClose} style={styles.backBtn}>
+                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
                     <Ionicons name="arrow-back" size={24} color="#333" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Notifications</Text>
