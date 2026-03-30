@@ -75,8 +75,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
             // RootNavigator handles redirection
         } catch (error: any) {
             console.error('Login error detail:', error);
-            const errorMessage = error instanceof Error ? error.message : (error || 'Invalid email or password. Please try again.');
-            Alert.alert('Login Failed', errorMessage);
+            // Ignore the backend error details and show the exact requested string for credential failures
+            Alert.alert('Login Failed', 'wrong credentials check email or password');
         } finally {
             setLoading(false);
         }

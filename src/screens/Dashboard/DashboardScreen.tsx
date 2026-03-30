@@ -21,7 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { CompositeNavigationProp, useNavigation } from '@react-navigation/native';
-import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSequence, withDelay } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSequence, withDelay, FadeInUp, FadeOutUp } from 'react-native-reanimated';
 import jobService, { Job } from '../../services/jobService';
 import authService from '../../services/authService';
 import { useAuth } from '../../context/AuthContext';
@@ -600,16 +600,13 @@ const DashboardScreen: React.FC = () => {
                 ListEmptyComponent={
                     <View style={styles.empty}>
                         <Ionicons 
-                            name={onlyShowSaved ? "bookmark-outline" : "search-outline"} 
+                            name={"search-outline"} 
                             size={60} 
                             color="#CCC" 
                         />
                         <Text style={styles.emptyTitle}>
-                            {onlyShowSaved ? "No saved jobs yet" : "No jobs found"}
+                            {"No jobs found"}
                         </Text>
-                        {onlyShowSaved && (
-                            <Text style={styles.emptySubtitle}>Bookmark jobs to see them here</Text>
-                        )}
                     </View>
                 }
             />

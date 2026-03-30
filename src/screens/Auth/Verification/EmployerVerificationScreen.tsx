@@ -18,6 +18,7 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Location from 'expo-location';
+import * as SecureStore from 'expo-secure-store';
 
 // Defensive import for MapView
 let MapView: any = null;

@@ -29,7 +29,6 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
-    const [role, setRole] = useState<'worker' | 'employer'>('worker');
 
     // Error state
     const [errors, setErrors] = useState({
@@ -83,14 +82,14 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
                 email: cleanEmail,
                 password: password,
                 confirm_password: confirmPassword,
-                role: role,
+                role: 'worker',
             });
             navigation.navigate('OTP', { email: cleanEmail });
         } catch (error: any) {
             console.error('Signup error:', error.message);
             const errorMessage = error?.message || 'Signup failed. Please check your details.';
 
-            if (errorMessage.toLowerCase().includes('already') || errorMessage.toLowerCase().includes('duplicate') || error?.status === 409) {
+            if (errorMessage.toLowerCase().includes('already') || errorMessage.toLowerCase().includes('duplicate') || errorMessage.toLowerCase().includes('exist') || errorMessage.toLowerCase().includes('taken') || error?.status === 409) {
                 setErrors({ ...newErrors, email: 'This email is already registered. Please log in instead.' });
             } else if (errorMessage.toLowerCase().includes('email')) {
                 setErrors({ ...newErrors, email: errorMessage });
@@ -130,25 +129,6 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
                     </View>
 
                     <View style={styles.form}>
-                        <View style={styles.inputWrapper}>
-                            <Text style={styles.label}>Register as</Text>
-                            <View style={styles.roleSelector}>
-                                <TouchableOpacity
-                                    style={[styles.roleButton, role === 'worker' ? styles.roleButtonActive : null]}
-                                    onPress={() => setRole('worker')}
-                                >
-                                    <Ionicons name="person" size={20} color={role === 'worker' ? "#FFFFFF" : "#666"} />
-                                    <Text style={[styles.roleButtonText, role === 'worker' ? styles.roleButtonTextActive : null]}>Worker</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={[styles.roleButton, role === 'employer' ? styles.roleButtonActive : null]}
-                                    onPress={() => setRole('employer')}
-                                >
-                                    <Ionicons name="business" size={20} color={role === 'employer' ? "#FFFFFF" : "#666"} />
-                                    <Text style={[styles.roleButtonText, role === 'employer' ? styles.roleButtonTextActive : null]}>Employer</Text>
-                                </TouchableOpacity>
-                            </View>
-                        </View>
 
                         <View style={styles.inputWrapper}>
                             <Text style={styles.label}>Full Name</Text>
