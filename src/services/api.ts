@@ -1,5 +1,6 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 import CONFIG from '../config';
 
 const api = axios.create({
@@ -17,17 +18,35 @@ api.interceptors.request.use(
         if (token && config.headers) {
             config.headers.Authorization = `Bearer ${token}`;
         }
-        // Dynamically set content type based on payload
-        if (config.data && config.data instanceof FormData) {
-            // Delete Content-Type to let axios automatically set it with the correct boundary
+        
+        // Stable FormData check for React Native (iOS/Android)
+        const isFormData = config.data && (
+            (typeof config.data === 'object' && ('_parts' in config.data || config.data.constructor?.name === 'FormData')) ||
+            config.data instanceof FormData
+        );
+
+        if (isFormData && config.headers) {
+            // REMOVE Content-Type to allow axios/browser to set the boundary correctly
             delete config.headers['Content-Type'];
             delete config.headers['content-type'];
-        } else if (config.data) {
+            
+            // Helpful for some Android implementations to explicitly expect JSON
+            if (!config.headers['Accept']) {
+                config.headers['Accept'] = 'application/json';
+            }
+            
+            console.log(`[API REQUEST]: ${config.method?.toUpperCase()} ${config.url} (FormData)`);
+        } else if (config.data && config.headers) {
             config.headers['Content-Type'] = 'application/json';
+            console.log(`[API REQUEST]: ${config.method?.toUpperCase()} ${config.url} (JSON)`);
+        } else {
+            console.log(`[API REQUEST]: ${config.method?.toUpperCase()} ${config.url} (No Body)`);
         }
+        
         return config;
     },
     (error) => {
+        console.error('[API REQUEST ERROR]:', error);
         return Promise.reject(error);
     }
 );
@@ -37,12 +56,13 @@ api.interceptors.response.use(
     (response) => response,
     async (error) => {
         const originalRequest = error.config;
+        const method = originalRequest?.method?.toUpperCase() || 'UNKNOWN';
+        const url = originalRequest?.url || 'UNKNOWN URL';
 
-        if (error.response?.status === 401 && !originalRequest._retry) {
-            console.warn('--- 401 UNAUTHORIZED DETECTED ---', error.config.url);
+        if (error.response?.status === 401 && !originalRequest?._retry) {
+            console.warn(`--- 401 UNAUTHORIZED at ${url} ---`);
             originalRequest._retry = true;
             try {
-                console.log('Session expired, deleting token from storage...');
                 await SecureStore.deleteItemAsync('auth_token');
                 return Promise.reject(error);
             } catch (err) {
@@ -53,7 +73,30 @@ api.interceptors.response.use(
         if (error.code === 'ECONNABORTED' && error.message.includes('timeout')) {
             error.message = 'The server is still waking up. Please wait and try again.';
         } else if (!error.response) {
-            error.message = 'Network error. Please check your internet connection.';
+            if (axios.isCancel(error)) {
+                error.message = 'Request was cancelled.';
+            } else {
+                // This is the classic "Network Error"
+                // On Android, this can mean a malformed field in FormData (like a file with no type)
+                // or a TLS mismatch.
+                error.message = `Network error at ${method} ${url}. Please check your connection and ensure the backend is reachable.`;
+                
+                console.error('[AXIOS NETWORK ERROR DEBUG]:', {
+                   message: error.message,
+                   code: error.code,
+                   url: url,
+                   method: method,
+                   platform: Platform.OS,
+                   hasData: !!originalRequest?.data,
+                   isFormData: originalRequest?.data && ('_parts' in originalRequest.data || originalRequest.data.constructor?.name === 'FormData')
+                });
+            }
+        } else {
+            console.error(`[API ERROR ${error.response.status}]:`, {
+                url: url,
+                method: method,
+                data: error.response.data
+            });
         }
 
         return Promise.reject(error);

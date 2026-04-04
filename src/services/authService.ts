@@ -19,12 +19,15 @@ let currentToken: string | null = null;
 /**
  * Universal error parser for backend responses
  */
+/**
+ * Universal error parser for backend responses
+ */
 const parseError = (error: any): string => {
   if (error.response?.data) {
     const data = error.response.data;
     // If it's HTML (likely a 500 error), return a clean message
     if (typeof data === 'string' && data.toLowerCase().includes('<!doctype html>')) {
-      return 'Server error (500). The backend might be having issues with the image format.';
+      return 'Server error (500). Please try again later.';
     }
     // Handle nested structure: { data: { message: "..." } }
     if (data.data?.message) return data.data.message;
@@ -35,7 +38,26 @@ const parseError = (error: any): string => {
     // Fallback to stringified data
     return typeof data === 'string' ? data : JSON.stringify(data);
   }
+  
+  if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+      return 'Request timed out. The server might be waking up (Render cold start). Please try again.';
+  }
+
+  if (!error.response && error.message === 'Network Error') {
+      return 'Network connection error. Please check if your device has internet access and try again.';
+  }
+
   return error.message || 'An unexpected error occurred';
+};
+
+/**
+ * Robust FormData detection for React Native
+ */
+const isFormData = (data: any): boolean => {
+    return data && (
+        data instanceof FormData || 
+        (typeof data === 'object' && data !== null && (data.constructor?.name === 'FormData' || '_parts' in data))
+    );
 };
 
 const authService = {
@@ -316,18 +338,23 @@ const authService = {
         activeUserId = user?.id || user?._id || 'me';
       }
 
+      const dataIsFormData = isFormData(data);
       let payload = data;
 
-      // Only append ID if data is a standard object, not FormData
-      if (!(data instanceof FormData)) {
+      // Ensure ID is present in payload if not a FormData object
+      if (!dataIsFormData) {
         payload = {
           id: activeUserId !== 'me' ? activeUserId : undefined,
           ...data
         };
       } else {
-        // For FormData, inject ID specifically
-        if (activeUserId !== 'me') {
-          payload.append('id', activeUserId);
+        // For FormData, inject ID specifically if not already present
+        if (activeUserId !== 'me' && payload.append) {
+          // Check if id is already appended (some polyfills support .has)
+          const hasId = typeof payload.has === 'function' ? payload.has('id') : false;
+          if (!hasId) {
+             payload.append('id', activeUserId);
+          }
         }
       }
 
@@ -335,7 +362,7 @@ const authService = {
       const response = await api.put('/profiles/' + activeUserId, payload);
 
       // Update local cache if full_name was provided in a standard object
-      if (!(data instanceof FormData) && data.full_name) {
+      if (!dataIsFormData && data.full_name) {
         await SecureStore.setItemAsync('cached_user_name', data.full_name);
       }
 
@@ -344,40 +371,43 @@ const authService = {
       // Fallback: some backends use /auth/profile for updates too
       try {
         let activeUserId = userId;
-        if (!activeUserId || activeUserId === 'me') {
-          const token = await SecureStore.getItemAsync('auth_token');
-          if (token) {
-            try {
-              const decoded: any = jwtDecode(token);
-              activeUserId = decoded.sub || decoded.id || 'me';
-            } catch (e) { }
-          }
+        const token = await SecureStore.getItemAsync('auth_token');
+        if (token && (!activeUserId || activeUserId === 'me')) {
+          try {
+            const decoded: any = jwtDecode(token);
+            activeUserId = decoded.sub || decoded.id || 'me';
+          } catch (e) { }
         }
 
+        const dataIsFormData = isFormData(data);
         let payload = data;
-        if (!(data instanceof FormData)) {
+        if (!dataIsFormData) {
           payload = {
             id: activeUserId !== 'me' ? activeUserId : undefined,
             ...data
           };
         } else {
-          // For FormData, inject ID specifically if not already present
-          if (activeUserId !== 'me' && !payload.has('id')) {
-            payload.append('id', activeUserId);
+          // Check if id is already appended
+          if (activeUserId !== 'me' && payload.append) {
+             const hasId = typeof payload.has === 'function' ? payload.has('id') : false;
+             if (!hasId) {
+                payload.append('id', activeUserId);
+             }
           }
         }
 
-        console.log('Profile update failed at /profiles/' + userId + ', trying /auth/profile...');
+        console.log('Profile update failed at /profiles/' + userId + ', trying /auth/profile fallback...');
         const response = await api.patch('/auth/profile', payload);
 
-        if (!(data instanceof FormData) && data.full_name) {
+        if (!dataIsFormData && data.full_name) {
           await SecureStore.setItemAsync('cached_user_name', data.full_name);
         }
 
         return response.data;
-      } catch (innerError) {
-        const msg = parseError(error); // Return the original error msg
-        console.error('Update Profile failure:', msg);
+      } catch (innerError: any) {
+        // Use the most descriptive error
+        const msg = parseError(innerError || error);
+        console.error('Update Profile final failure:', msg);
         throw new Error(msg);
       }
     }
