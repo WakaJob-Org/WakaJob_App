@@ -165,7 +165,13 @@ const authService = {
   async resetPassword(data: any): Promise<any> {
     try {
       console.log('--- RESET PASSWORD ATTEMPT ---', data.email);
-      const response = await authApi.post('/auth/reset-password', data);
+      // Map incoming data to likely backend field names
+      const payload = {
+        email: data.email,
+        token: data.otp || data.token,
+        password: data.new_password || data.password
+      };
+      const response = await authApi.post('/auth/reset-password', payload);
       return response.data;
     } catch (error: any) {
       const msg = parseError(error);
@@ -379,29 +385,17 @@ const authService = {
 
   async verifyEmployer(formData: FormData): Promise<any> {
     try {
-      console.log('--- SUBMITTING EMPLOYER VERIFICATION ---');
-      // Using /profiles/verify as the standard endpoint for professional validation
-      const response = await api.post('/profiles/verify', formData);
+      console.log('--- SUBMITTING EMPLOYER VERIFICATION TO /api/auth/verify-employer ---');
+      const response = await api.post('/auth/verify-employer', formData);
       return response.data;
     } catch (error: any) {
-      // If 404 (Missing Endpoint) or 500 (Server Error with Images), attempt a one-time general update
-      if (error.response?.status === 404) {
-        console.log('verifyEmployer: /profiles/verify 404, falling back to profile update');
-        return this.updateProfile('me', formData);
-      }
+      console.error('Employer Verification failure:', parseError(error));
       
-      const msg = parseError(error);
-      console.error('Employer Verification failure:', msg);
-      
-      // If it's a 500 error specifically related to image processing on the backend, 
-      // we might want to let the user proceed to "Pending" anyway if the database record was created.
       if (error.response?.status === 500) {
-          console.warn('Backend 500 error detected - proceeding with caution');
-          // We throw so the UI shows an error, but with a clearer message
-          throw new Error("Server error processing images. Please try with smaller photos or wait a moment.");
+        throw new Error("Server error (500) during upload. This usually means the backend is missing one of required fields (business_photo, id_front, id_back, or business_certificate) or the file size is too large for the server's configuration.");
       }
 
-      throw new Error(msg);
+      throw new Error(parseError(error));
     }
   }
 };

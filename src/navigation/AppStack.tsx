@@ -7,6 +7,11 @@ import SettingsScreen from '../screens/Settings/SettingsScreen';
 
 import CreateJobScreen from '../screens/Dashboard/CreateJobScreen';
 import ProfileSetupScreen from '../screens/Profile/ProfileSetupScreen';
+import EmployerVerificationScreen from '../screens/Auth/Verification/EmployerVerificationScreen';
+import VerificationPendingScreen from '../screens/Verification/VerificationPendingScreen';
+import VerificationSuccessScreen from '../screens/Verification/VerificationSuccessScreen';
+import VerificationFailedScreen from '../screens/Verification/VerificationFailedScreen';
+import EmployerDashboardScreen from '../screens/Profile/EmployerDashboardScreen';
 
 const Stack = createStackNavigator<AppStackParamList>();
 
@@ -22,6 +27,11 @@ const AppStack = () => {
             <Stack.Screen name="Settings" component={SettingsScreen} />
             <Stack.Screen name="CreateJob" component={CreateJobScreen} />
             <Stack.Screen name="ProfileSetup" component={ProfileSetupScreen} />
+            <Stack.Screen name="EmployerVerification" component={EmployerVerificationScreen} />
+            <Stack.Screen name="VerificationPending" component={VerificationPendingScreen} />
+            <Stack.Screen name="VerificationSuccess" component={VerificationSuccessScreen} />
+            <Stack.Screen name="VerificationFailed" component={VerificationFailedScreen} />
+            <Stack.Screen name="EmployerDashboard" component={EmployerDashboardScreen} />
         </Stack.Navigator>
     );
 };

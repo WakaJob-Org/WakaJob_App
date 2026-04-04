@@ -25,8 +25,6 @@ const RootNavigator = () => {
     let content;
     if (!isAuthenticated) {
         content = <RootStack.Screen name="Auth" component={AuthStack} />;
-    } else if (user?.role === 'employer' && !user?.is_verified) {
-        content = <RootStack.Screen name="VerificationStack" component={EmployerVerificationNavigator} />;
     } else {
         content = <RootStack.Screen name="App" component={AppStack} />;
     }

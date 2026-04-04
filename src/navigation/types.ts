@@ -26,6 +26,13 @@ export type AppStackParamList = {
     Settings: undefined;
     CreateJob: undefined;
     ProfileSetup: undefined;
+    
+    // Employer flow screens in AppStack
+    EmployerVerification: undefined;
+    VerificationPending: undefined;
+    VerificationSuccess: undefined;
+    VerificationFailed: { reason?: string } | undefined;
+    EmployerDashboard: undefined;
 };
 
 export type RootStackParamList = {

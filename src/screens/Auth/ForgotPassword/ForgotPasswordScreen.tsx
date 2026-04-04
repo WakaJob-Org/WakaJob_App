@@ -151,9 +151,9 @@ const ForgotPasswordScreen: React.FC = () => {
                                     <Ionicons name="keypad-outline" size={20} color={errors.otp ? "#FF3B30" : "#666"} style={styles.inputIcon} />
                                     <TextInput
                                         style={styles.input}
-                                        placeholder="Enter 4-digit code"
+                                        placeholder="Enter 6-digit code"
                                         keyboardType="number-pad"
-                                        maxLength={4}
+                                        maxLength={6}
                                         placeholderTextColor="#999"
                                         value={otp}
                                         onChangeText={(text) => {

@@ -15,10 +15,12 @@ import {
     StyleProp,
     ViewStyle,
 } from 'react-native';
+import { jwtDecode } from 'jwt-decode';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Location from 'expo-location';
 import * as SecureStore from 'expo-secure-store';
+import * as ImageManipulator from 'expo-image-manipulator';
 
 // Defensive import for MapView
 let MapView: any = null;
@@ -158,23 +160,97 @@ const EmployerVerificationScreen: React.FC = () => {
     };
 
     const handleSubmit = async () => {
+        const wordCount = bio.trim().split(/\s+/).length;
         if (!bio || !location || isApprenticeOpen === null) {
             Alert.alert("Missing Information", "Please complete all text fields and preferences.");
             return;
         }
 
-        if (!workLocationPic || !idFrontPic) {
-            Alert.alert("Documents Required", "Please upload at least the Work Location image and your ID frontside.");
+        if (wordCount > 50) {
+            Alert.alert("Bio Too Long", `Your bio must not exceed 50 words. Current count: ${wordCount} words.`);
+            return;
+        }
+
+        if (!workLocationPic || !idFrontPic || !idBackPic || !permitDoc) {
+            Alert.alert("Documents Required", "Please upload all required documents: Work Location image, ID Front, ID Back, and Council Permit.");
             return;
         }
 
         setLoading(true);
         try {
-            console.log('--- BYPASSING BACKEND FOR FLOW TESTING ---');
-            // For now, we simulate success to verify the navigation flow
-            await new Promise(resolve => setTimeout(resolve, 1500)); 
+            // First ensure server is awake (prevents timeout on cold start)
+            await authService.wakeUp();
+            
+            console.log('--- PREPARING DOCUMENTS (RESIZING) ---');
+            
+            // Helper to resize image and prepare for upload
+            const processImage = async (uri: string) => {
+                try {
+                    const result = await ImageManipulator.manipulateAsync(
+                        uri,
+                        [{ resize: { width: 1200 } }], // Standard size for clear documents
+                        { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
+                    );
+                    return result.uri;
+                } catch (e) {
+                    console.warn('Image manipulation failed, using original:', e);
+                    return uri;
+                }
+            };
 
-            // IMPORTANT: Persist the pending state locally so it's remembered after restart
+            const businessPhoto = await processImage(workLocationPic);
+            const frontPhoto = await processImage(idFrontPic);
+            const backPhoto = idBackPic ? await processImage(idBackPic) : null;
+            const permit = permitDoc ? await processImage(permitDoc) : null;
+
+            console.log('--- SUBMITTING TO BACKEND ---');
+
+            // Prepare FormData for the backend
+            const formData = new FormData();
+            formData.append('company_bio', bio);
+            formData.append('company_location', location);
+            formData.append('is_apprentice_open', String(isApprenticeOpen));
+
+            // Inject the ID field specifically if we can get it
+            const currentToken = await SecureStore.getItemAsync('auth_token');
+            if (currentToken) {
+                try {
+                    const decoded: any = jwtDecode(currentToken);
+                    const userId = decoded.sub || decoded.id;
+                    if (userId) formData.append('id', userId);
+                } catch (e) {}
+            }
+
+            const appendFile = (uri: string, fieldName: string) => {
+                const filename = uri.split('/').pop() || `${fieldName}.jpg`;
+                const match = /\.(\w+)$/.exec(filename);
+                const ext = match ? match[1].toLowerCase() : 'jpg';
+                
+                // Correctly identify MIME type
+                let type = '';
+                if (ext === 'pdf') {
+                    type = 'application/pdf';
+                } else if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(ext)) {
+                    type = `image/${ext === 'jpg' ? 'jpeg' : ext}`;
+                } else {
+                    type = 'application/octet-stream';
+                }
+                
+                formData.append(fieldName, {
+                    uri: Platform.OS === 'ios' ? uri.replace('file://', '') : uri,
+                    name: filename,
+                    type,
+                } as any);
+            };
+
+            appendFile(businessPhoto, 'business_photo');
+            appendFile(frontPhoto, 'id_front');
+            if (backPhoto) appendFile(backPhoto, 'id_back');
+            if (permit) appendFile(permit, 'business_certificate');
+
+            await authService.verifyEmployer(formData);
+            
+            // Persist locally for immediate UI feedback
             await SecureStore.setItemAsync('employer_verification_submitted', 'true');
 
             Alert.alert(
@@ -183,9 +259,18 @@ const EmployerVerificationScreen: React.FC = () => {
                 [{ text: "OK", onPress: () => navigation.navigate('VerificationPending') }]
             );
         } catch (error: any) {
-            Alert.alert("Submission Failed", "Could not save verification data at this time. Please try again.");
+            console.error('Submission Failed:', error);
+            const errorMessage = error.message || String(error);
+            
+            // Stay on the form so the user can fix errors or retry
+            Alert.alert(
+                "Submission Failed", 
+                `The server returned an error: ${errorMessage}\n\nPlease check your internet or try again later.`,
+                [{ text: "Try Again" }]
+            );
         } finally {
             setLoading(false);
+            console.log('--- FORM SUBMISSION COMPLETED ---');
         }
     };
 
@@ -252,6 +337,12 @@ const EmployerVerificationScreen: React.FC = () => {
                             value={bio}
                             onChangeText={setBio}
                         />
+                        <Text style={[
+                            styles.wordCount, 
+                            bio.trim().split(/\s+/).length > 50 && { color: '#EF4444' }
+                        ]}>
+                            {bio.trim() === '' ? 0 : bio.trim().split(/\s+/).length}/50 words
+                        </Text>
                     </View>
 
                     {/* Government ID */}
@@ -655,6 +746,13 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontSize: 16,
         fontWeight: '700',
+    },
+    wordCount: {
+        fontSize: 11,
+        color: '#9BA4B1',
+        textAlign: 'right',
+        marginTop: 5,
+        fontWeight: '600',
     },
 });
 

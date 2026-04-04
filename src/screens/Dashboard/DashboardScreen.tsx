@@ -198,7 +198,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 // ... other code ...
 
 const DashboardScreen: React.FC = () => {
-    const { user, logout } = useAuth();
+    const { user, logout, refreshUser } = useAuth();
     const navigation = useNavigation<DashboardNavigationProp>();
     const insets = useSafeAreaInsets();
     const [searchQuery, setSearchQuery] = useState('');
@@ -300,9 +300,10 @@ const DashboardScreen: React.FC = () => {
                 else if (category.includes('salon') || category.includes('hair') || category.includes('beauty')) localImage = 'salon';
                 else if (category.includes('farm') || category.includes('agri')) localImage = 'farming';
                 else {
-                    // Cyclic fallback to ensure variety even for unknown categories
+                    // Custom hash for string id to ensure stable variety even for unknown categories
                     const fallbacks: (keyof typeof JOB_IMAGES)[] = ['carpentry', 'welding', 'masonry', 'tailoring', 'mechanic', 'salon', 'farming'];
-                    localImage = fallbacks[Math.abs(job.id.hashCode ? job.id.hashCode() : job.id.length) % fallbacks.length];
+                    const hash = job.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+                    localImage = fallbacks[hash % fallbacks.length];
                 }
 
                 return {
@@ -341,10 +342,19 @@ const DashboardScreen: React.FC = () => {
         fetchJobs();
     }, [debouncedSearch, selectedLocation, customLocation]);
 
-    const onRefresh = React.useCallback(() => {
+    const onRefresh = React.useCallback(async () => {
         setRefreshing(true);
-        fetchJobs(true);
-    }, [debouncedSearch, selectedLocation, customLocation]);
+        try {
+            await Promise.all([
+                fetchJobs(true),
+                refreshUser()
+            ]);
+        } catch (error) {
+            console.error('Refresh error:', error);
+        } finally {
+            setRefreshing(false);
+        }
+    }, [debouncedSearch, selectedLocation, customLocation, refreshUser]);
 
     useEffect(() => {
         if (searchQuery.trim()) {
@@ -801,7 +811,6 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(0,0,0,0.3)',
         justifyContent: 'center',
         alignItems: 'center',
-        backdropFilter: 'blur(4px)',
     },
     jobImage: {
         width: '100%',
@@ -966,6 +975,17 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,
         shadowRadius: 10,
+    },
+    empty: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 50,
+    },
+    emptyTitle: {
+        fontSize: 16,
+        color: '#9BA4B1',
+        fontWeight: '600',
+        marginTop: 15,
     },
 });
 

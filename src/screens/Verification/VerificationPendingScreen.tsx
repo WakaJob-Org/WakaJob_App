@@ -6,8 +6,10 @@ import {
     Text,
     TouchableOpacity,
     Image,
+    Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import authService from '../../services/authService';
 
 interface VerificationPendingScreenProps {
@@ -173,7 +175,7 @@ const illustrationStyles = StyleSheet.create({
     },
 });
 
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, CommonActions } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 
 const VerificationPendingScreen: React.FC = () => {
@@ -181,6 +183,7 @@ const VerificationPendingScreen: React.FC = () => {
     const navigation = useNavigation<any>();
     const insets = useSafeAreaInsets();
     const [profile, setProfile] = useState<any>(user);
+    const [loading, setLoading] = useState(false);
 
     useEffect(() => {
         const loadProfile = async () => {
@@ -237,9 +240,50 @@ const VerificationPendingScreen: React.FC = () => {
 
                 {/* Description */}
                 <Text style={styles.description}>
-                    We are currently reviewing your  information{'\n'}
-                    This  might take a while
+                    We are currently reviewing your information{'\n'}
+                    This might take a while
                 </Text>
+
+                <TouchableOpacity 
+                    style={styles.refreshBtn}
+                    onPress={async () => {
+                        try {
+                            setLoading(true);
+                            const user = await authService.getUser();
+                            const status = user?.verification_status || (user?.is_verified ? 'approved' : 'pending');
+                            
+                            if (status === 'approved' || user?.is_verified) {
+                                navigation.navigate('VerificationSuccess');
+                            } else if (status === 'rejected' || status === 'denied' || status === 'failed') {
+                                navigation.navigate('VerificationFailed', { reason: user?.rejection_reason });
+                            } else {
+                                Alert.alert("Still Pending", "Our team is still reviewing your profile. Please check back later.");
+                            }
+                        } catch (error) {
+                            console.error('Refresh status error:', error);
+                            Alert.alert("Network Error", "Could not check status. Please try again.");
+                        } finally {
+                            setLoading(false);
+                        }
+                    }}
+                >
+                    <Ionicons name="refresh" size={20} color="#1972ca" />
+                    <Text style={styles.refreshBtnText}>Check Status</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                    style={[styles.refreshBtn, { marginTop: 10, borderColor: '#E5E7EB' }]}
+                    onPress={() => {
+                        navigation.dispatch(
+                            CommonActions.navigate({
+                                name: 'MainTabs',
+                                params: { screen: 'Profile' },
+                            })
+                        );
+                    }}
+                >
+                    <Text style={[styles.refreshBtnText, { color: '#6B7280' }]}>Go Back</Text>
+                </TouchableOpacity>
             </View>
         </View>
     );
@@ -317,6 +361,23 @@ const styles = StyleSheet.create({
         color: '#9CA3AF',
         textAlign: 'center',
         lineHeight: 22,
+        marginBottom: 30,
+    },
+    refreshBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 12,
+        paddingHorizontal: 25,
+        borderRadius: 10,
+        borderWidth: 1.5,
+        borderColor: '#1972ca',
+        gap: 8,
+    },
+    refreshBtnText: {
+        fontSize: 15,
+        fontWeight: 'bold',
+        color: '#1972ca',
     },
 });
 
