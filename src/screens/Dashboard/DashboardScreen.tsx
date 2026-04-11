@@ -20,7 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { CompositeNavigationProp, useNavigation } from '@react-navigation/native';
+import { CompositeNavigationProp, useNavigation, useFocusEffect } from '@react-navigation/native';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSequence, withDelay, FadeInUp, FadeOutUp } from 'react-native-reanimated';
 import jobService, { Job } from '../../services/jobService';
 import authService from '../../services/authService';
@@ -199,7 +199,29 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const DashboardScreen: React.FC = () => {
     const { user, logout, refreshUser } = useAuth();
+    
+    useFocusEffect(
+        React.useCallback(() => {
+            refreshUser();
+            return () => {};
+        }, [])
+    );
     const navigation = useNavigation<DashboardNavigationProp>();
+    
+    // Floating Action Button for Employers with verification check
+    const handleFabPress = () => {
+        const status = String(user?.verification_status || '').toLowerCase();
+        const isVerified = user?.is_verified || status === 'approved' || status === 'verified';
+
+        if (isVerified) {
+            navigation.navigate('CreateJob');
+        } else if (status === 'pending') {
+            navigation.navigate('VerificationPending');
+        } else {
+            navigation.navigate('EmployerVerification');
+        }
+    };
+    
     const insets = useSafeAreaInsets();
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedJob, setSelectedJob] = useState<JobType | null>(null);
@@ -670,11 +692,10 @@ const DashboardScreen: React.FC = () => {
                 </View>
             </Modal>
 
-            {/* Floating Action Button for Employers */}
             {user?.role === 'employer' && (
                 <TouchableOpacity
                     style={styles.fab}
-                    onPress={() => navigation.navigate('CreateJob')}
+                    onPress={handleFabPress}
                     activeOpacity={0.8}
                 >
                     <Ionicons name="add" size={30} color="#FFFFFF" />

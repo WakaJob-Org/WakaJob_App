@@ -54,7 +54,9 @@ const ForgotPasswordScreen: React.FC = () => {
             Alert.alert('Success', 'A reset code has been sent to your email.');
             setStep('reset');
         } catch (error: any) {
-            Alert.alert('Error', error || 'Failed to send reset code.');
+            // Fix: Capture error message string to prevent React Native crash
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            Alert.alert('Request Failed', errorMessage);
         } finally {
             setLoading(false);
         }
@@ -79,7 +81,9 @@ const ForgotPasswordScreen: React.FC = () => {
             Alert.alert('Success', 'Your password has been successfully reset. You can now login.');
             navigation.navigate('Login');
         } catch (error: any) {
-            Alert.alert('Reset Failed', error || 'Failed to reset password.');
+            // Fix: Capture error message string to prevent React Native crash
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            Alert.alert('Reset Failed', errorMessage);
         } finally {
             setLoading(false);
         }

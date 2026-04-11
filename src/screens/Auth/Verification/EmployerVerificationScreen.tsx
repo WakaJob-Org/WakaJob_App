@@ -42,9 +42,11 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 const { width } = Dimensions.get('window');
 
 import { useNavigation, NavigationProp } from '@react-navigation/native';
+import { useAuth } from '../../../context/AuthContext';
 
 const EmployerVerificationScreen: React.FC = () => {
     const navigation = useNavigation<any>();
+    const { refreshUser } = useAuth();
     const insets = useSafeAreaInsets();
     const [bio, setBio] = useState('');
     const [location, setLocation] = useState('');
@@ -185,6 +187,12 @@ const EmployerVerificationScreen: React.FC = () => {
             
             // Helper to resize image and prepare for upload
             const processImage = async (uri: string) => {
+                if (!uri) return null;
+                // Skip processing for PDFs
+                if (uri.toLowerCase().endsWith('.pdf') || uri.startsWith('content://') && !uri.match(/\.(jpg|jpeg|png|webp)$/i)) {
+                    console.log('Skipping image manipulation for document/non-image:', uri);
+                    return uri;
+                }
                 try {
                     const result = await ImageManipulator.manipulateAsync(
                         uri,
@@ -222,23 +230,42 @@ const EmployerVerificationScreen: React.FC = () => {
             }
 
             const appendFile = (uri: string, fieldName: string) => {
+                if (!uri) return;
+
                 const filename = uri.split('/').pop() || `${fieldName}.jpg`;
                 const match = /\.(\w+)$/.exec(filename);
-                const ext = match ? match[1].toLowerCase() : 'jpg';
+                let ext = match ? match[1].toLowerCase() : '';
                 
+                // If no extension found in filename, try to guess from URI or default
+                if (!ext) {
+                    if (uri.toLowerCase().endsWith('.pdf')) ext = 'pdf';
+                    else if (uri.toLowerCase().endsWith('.png')) ext = 'png';
+                    else if (uri.toLowerCase().endsWith('.webp')) ext = 'webp';
+                    else ext = 'jpg'; // Default to jpg for images
+                }
+
                 // Correctly identify MIME type
                 let type = '';
                 if (ext === 'pdf') {
                     type = 'application/pdf';
                 } else if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(ext)) {
-                    type = `image/${ext === 'jpg' ? 'jpeg' : ext}`;
+                    type = `image/${ext === 'jpg' || ext === 'jpeg' ? 'jpeg' : ext}`;
                 } else {
-                    type = 'application/octet-stream';
+                    // Fallback for safety
+                    type = fieldName === 'business_certificate' ? 'application/pdf' : 'image/jpeg';
                 }
+
+                // Ensure name has the correct extension for the server
+                let finalName = filename;
+                if (!finalName.includes('.')) {
+                    finalName = `${filename}.${ext}`;
+                }
+
+                console.log(`Appending file: ${fieldName}, Name: ${finalName}, Type: ${type}`);
                 
                 formData.append(fieldName, {
                     uri: Platform.OS === 'ios' ? uri.replace('file://', '') : uri,
-                    name: filename,
+                    name: finalName,
                     type,
                 } as any);
             };
@@ -262,6 +289,22 @@ const EmployerVerificationScreen: React.FC = () => {
             console.error('Submission Failed:', error);
             const errorMessage = error.message || String(error);
             
+            // Fail-safe: If the backend says the account is already approved,
+            // we should refresh the user state and redirect them.
+            if (errorMessage.toLowerCase().includes('approved') || errorMessage.toLowerCase().includes('verified')) {
+                try {
+                    await refreshUser();
+                    Alert.alert(
+                        "Account Verified", 
+                        "Your account is already approved! Returning you to your dashboard.",
+                        [{ text: "OK", onPress: () => navigation.navigate('MainTabs') }]
+                    );
+                    return;
+                } catch (e) {
+                    console.error('Final refresh failed:', e);
+                }
+            }
+
             // Stay on the form so the user can fix errors or retry
             Alert.alert(
                 "Submission Failed", 

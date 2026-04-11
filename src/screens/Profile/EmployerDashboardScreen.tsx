@@ -11,7 +11,7 @@ import {
     Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import authService from '../../services/authService';
 import jobService, { Job } from '../../services/jobService';
 import Header from '../../components/Header';
@@ -22,9 +22,12 @@ const EmployerDashboardScreen: React.FC = () => {
     const [jobs, setJobs] = useState<Job[]>([]);
     const [activeTab, setActiveTab] = useState<'listings' | 'applicants'>('listings');
 
-    useEffect(() => {
-        fetchEmployerData();
-    }, []);
+    useFocusEffect(
+        React.useCallback(() => {
+            fetchEmployerData();
+            return () => {};
+        }, [])
+    );
 
     const fetchEmployerData = async () => {
         try {
@@ -110,7 +113,7 @@ const EmployerDashboardScreen: React.FC = () => {
                                     <Text style={styles.emptySubtitle}>Start hiring by posting your first job listing</Text>
                                     <TouchableOpacity 
                                         style={styles.postButton}
-                                        onPress={() => navigation.navigate('CreateJob')}
+                                        onPress={handlePostJob}
                                     >
                                         <Text style={styles.postButtonText}>Post a Job</Text>
                                     </TouchableOpacity>

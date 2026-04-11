@@ -19,6 +19,7 @@ import * as ImagePicker from 'expo-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import authService from '../../services/authService';
 import ProfileSkeleton from '../../components/ProfileSkeleton';
+import * as ImageManipulator from 'expo-image-manipulator';
 
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
@@ -50,10 +51,12 @@ const ProfileScreen: React.FC = () => {
         React.useCallback(() => {
             const fetchProfile = async () => {
                 try {
-                    // Only show skeleton on first load, otherwise background refresh
-                    if (!userId) setLoading(true);
+                    setLoading(true);
                     
-                    const user = await authService.getUser();
+                    // Force a fresh fetch of user data including verification status
+                    await refreshUser();
+                    const user = await authService.getUser(); // This will now return the refreshed data
+                    
                     if (user) {
                         setUserId(user.id || user._id || null);
                         setUsername(user.full_name || user.username || '');
@@ -71,9 +74,13 @@ const ProfileScreen: React.FC = () => {
                             setSkills(user.skills.map((s: any) => ({ id: Math.random().toString(), name: s })));
                         }
                         setRole(user.role || 'worker');
-                        setIsVerified(user.is_verified || false);
-                        const status = user.verification_status || (user.is_verified ? 'approved' : null);
-                        setVerificationStatus(status);
+                        
+                        // Robust verification check: handle both boolean and status string
+                        const status = String(user.verification_status || '').toLowerCase();
+                        const verified = user.is_verified || status === 'approved';
+                        
+                        setIsVerified(verified);
+                        setVerificationStatus(status || (verified ? 'approved' : null));
                         setRejectionReason(user.rejection_reason || null);
                     }
                 } catch (error) {
@@ -137,7 +144,41 @@ const ProfileScreen: React.FC = () => {
             }
 
             console.log('--- SAVING PROFILE ---', isLocalFile ? 'FORM DATA' : 'JSON');
-            await authService.updateProfile(userId || 'me', payload);
+            
+            let finalPayload = payload;
+
+            if (isLocalFile && profilePhoto) {
+                // Resize and compress even profile pictures - prevents large payload issues on some devices
+                try {
+                    const manipResult = await ImageManipulator.manipulateAsync(
+                        profilePhoto,
+                        [{ resize: { width: 700 } }], // Optimized to 700px for unstable mobile connections
+                        { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG }
+                    );
+                    
+                    const uri = manipResult.uri;
+                    
+                    // Robust FormData reconstruction
+                    const formData = new FormData();
+                    formData.append('full_name', username);
+                    formData.append('bio', bio);
+                    formData.append('phone_number', phone.startsWith('+237') ? phone : `+237${phone}`);
+                    formData.append('date_of_birth', dob);
+                    formData.append('skills', JSON.stringify(skills.map(s => s.name)));
+                    
+                    formData.append('profile_image', {
+                        uri: Platform.OS === 'android' ? uri : uri.replace('file://', ''),
+                        name: 'profile_update.jpg', // Standardized filename for high compatibility
+                        type: 'image/jpeg', // ImageManipulator outputs JPEG
+                    } as any);
+                    
+                    finalPayload = formData;
+                } catch (manipError) {
+                    console.warn('Image manipulation failed for profile, using original:', manipError);
+                }
+            }
+
+            await authService.updateProfile(userId || 'me', finalPayload);
 
             // Refresh the global user context so other screens (like Home) update immediately
             await refreshUser();
@@ -392,8 +433,9 @@ const ProfileScreen: React.FC = () => {
                         >
                             <View style={[
                                 styles.statusBadge, 
-                                isVerified ? styles.statusBadgeVerified : 
+                                (isVerified || String(verificationStatus).toLowerCase() === 'approved') ? styles.statusBadgeVerified : 
                                 String(verificationStatus).toLowerCase() === 'pending' ? styles.statusBadgePending : 
+                                String(verificationStatus).toLowerCase() === 'rejected' ? styles.statusBadgeRejected :
                                 styles.statusBadgeNotStarted
                             ]}>
                                 <Ionicons 
@@ -406,11 +448,12 @@ const ProfileScreen: React.FC = () => {
                                 <Text style={styles.verificationShortcutTitle}>Verification Status</Text>
                                 <Text style={[
                                     styles.verificationShortcutStatus,
-                                    isVerified ? { color: '#22C55E' } : 
+                                    (isVerified || String(verificationStatus).toLowerCase() === 'approved') ? { color: '#22C55E' } : 
                                     String(verificationStatus).toLowerCase() === 'pending' ? { color: '#F97316' } : 
+                                    String(verificationStatus).toLowerCase() === 'rejected' ? { color: '#EF4444' } :
                                     { color: '#64748B' }
                                 ]}>
-                                    {isVerified ? 'Verified Employer' : 
+                                    {isVerified || String(verificationStatus).toLowerCase() === 'approved' ? 'Verified Employer' : 
                                      String(verificationStatus).toLowerCase() === 'pending' ? 'Verification Pending' : 
                                      String(verificationStatus).toLowerCase() === 'rejected' ? 'Verification Rejected' :
                                      'Unverified Account'}

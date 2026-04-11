@@ -28,6 +28,7 @@ const { width, height } = Dimensions.get('window');
 
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { AuthStackParamList } from '../../../navigation/types';
+import { useAuth } from '../../../context/AuthContext';
 
 const OTPScreen: React.FC = () => {
     const navigation = useNavigation<any>();

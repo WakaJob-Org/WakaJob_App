@@ -249,13 +249,16 @@ const VerificationPendingScreen: React.FC = () => {
                     onPress={async () => {
                         try {
                             setLoading(true);
-                            const user = await authService.getUser();
-                            const status = user?.verification_status || (user?.is_verified ? 'approved' : 'pending');
+                            const userData = await authService.getUser();
                             
-                            if (status === 'approved' || user?.is_verified) {
+                            // Case-insensitive status detection
+                            const status = String(userData?.verification_status || '').toLowerCase();
+                            const isVerified = userData?.is_verified || status === 'approved';
+                            
+                            if (isVerified) {
                                 navigation.navigate('VerificationSuccess');
                             } else if (status === 'rejected' || status === 'denied' || status === 'failed') {
-                                navigation.navigate('VerificationFailed', { reason: user?.rejection_reason });
+                                navigation.navigate('VerificationFailed', { reason: userData?.rejection_reason });
                             } else {
                                 Alert.alert("Still Pending", "Our team is still reviewing your profile. Please check back later.");
                             }

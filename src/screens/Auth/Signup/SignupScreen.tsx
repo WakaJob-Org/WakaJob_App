@@ -52,11 +52,14 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
             confirmPassword: '',
         };
 
-        if (!fullName.trim()) newErrors.fullName = 'Full name is required';
-        else if (fullName.trim().length < 3) newErrors.fullName = 'Full name must be at least 3 characters';
+        const cleanFullName = fullName.trim();
+        const cleanEmail = email.trim().toLowerCase();
 
-        if (!email.trim()) newErrors.email = 'Email address is required';
-        else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) newErrors.email = 'Please enter a valid email address';
+        if (!cleanFullName) newErrors.fullName = 'Full name is required';
+        else if (cleanFullName.length < 3) newErrors.fullName = 'Full name must be at least 3 characters';
+
+        if (!cleanEmail) newErrors.email = 'Email address is required';
+        else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) newErrors.email = 'Please enter a valid email address';
 
         if (!password) {
             newErrors.password = 'Password is required';
@@ -68,33 +71,41 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
         if (!confirmPassword) newErrors.confirmPassword = 'Confirmation password is required';
         else if (password !== confirmPassword) newErrors.confirmPassword = 'Passwords do not match';
 
-        setErrors(newErrors);
+        setErrors({ ...errors, ...newErrors } as any);
 
         if (Object.values(newErrors).some(err => err !== '')) return;
 
-        const cleanFullName = fullName.trim();
-        const cleanEmail = email.trim();
-
         setLoading(true);
         try {
-            await signup({
+            console.log('--- SIGNUP INITIATED for:', cleanEmail);
+            
+            const result = await signup({
                 full_name: cleanFullName,
                 email: cleanEmail,
                 password: password,
                 confirm_password: confirmPassword,
                 role: 'worker',
             });
-            navigation.navigate('OTP', { email: cleanEmail });
+
+            console.log('--- SIGNUP SUCCESSFUL, navigating to OTP... ---');
+            
+            // Critical: Ensure we navigate to the OTP screen with the clean email
+            // Use navigate instead of push to avoid stacking issues in modals
+            navigation.navigate('OTP', { 
+                email: cleanEmail,
+                isNewUser: true 
+            });
+
         } catch (error: any) {
-            console.error('Signup error:', error.message);
+            console.error('Signup screen error catch:', error.message);
             const errorMessage = error?.message || 'Signup failed. Please check your details.';
 
             if (errorMessage.toLowerCase().includes('already') || errorMessage.toLowerCase().includes('duplicate') || errorMessage.toLowerCase().includes('exist') || errorMessage.toLowerCase().includes('taken') || error?.status === 409) {
-                setErrors({ ...newErrors, email: 'This email is already registered. Please log in instead.' });
+                setErrors({ ...newErrors, email: 'This email is already registered. Please log in instead.' } as any);
             } else if (errorMessage.toLowerCase().includes('email')) {
-                setErrors({ ...newErrors, email: errorMessage });
+                setErrors({ ...newErrors, email: errorMessage } as any);
             } else if (errorMessage.toLowerCase().includes('password')) {
-                setErrors({ ...newErrors, password: errorMessage });
+                setErrors({ ...newErrors, password: errorMessage } as any);
             } else {
                 Alert.alert('Signup Failed', errorMessage);
             }

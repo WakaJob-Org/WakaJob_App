@@ -178,6 +178,10 @@ const authService = {
       const response = await authApi.post('/auth/forgot-password', data);
       return response.data;
     } catch (error: any) {
+      // Provide actionable feedback if the endpoint isn't ready
+      if (error.response?.status === 404 || error.response?.status === 500) {
+        throw new Error('Backend implementation pending: The server does not have a "Forgot Password" feature yet. Please ask the backend developer to implement POST /api/auth/forgot-password.');
+      }
       const msg = parseError(error);
       console.error('Forgot PW failure:', msg);
       throw new Error(msg);
@@ -278,7 +282,7 @@ const authService = {
     }
   },
 
-  async getUser(): Promise<any> {
+  async getUser(forceRefresh = false): Promise<any> {
     try {
       if (!currentToken) {
         const hasToken = await this.isAuthenticated();
@@ -288,7 +292,7 @@ const authService = {
         }
       }
 
-      console.log('getUser: Fetching live profile data via main API...');
+      console.log(`getUser: Fetching ${forceRefresh ? 'LIVE' : 'profile'} data via main API...`);
       // Try /auth/profile first, then /auth/me as common synonyms
       let response;
       try {
@@ -331,101 +335,106 @@ const authService = {
   },
 
   async updateProfile(userId: string, data: any): Promise<any> {
+    const dataIsFormData = isFormData(data);
+    
     try {
       let activeUserId = userId;
+      // Resolve 'me' or null to actual ID. The backend documentation specifically requires the UUID.
       if (!activeUserId || activeUserId === 'me') {
         const user = await this.getUser();
         activeUserId = user?.id || user?._id || 'me';
       }
 
-      const dataIsFormData = isFormData(data);
-      let payload = data;
-
-      // Ensure ID is present in payload if not a FormData object
-      if (!dataIsFormData) {
-        payload = {
-          id: activeUserId !== 'me' ? activeUserId : undefined,
-          ...data
-        };
-      } else {
-        // For FormData, inject ID specifically if not already present
-        if (activeUserId !== 'me' && payload.append) {
-          // Check if id is already appended (some polyfills support .has)
-          const hasId = typeof payload.has === 'function' ? payload.has('id') : false;
-          if (!hasId) {
-             payload.append('id', activeUserId);
-          }
-        }
+      if (activeUserId === 'me') {
+        throw new Error("Could not resolve your user ID. Please try logging in again.");
       }
 
-      console.log('--- UPDATING PROFILE at /profiles/' + activeUserId + ' ---');
-      const response = await api.put('/profiles/' + activeUserId, payload);
+      // Payload Preparation
+      if (!dataIsFormData) {
+        data.id = activeUserId;
+      } else if (data.append) {
+        const hasId = typeof data.has === 'function' ? data.has('id') : false;
+        if (!hasId) data.append('id', activeUserId);
+      }
 
-      // Update local cache if full_name was provided in a standard object
+      /**
+       * ANDROID RELIABILITY FIX:
+       * We are switching to native 'fetch' for this specific call.
+       * On some Android devices (Samsung/older), native fetch handles the 'FormData' stream
+       * bridge much more robustly than the Axios library.
+       */
+      console.log(`--- UPDATING PROFILE via FETCH at /profiles/${activeUserId} ---`);
+      
+      const token = await SecureStore.getItemAsync('auth_token');
+      const url = `${CONFIG.API_BASE_URL}/profiles/${activeUserId}`;
+
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
+          // Important: Content-Type is OMITTED for FormData to allow fetch to set the boundary
+          ...(!dataIsFormData && { 'Content-Type': 'application/json' })
+        },
+        body: dataIsFormData ? data : JSON.stringify(data)
+      });
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        const errorMsg = responseData?.message || responseData?.error || responseData?.data?.message || `Update failed (${response.status})`;
+        throw new Error(errorMsg);
+      }
+
       if (!dataIsFormData && data.full_name) {
         await SecureStore.setItemAsync('cached_user_name', data.full_name);
       }
 
-      return response.data;
+      return responseData;
     } catch (error: any) {
-      // Fallback: some backends use /auth/profile for updates too
-      try {
-        let activeUserId = userId;
-        const token = await SecureStore.getItemAsync('auth_token');
-        if (token && (!activeUserId || activeUserId === 'me')) {
-          try {
-            const decoded: any = jwtDecode(token);
-            activeUserId = decoded.sub || decoded.id || 'me';
-          } catch (e) { }
-        }
-
-        const dataIsFormData = isFormData(data);
-        let payload = data;
-        if (!dataIsFormData) {
-          payload = {
-            id: activeUserId !== 'me' ? activeUserId : undefined,
-            ...data
-          };
-        } else {
-          // Check if id is already appended
-          if (activeUserId !== 'me' && payload.append) {
-             const hasId = typeof payload.has === 'function' ? payload.has('id') : false;
-             if (!hasId) {
-                payload.append('id', activeUserId);
-             }
-          }
-        }
-
-        console.log('Profile update failed at /profiles/' + userId + ', trying /auth/profile fallback...');
-        const response = await api.patch('/auth/profile', payload);
-
-        if (!dataIsFormData && data.full_name) {
-          await SecureStore.setItemAsync('cached_user_name', data.full_name);
-        }
-
-        return response.data;
-      } catch (innerError: any) {
-        // Use the most descriptive error
-        const msg = parseError(innerError || error);
-        console.error('Update Profile final failure:', msg);
-        throw new Error(msg);
-      }
+      const msg = parseError(error);
+      console.error('Update Profile failure:', msg);
+      throw new Error(msg);
     }
   },
 
   async verifyEmployer(formData: FormData): Promise<any> {
     try {
-      console.log('--- SUBMITTING EMPLOYER VERIFICATION TO /api/auth/verify-employer ---');
-      const response = await api.post('/auth/verify-employer', formData);
-      return response.data;
-    } catch (error: any) {
-      console.error('Employer Verification failure:', parseError(error));
-      
-      if (error.response?.status === 500) {
-        throw new Error("Server error (500) during upload. This usually means the backend is missing one of required fields (business_photo, id_front, id_back, or business_certificate) or the file size is too large for the server's configuration.");
+      /**
+       * ANDROID STABILITY IMPROVEMENT:
+       * Switching to native 'fetch' for the multi-document verification upload.
+       * This handles the complex multipart boundary for 4+ files much more 
+       * reliably on Android than Axios.
+       */
+      console.log('--- SUBMITTING EMPLOYER VERIFICATION via FETCH ---');
+      const token = await SecureStore.getItemAsync('auth_token');
+      const url = `${CONFIG.API_BASE_URL}/auth/verify-employer`;
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
+          // Content-Type is OMITTED so fetch can generate the boundary for FormData
+        },
+        body: formData
+      });
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        console.error('Verification Error Detail:', JSON.stringify(responseData));
+        if (response.status === 500) {
+          throw new Error("Server error (500) during document upload. Please ensure all required files (Council Permit, Business Photo, and ID images) are selected and the files aren't too large.");
+        }
+        throw new Error(responseData?.message || responseData?.error || responseData?.data?.message || `Upload failed (${response.status})`);
       }
 
-      throw new Error(parseError(error));
+      return responseData;
+    } catch (error: any) {
+      const msg = parseError(error);
+      console.error('Employer Verification failure:', msg);
+      throw new Error(msg);
     }
   }
 };
