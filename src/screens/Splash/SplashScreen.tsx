@@ -10,14 +10,17 @@ import Animated, {
     Easing
 } from 'react-native-reanimated';
 
+import { StackNavigationProp } from '@react-navigation/stack';
+import { AuthStackParamList } from '../../navigation/types';
+
 const { width, height } = Dimensions.get('window');
 
+type SplashScreenNavigationProp = StackNavigationProp<AuthStackParamList, 'Splash'>;
+
 const SplashScreen = ({
-    onGetStarted,
-    showButton = true
+    navigation
 }: {
-    onGetStarted: () => void;
-    showButton?: boolean;
+    navigation: SplashScreenNavigationProp;
 }) => {
     // Animation values
     const logoOpacity = useSharedValue(0);
@@ -56,7 +59,6 @@ const SplashScreen = ({
             colors={['#1972ca', '#0d4f8e']}
             style={styles.container}
         >
-            <StatusBar barStyle="light-content" />
 
             <Animated.View style={[styles.content, logoStyle]}>
                 <Text style={styles.logoText}>wakajob</Text>
@@ -65,12 +67,12 @@ const SplashScreen = ({
                 </Animated.Text>
             </Animated.View>
 
-            {showButton && (
+            {true && (
                 <Animated.View style={[styles.footer, buttonStyle]}>
                     <TouchableOpacity
                         style={styles.button}
                         activeOpacity={0.7}
-                        onPress={onGetStarted}
+                        onPress={() => navigation.navigate('Signup')}
                     >
                         <Text style={styles.buttonText}>Get started</Text>
                     </TouchableOpacity>

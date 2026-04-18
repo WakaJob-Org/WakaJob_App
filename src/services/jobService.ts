@@ -1,4 +1,6 @@
 import api from './api';
+import * as SecureStore from 'expo-secure-store';
+import { jwtDecode } from 'jwt-decode';
 
 export interface Job {
     id: string;
@@ -23,15 +25,16 @@ export interface CreateJobData {
     category?: string;
     job_type: 'full-time' | 'part-time' | 'contract' | 'freelance';
     qualifications?: string;
-    image_url?: string; // Still here for backward compatibility
-    images?: string[]; // Added for multiple images
+    image_url?: string;
+    images?: string[];
+    screening_questions?: string[];
     is_apprentice?: boolean;
 }
 
 const jobService = {
-    getJobs: async (): Promise<Job[]> => {
+    getJobs: async (params?: { search?: string, location?: string, category?: string, job_type?: string }): Promise<Job[]> => {
         try {
-            const response = await api.get('/jobs');
+            const response = await api.get('/jobs', { params });
             const raw = response.data;
             // Backend may return a wrapped object: {jobs:[]}, {data:[]}, {results:[]}, or a plain array
             if (Array.isArray(raw)) return raw;
@@ -65,11 +68,50 @@ const jobService = {
 
     applyToJob: async (jobId: string) => {
         try {
-            // Tentative endpoint based on common naming
-            const response = await api.post(`/jobs/${jobId}/apply`);
+            const response = await api.post(`/applications`, { jobId });
             return response.data;
         } catch (error: any) {
             throw error.response?.data?.message || 'Failed to apply for job';
+        }
+    },
+
+    saveJob: async (jobId: string) => {
+        try {
+            // Extract UUID from token to satisfy Supabase RLS policies
+            let userId: string | undefined;
+            const token = await SecureStore.getItemAsync('auth_token');
+            if (token) {
+                try {
+                    const decoded: any = jwtDecode(token);
+                    userId = decoded.sub || decoded.id;
+                } catch (e) {}
+            }
+
+            const response = await api.post(`/jobs/save`, { 
+                jobId,
+                user_id: userId // Explicitly providing ID for RLS compliance
+            });
+            return response.data;
+        } catch (error: any) {
+            throw error.response?.data?.message || 'Failed to save job';
+        }
+    },
+
+    updateJob: async (id: string, data: Partial<CreateJobData>) => {
+        try {
+            const response = await api.put(`/jobs/${id}`, data);
+            return response.data;
+        } catch (error: any) {
+            throw error.response?.data?.message || 'Failed to update job';
+        }
+    },
+
+    deleteJob: async (id: string) => {
+        try {
+            const response = await api.delete(`/jobs/${id}`);
+            return response.data;
+        } catch (error: any) {
+            throw error.response?.data?.message || 'Failed to delete job';
         }
     },
 
@@ -90,9 +132,10 @@ const jobService = {
         }
     },
 
-    getSavedJobs: async () => {
+    getSavedJobs: async (workerId?: string) => {
         try {
-            const response = await api.get('/jobs/saved');
+            const endpoint = workerId ? `/jobs/saved/${workerId}` : '/jobs/saved';
+            const response = await api.get(endpoint);
             const raw = response.data;
             if (Array.isArray(raw)) return raw;
             if (Array.isArray(raw?.saved)) return raw.saved;

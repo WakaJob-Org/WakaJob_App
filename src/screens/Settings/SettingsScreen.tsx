@@ -12,19 +12,16 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ScreenCapture from 'expo-screen-capture';
 import Header from '../../components/Header';
 
-interface SettingsScreenProps {
-    isVisible: boolean;
-    onClose: () => void;
-    onLogout: () => void;
-}
+import { useNavigation } from '@react-navigation/native';
+import { useAuth } from '../../context/AuthContext';
 
-const SettingsScreen: React.FC<SettingsScreenProps> = ({ isVisible, onClose, onLogout }) => {
+const SettingsScreen: React.FC = () => {
+    const { logout } = useAuth();
+    const navigation = useNavigation();
     const [pushEnabled, setPushEnabled] = React.useState(true);
     const [emailEnabled, setEmailEnabled] = React.useState(true);
 
     ScreenCapture.usePreventScreenCapture();
-
-    if (!isVisible) return null;
 
     const renderSettingItem = (icon: any, title: string, subtitle?: string, onPress?: () => void, isDestructive?: boolean) => (
         <TouchableOpacity
@@ -66,7 +63,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ isVisible, onClose, onL
             <Header
                 title="Settings"
                 showBackButton={true}
-                onBackPress={onClose}
+                onBackPress={() => navigation.goBack()}
                 showSettings={false}
             />
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
@@ -110,7 +107,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ isVisible, onClose, onL
 
                 <View style={[styles.section, { marginBottom: 40 }]}>
                     <View style={styles.sectionCard}>
-                        {renderSettingItem('log-out-outline', 'Log Out', 'Sign out of your account', onLogout, true)}
+                        {renderSettingItem('log-out-outline', 'Log Out', 'Sign out of your account', logout, true)}
                     </View>
                 </View>
             </ScrollView>

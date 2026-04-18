@@ -12,66 +12,201 @@ import {
     Platform,
     Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ScreenCapture from 'expo-screen-capture';
+import * as ImagePicker from 'expo-image-picker';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import authService from '../../services/authService';
 import ProfileSkeleton from '../../components/ProfileSkeleton';
 
-interface ProfileScreenProps {
-    isVisible: boolean;
-    onBack?: () => void;
-    onLogout?: () => void;
-}
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useAuth } from '../../context/AuthContext';
 
-const ProfileScreen: React.FC<ProfileScreenProps> = ({ isVisible, onBack, onLogout }) => {
+const ProfileScreen: React.FC = () => {
+    const { logout, refreshUser } = useAuth();
+    const navigation = useNavigation<any>();
     const [username, setUsername] = useState('');
     const [dob, setDob] = useState('March 15, 1992');
     const [bio, setBio] = useState('Passionate UX designer with 5+ years of experience');
     const [skillCategory, setSkillCategory] = useState('UX/UI Design');
     const [email, setEmail] = useState('');
     const [phone, setPhone] = useState('+1 (555) 123-4567');
+    const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
+    const [userId, setUserId] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [skills, setSkills] = useState<{ id: string; name: string }[]>([]);
+    const [showDatePicker, setShowDatePicker] = useState(false);
+    const [dobDate, setDobDate] = useState<Date>(new Date());
+    const [role, setRole] = useState<string>('worker');
+    const [isVerified, setIsVerified] = useState<boolean>(false);
+    const [verificationStatus, setVerificationStatus] = useState<string | null>(null);
+    const [rejectionReason, setRejectionReason] = useState<string | null>(null);
 
     ScreenCapture.usePreventScreenCapture();
 
-    React.useEffect(() => {
-        const fetchProfile = async () => {
-            try {
-                setLoading(true);
-                const user = await authService.getUser();
-                if (user) {
-                    setUsername(user.full_name || user.username || '');
-                    setEmail(user.email || '');
+    useFocusEffect(
+        React.useCallback(() => {
+            const fetchProfile = async () => {
+                try {
+                    // Only show skeleton on first load, otherwise background refresh
+                    if (!userId) setLoading(true);
+                    
+                    const user = await authService.getUser();
+                    if (user) {
+                        setUserId(user.id || user._id || null);
+                        setUsername(user.full_name || user.username || '');
+                        setEmail(user.email || '');
+                        setProfilePhoto(user.profile_image_url || null);
+                        if (user.bio) setBio(user.bio);
+                        if (user.phone_number) setPhone(user.phone_number.replace('+237', ''));
+                        if (user.date_of_birth) {
+                            setDob(user.date_of_birth);
+                            try {
+                                setDobDate(new Date(user.date_of_birth));
+                            } catch (e) { }
+                        }
+                        if (user.skills && Array.isArray(user.skills)) {
+                            setSkills(user.skills.map((s: any) => ({ id: Math.random().toString(), name: s })));
+                        }
+                        setRole(user.role || 'worker');
+                        setIsVerified(user.is_verified || false);
+                        const status = user.verification_status || (user.is_verified ? 'approved' : null);
+                        setVerificationStatus(status);
+                        setRejectionReason(user.rejection_reason || null);
+                    }
+                } catch (error) {
+                    console.error('Error fetching profile:', error);
+                } finally {
+                    setTimeout(() => setLoading(false), 800);
                 }
-            } catch (error) {
-                console.error('Error fetching profile:', error);
-            } finally {
-                setTimeout(() => setLoading(false), 800);
+            };
+
+            fetchProfile();
+            return () => {}; // Cleanup
+        }, [userId])
+    );
+
+    const handleSave = async () => {
+        try {
+            setSaving(true);
+
+            // Determine if we are sending a local file or just JSON
+            const isLocalFile = profilePhoto && (profilePhoto.startsWith('file://') || profilePhoto.startsWith('content://'));
+
+            let payload: any;
+
+            if (isLocalFile) {
+                // Use FormData for robust file upload
+                const formData = new FormData();
+                formData.append('full_name', username);
+                formData.append('bio', bio);
+                formData.append('phone_number', phone.startsWith('+237') ? phone : `+237${phone}`);
+                formData.append('date_of_birth', dob);
+
+                // Many backends prefer arrays as JSON strings in FormData
+                formData.append('skills', JSON.stringify(skills.map(s => s.name)));
+
+                if (profilePhoto) {
+                    const uri = profilePhoto;
+                    const filename = uri.split('/').pop() || 'profile.jpg';
+                    const match = /\.(\w+)$/.exec(filename);
+                    const type = match ? `image/${match[1]}` : `image/jpeg`;
+
+                    const fileObj = {
+                        uri: Platform.OS === 'android' ? uri : uri.replace('file://', ''),
+                        name: filename,
+                        type,
+                    };
+
+                    // Try 'profile_image' first, as suggested by your logs
+                    formData.append('profile_image', fileObj as any);
+                }
+                payload = formData;
+            } else {
+                // Standard JSON payload for text-only updates
+                payload = {
+                    full_name: username,
+                    bio: bio,
+                    phone_number: phone.startsWith('+237') ? phone : `+237${phone}`,
+                    date_of_birth: dob,
+                    skills: skills.map(s => s.name),
+                    ...(profilePhoto && !profilePhoto.startsWith('http') && { profile_image_url: profilePhoto })
+                };
             }
-        };
 
-        if (isVisible) fetchProfile();
-    }, [isVisible]);
+            console.log('--- SAVING PROFILE ---', isLocalFile ? 'FORM DATA' : 'JSON');
+            await authService.updateProfile(userId || 'me', payload);
 
-    if (!isVisible) return null;
+            // Refresh the global user context so other screens (like Home) update immediately
+            await refreshUser();
+
+            // Immediate navigation without popup for smoother UX
+            navigation.goBack();
+        } catch (error: any) {
+            console.error('Save profile error:', error);
+            Alert.alert('Error', error.message || 'Failed to update profile');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const getInitials = (name: string) => {
+        if (!name) return 'U';
+        const parts = name.trim().split(/\s+/);
+        if (parts.length === 0) return 'U';
+        if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+        return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+    };
+
+    const insets = useSafeAreaInsets();
+    const avatarInitials = getInitials(username);
+
+    const pickImage = async () => {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+            Alert.alert('Permission required', 'We need camera roll permissions to change your profile picture.');
+            return;
+        }
+
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'],
+            allowsEditing: true,
+            aspect: [1, 1],
+            quality: 0.5, // Slightly higher quality, FormData can handle it
+        });
+
+        if (!result.canceled && result.assets[0].uri) {
+            setProfilePhoto(result.assets[0].uri);
+        }
+    };
+
+    const onDateChange = (event: any, selectedDate?: Date) => {
+        setShowDatePicker(false);
+        if (selectedDate) {
+            setDobDate(selectedDate);
+            setDob(selectedDate.toISOString().split('T')[0]);
+        }
+    };
+
     if (loading) return <ProfileSkeleton />;
 
     return (
         <View style={styles.container}>
             {/* Custom Header */}
-            <View style={styles.header}>
-                <SafeAreaView>
-                    <View style={styles.headerContent}>
-                        <TouchableOpacity onPress={onBack} style={styles.headerIconButton}>
-                            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-                        </TouchableOpacity>
-                        <Text style={styles.headerTitle}>Edit Profile</Text>
-                        <TouchableOpacity onPress={onBack}>
-                            <Text style={styles.headerSaveText}>Save</Text>
-                        </TouchableOpacity>
-                    </View>
-                </SafeAreaView>
+            <View style={[styles.header, { paddingTop: insets.top }]}>
+                <View style={styles.headerContent}>
+                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+                        <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
+                    </TouchableOpacity>
+                    <Text style={styles.headerTitle}>Edit Profile</Text>
+                    <TouchableOpacity onPress={handleSave} disabled={saving}>
+                        <Text style={[styles.headerSaveText, saving && { opacity: 0.5 }]}>
+                            {saving ? '...' : 'Save'}
+                        </Text>
+                    </TouchableOpacity>
+                </View>
             </View>
 
             <KeyboardAvoidingView
@@ -86,15 +221,21 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ isVisible, onBack, onLogo
                     {/* Profile Picture Section */}
                     <View style={styles.avatarSection}>
                         <View style={styles.avatarWrapper}>
-                            <Image
-                                source={{ uri: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200' }}
-                                style={styles.avatar}
-                            />
-                            <TouchableOpacity style={styles.cameraBadge}>
+                            {profilePhoto ? (
+                                <Image
+                                    source={{ uri: profilePhoto }}
+                                    style={styles.avatar}
+                                />
+                            ) : (
+                                <View style={[styles.avatar, styles.avatarInitialsContainer]}>
+                                    <Text style={styles.avatarInitialsText}>{avatarInitials}</Text>
+                                </View>
+                            )}
+                            <TouchableOpacity style={styles.cameraBadge} onPress={pickImage}>
                                 <Ionicons name="camera" size={18} color="#FFFFFF" />
                             </TouchableOpacity>
                         </View>
-                        <TouchableOpacity>
+                        <TouchableOpacity onPress={pickImage}>
                             <Text style={styles.changePictureText}>Change Profile Picture</Text>
                         </TouchableOpacity>
                     </View>
@@ -115,19 +256,30 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ isVisible, onBack, onLogo
                             </View>
                         </View>
 
-                        {/* Date of Birth */}
                         <View style={styles.fieldGroup}>
                             <Text style={styles.label}>Date of Birth</Text>
-                            <View style={styles.inputWrapper}>
+                            <TouchableOpacity
+                                style={styles.inputWrapper}
+                                onPress={() => setShowDatePicker(true)}
+                            >
                                 <TextInput
                                     style={styles.input}
                                     value={dob}
-                                    onChangeText={setDob}
-                                    placeholder="MM/DD/YYYY"
+                                    editable={false}
+                                    placeholder="YYYY-MM-DD"
                                     placeholderTextColor="#9BA4B1"
                                 />
                                 <Ionicons name="calendar-outline" size={20} color="#9BA4B1" style={styles.fieldIcon} />
-                            </View>
+                            </TouchableOpacity>
+                            {showDatePicker && (
+                                <DateTimePicker
+                                    value={dobDate}
+                                    mode="date"
+                                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                                    onChange={onDateChange}
+                                    maximumDate={new Date()}
+                                />
+                            )}
                         </View>
 
                         {/* Short Bio */}
@@ -155,12 +307,34 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ isVisible, onBack, onLogo
                                 <TextInput
                                     style={styles.input}
                                     value={skillCategory}
-                                    editable={false}
+                                    onChangeText={setSkillCategory}
+                                    placeholder="e.g. UX/UI Design"
                                     placeholderTextColor="#9BA4B1"
                                 />
                                 <Ionicons name="chevron-down" size={20} color="#9BA4B1" style={styles.fieldIcon} />
                             </View>
-                            <TouchableOpacity style={styles.addSkillBtn}>
+
+                            {/* Dynamic Skills List */}
+                            <View style={styles.skillsList}>
+                                {skills.map(skill => (
+                                    <View key={skill.id} style={styles.skillTag}>
+                                        <Text style={styles.skillTagText}>{skill.name}</Text>
+                                        <TouchableOpacity onPress={() => setSkills(prev => prev.filter(s => s.id !== skill.id))}>
+                                            <Ionicons name="close-circle" size={16} color="#1972ca" />
+                                        </TouchableOpacity>
+                                    </View>
+                                ))}
+                            </View>
+
+                            <TouchableOpacity
+                                style={styles.addSkillBtn}
+                                onPress={() => {
+                                    if (skillCategory.trim()) {
+                                        setSkills(prev => [...prev, { id: Math.random().toString(), name: skillCategory }]);
+                                        setSkillCategory('');
+                                    }
+                                }}
+                            >
                                 <Ionicons name="add" size={18} color="#1972ca" />
                                 <Text style={styles.addSkillText}>Add Skill</Text>
                             </TouchableOpacity>
@@ -169,54 +343,152 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ isVisible, onBack, onLogo
                         {/* Contact Information */}
                         <View style={styles.fieldGroup}>
                             <Text style={styles.label}>Contact Information</Text>
-                            <View style={[styles.inputWrapper, { marginBottom: 12 }]}>
+                            <View style={[styles.inputWrapper, styles.disabledInput, { marginBottom: 12 }]}>
                                 <Ionicons name="mail-outline" size={20} color="#9BA4B1" style={styles.leftIcon} />
                                 <TextInput
-                                    style={styles.input}
+                                    style={[styles.input, { color: '#9BA4B1' }]}
                                     value={email}
-                                    onChangeText={setEmail}
+                                    editable={false}
                                     placeholder="Email address"
                                     placeholderTextColor="#9BA4B1"
                                     keyboardType="email-address"
                                 />
                             </View>
                             <View style={styles.inputWrapper}>
-                                <Ionicons name="call-outline" size={20} color="#9BA4B1" style={styles.leftIcon} />
+                                <View style={styles.countryCodeContainer}>
+                                    <Text style={styles.flagEmoji}>🇨🇲</Text>
+                                    <Text style={styles.countryCodeText}>+237</Text>
+                                </View>
                                 <TextInput
                                     style={styles.input}
                                     value={phone}
                                     onChangeText={setPhone}
-                                    placeholder="Phone number"
+                                    placeholder="6xx xxx xxx"
                                     placeholderTextColor="#9BA4B1"
                                     keyboardType="phone-pad"
+                                    maxLength={9}
                                 />
                             </View>
                         </View>
                     </View>
 
-                    {/* Bottom Button */}
-                    <TouchableOpacity style={styles.saveChangesBtn} onPress={onBack}>
-                        <Text style={styles.saveChangesText}>Save Changes</Text>
-                    </TouchableOpacity>
-
-                    {onLogout && (
-                        <TouchableOpacity
-                            style={styles.logoutBtn}
+                    {/* Account Status Permanent Shortcut */}
+                    <View style={styles.sectionDivider} />
+                    <View style={styles.employerSection}>
+                        <Text style={styles.sectionTitle}>Account Status</Text>
+                        <TouchableOpacity 
+                            style={styles.verificationShortcut}
                             onPress={() => {
-                                Alert.alert(
-                                    'Logout',
-                                    'Are you sure you want to log out?',
-                                    [
-                                        { text: 'Cancel', style: 'cancel' },
-                                        { text: 'Logout', style: 'destructive', onPress: onLogout }
-                                    ]
-                                );
+                                if (isVerified) {
+                                    Alert.alert("Verified Account", "Your account is fully verified. You have full access to employer features.");
+                                } else if (String(verificationStatus).toLowerCase() === 'pending') {
+                                    navigation.navigate('VerificationPending');
+                                } else if (String(verificationStatus).toLowerCase() === 'rejected') {
+                                    navigation.navigate('VerificationFailed', { reason: rejectionReason });
+                                } else {
+                                    navigation.navigate('EmployerVerification');
+                                }
                             }}
                         >
-                            <Ionicons name="log-out-outline" size={20} color="#FF3B30" />
-                            <Text style={styles.logoutText}>Logout</Text>
+                            <View style={[
+                                styles.statusBadge, 
+                                isVerified ? styles.statusBadgeVerified : 
+                                String(verificationStatus).toLowerCase() === 'pending' ? styles.statusBadgePending : 
+                                styles.statusBadgeNotStarted
+                            ]}>
+                                <Ionicons 
+                                    name={isVerified ? "shield-checkmark" : "shield-checkmark-outline"} 
+                                    size={20} 
+                                    color="#FFF" 
+                                />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.verificationShortcutTitle}>Verification Status</Text>
+                                <Text style={[
+                                    styles.verificationShortcutStatus,
+                                    isVerified ? { color: '#22C55E' } : 
+                                    String(verificationStatus).toLowerCase() === 'pending' ? { color: '#F97316' } : 
+                                    { color: '#64748B' }
+                                ]}>
+                                    {isVerified ? 'Verified Employer' : 
+                                     String(verificationStatus).toLowerCase() === 'pending' ? 'Verification Pending' : 
+                                     String(verificationStatus).toLowerCase() === 'rejected' ? 'Verification Rejected' :
+                                     'Unverified Account'}
+                                </Text>
+                            </View>
+                            <Ionicons name="chevron-forward" size={18} color="#9BA4B1" />
                         </TouchableOpacity>
-                    )}
+                    </View>
+
+                    {/* Employer Account Section */}
+                    <View style={styles.sectionDivider} />
+                    <View style={styles.employerSection}>
+                        <Text style={styles.sectionTitle}>Employer Account</Text>
+                        <Text style={styles.sectionSubtitle}>Post jobs and hire talents in your workspace</Text>
+                        
+                        <View style={styles.employerControls}>
+                            {/* Always show Employer Page/Dashboard link if they are an employer */}
+                            {(role === 'employer') && (
+                                <TouchableOpacity 
+                                    style={styles.employerDashboardBtn}
+                                    onPress={() => navigation.navigate('EmployerDashboard')}
+                                >
+                                    <Ionicons name="stats-chart" size={20} color="#FFFFFF" />
+                                    <Text style={styles.employerBtnText}>Employer Page</Text>
+                                </TouchableOpacity>
+                            )}
+
+                            {/* Post a Job button logic */}
+                            <TouchableOpacity 
+                                style={[
+                                    styles.postJobShortBtn, 
+                                    role !== 'employer' && { flex: 0, width: '100%' }
+                                ]}
+                                onPress={() => {
+                                    if (isVerified || (role === 'employer' && isVerified)) {
+                                        navigation.navigate('CreateJob');
+                                    } else if (verificationStatus === 'pending') {
+                                        navigation.navigate('VerificationPending');
+                                    } else if (verificationStatus === 'rejected') {
+                                        navigation.navigate('VerificationFailed', { reason: rejectionReason });
+                                    } else {
+                                        // No active verification or rejected - start/restart employer enrollment
+                                        navigation.navigate('EmployerVerification');
+                                    }
+                                }}
+                            >
+                                <Ionicons name="add-circle" size={20} color="#1972ca" />
+                                <Text style={styles.postJobShortText}>Post a Job</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                    </View>
+
+                    {/* Bottom Button */}
+                    <TouchableOpacity
+                        style={[styles.saveChangesBtn, saving && { opacity: 0.7 }]}
+                        onPress={handleSave}
+                        disabled={saving}
+                    >
+                        <Text style={styles.saveChangesText}>{saving ? 'Saving...' : 'Save Changes'}</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={styles.logoutBtn}
+                        onPress={() => {
+                            Alert.alert(
+                                'Logout',
+                                'Are you sure you want to log out?',
+                                [
+                                    { text: 'Cancel', style: 'cancel' },
+                                    { text: 'Logout', style: 'destructive', onPress: logout }
+                                ]
+                            );
+                        }}
+                    >
+                        <Ionicons name="log-out-outline" size={20} color="#FF3B30" />
+                        <Text style={styles.logoutText}>Logout</Text>
+                    </TouchableOpacity>
                 </ScrollView>
             </KeyboardAvoidingView>
         </View>
@@ -308,6 +580,10 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         backgroundColor: '#FFFFFF',
     },
+    disabledInput: {
+        backgroundColor: '#F3F4F6',
+        borderColor: '#E5E7EB',
+    },
     input: {
         flex: 1,
         paddingHorizontal: 15,
@@ -329,6 +605,25 @@ const styles = StyleSheet.create({
     },
     leftIcon: {
         marginLeft: 15,
+    },
+    countryCodeContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderRightWidth: 1,
+        borderRightColor: '#E5E7EB',
+        paddingRight: 10,
+        marginLeft: 10,
+        marginRight: 5,
+        height: '60%',
+    },
+    flagEmoji: {
+        fontSize: 18,
+        marginRight: 4,
+    },
+    countryCodeText: {
+        fontSize: 14,
+        color: '#1F2937',
+        fontWeight: '600',
     },
     charCount: {
         fontSize: 12,
@@ -389,6 +684,175 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: '600',
     },
+    avatarInitialsContainer: {
+        backgroundColor: '#1972ca',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    avatarInitialsText: {
+        color: '#FFFFFF',
+        fontSize: 42,
+        fontWeight: 'bold',
+    },
+    skillsList: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+        marginBottom: 10,
+    },
+    skillTag: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#E0F2FE',
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 20,
+        gap: 6,
+    },
+    skillTagText: {
+        fontSize: 12,
+        color: '#1972ca',
+        fontWeight: '600',
+    },
+    employerSection: {
+        paddingHorizontal: 20,
+        paddingVertical: 20,
+    },
+    sectionTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#1F2937',
+        marginBottom: 4,
+    },
+    sectionSubtitle: {
+        fontSize: 13,
+        color: '#6B7280',
+        marginBottom: 20,
+    },
+    employerControls: {
+        flexDirection: 'row',
+        gap: 12,
+    },
+    employerDashboardBtn: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#1972ca',
+        height: 50,
+        borderRadius: 12,
+        gap: 8,
+    },
+    employerBtnText: {
+        color: '#FFFFFF',
+        fontSize: 15,
+        fontWeight: '700',
+    },
+    postJobShortBtn: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#E0F2FE',
+        height: 50,
+        borderRadius: 12,
+        gap: 8,
+        borderWidth: 1,
+        borderColor: '#1972ca',
+    },
+    postJobShortText: {
+        color: '#1972ca',
+        fontSize: 15,
+        fontWeight: '700',
+    },
+    sectionDivider: {
+        height: 8,
+        backgroundColor: '#F3F4F6',
+        marginVertical: 10,
+    },
+    statusBanner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 12,
+        borderRadius: 10,
+        gap: 10,
+    },
+    statusText: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: '#F97316',
+        flex: 1,
+    },
+    applicationSectionTitle: {
+        fontSize: 15,
+        fontWeight: 'bold',
+        color: '#4B5563',
+        marginBottom: 10,
+        marginTop: 5,
+    },
+    activeApplicationBanner: {
+        backgroundColor: '#F8FAFC',
+        borderWidth: 1.5,
+        borderColor: '#E2E8F0',
+        borderRadius: 15,
+        padding: 16,
+        marginTop: 0,
+    },
+    applicationIconContainer: {
+        width: 44,
+        height: 44,
+        borderRadius: 12,
+        backgroundColor: '#E0F2FE',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 15,
+    },
+    applicationTitleText: {
+        fontSize: 15,
+        fontWeight: '700',
+        color: '#1F2937',
+        marginBottom: 2,
+    },
+    applicationStatusText: {
+        fontSize: 13,
+        color: '#64748B',
+        fontWeight: '500',
+    },
+    verificationShortcut: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FFFFFF',
+        borderWidth: 1,
+        borderColor: '#F1F5F9',
+        borderRadius: 15,
+        padding: 12,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+        elevation: 1,
+    },
+    verificationShortcutTitle: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#1F2937',
+    },
+    verificationShortcutStatus: {
+        fontSize: 12,
+        fontWeight: '600',
+        marginTop: 1,
+    },
+    statusBadge: {
+        width: 38,
+        height: 38,
+        borderRadius: 10,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
+    },
+    statusBadgeVerified: { backgroundColor: '#22C55E' },
+    statusBadgePending: { backgroundColor: '#F97316' },
+    statusBadgeNotStarted: { backgroundColor: '#64748B' },
 });
 
 export default ProfileScreen;

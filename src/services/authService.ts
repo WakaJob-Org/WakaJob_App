@@ -1,6 +1,8 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
+import { jwtDecode } from 'jwt-decode';
 import CONFIG from '../config';
+import api from './api';
 
 // Dedicated instance for Auth and Public routes (No interceptors, no tokens)
 const authApi = axios.create({
@@ -17,9 +19,16 @@ let currentToken: string | null = null;
 /**
  * Universal error parser for backend responses
  */
+/**
+ * Universal error parser for backend responses
+ */
 const parseError = (error: any): string => {
   if (error.response?.data) {
     const data = error.response.data;
+    // If it's HTML (likely a 500 error), return a clean message
+    if (typeof data === 'string' && data.toLowerCase().includes('<!doctype html>')) {
+      return 'Server error (500). Please try again later.';
+    }
     // Handle nested structure: { data: { message: "..." } }
     if (data.data?.message) return data.data.message;
     // Handle standard structure: { message: "..." }
@@ -29,7 +38,26 @@ const parseError = (error: any): string => {
     // Fallback to stringified data
     return typeof data === 'string' ? data : JSON.stringify(data);
   }
+  
+  if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+      return 'Request timed out. The server might be waking up (Render cold start). Please try again.';
+  }
+
+  if (!error.response && error.message === 'Network Error') {
+      return 'Network connection error. Please check if your device has internet access and try again.';
+  }
+
   return error.message || 'An unexpected error occurred';
+};
+
+/**
+ * Robust FormData detection for React Native
+ */
+const isFormData = (data: any): boolean => {
+    return data && (
+        data instanceof FormData || 
+        (typeof data === 'object' && data !== null && (data.constructor?.name === 'FormData' || '_parts' in data))
+    );
 };
 
 const authService = {
@@ -59,7 +87,7 @@ const authService = {
         console.log('--- TOKEN EXTRACTED FROM SIGNUP ---');
         await this.setToken(token);
       } else {
-        console.error('FAILED to extract token from Signup structure:', JSON.stringify(response.data));
+        console.log('--- Signup successful, waiting for OTP verification ---');
       }
       return response.data;
     } catch (error: any) {
@@ -135,6 +163,9 @@ const authService = {
       const response = await authApi.post('/auth/resend-otp', data);
       return response.data;
     } catch (error: any) {
+      if (error.response?.status === 404) {
+        throw new Error('Backend Missing Endpoint: The backend developer needs to implement POST /auth/resend-otp.');
+      }
       const msg = parseError(error);
       console.error('Resend OTP failure:', msg);
       throw new Error(msg);
@@ -156,7 +187,13 @@ const authService = {
   async resetPassword(data: any): Promise<any> {
     try {
       console.log('--- RESET PASSWORD ATTEMPT ---', data.email);
-      const response = await authApi.post('/auth/reset-password', data);
+      // Map incoming data to likely backend field names
+      const payload = {
+        email: data.email,
+        token: data.otp || data.token,
+        password: data.new_password || data.password
+      };
+      const response = await authApi.post('/auth/reset-password', payload);
       return response.data;
     } catch (error: any) {
       const msg = parseError(error);
@@ -167,15 +204,34 @@ const authService = {
 
   async isAuthenticated(): Promise<boolean> {
     if (currentToken) {
-      console.log('--- Auth confirmed from memory ---');
-      return true;
+      try {
+        const decoded: any = jwtDecode(currentToken);
+        if (decoded.exp && decoded.exp * 1000 > Date.now()) {
+          return true;
+        }
+        console.log('--- Memory token expired ---');
+        currentToken = null;
+      } catch (e) { }
     }
+
     try {
       const token = await SecureStore.getItemAsync('auth_token');
       console.log('--- Checking storage for token ---:', token ? 'Token exists' : 'Storage EMPTY');
       if (token) {
-        currentToken = token;
-        return true;
+        try {
+          const decoded: any = jwtDecode(token);
+          if (decoded.exp && decoded.exp * 1000 > Date.now()) {
+            currentToken = token;
+            return true;
+          }
+          console.log('--- Storage token expired ---');
+          await SecureStore.deleteItemAsync('auth_token');
+        } catch (e) {
+          // If decode fails, assume it's just a non-JWT string or corrupt and use as is (backward compat)
+          // or just delete it if you want strict JWT. Let's be semi-strict.
+          currentToken = token;
+          return true;
+        }
       }
     } catch (e) {
       console.error('--- SecureStore Read Error ---:', e);
@@ -193,15 +249,33 @@ const authService = {
     return currentToken;
   },
 
-  async logout(): Promise<void> {
+  clearMemoryToken(): void {
     currentToken = null;
+  },
+
+  async logout(): Promise<void> {
+    console.log('--- LOGOUT INITIATED ---');
+    this.clearMemoryToken();
     await SecureStore.deleteItemAsync('auth_token');
+    await SecureStore.deleteItemAsync('cached_user_name');
   },
 
   async setToken(token: string): Promise<void> {
-    console.log('--- Persisting new token to storage ---');
-    currentToken = token;
-    await SecureStore.setItemAsync('auth_token', token);
+    try {
+      console.log('--- Persisting new token to storage (Length: ' + token.length + ') ---');
+      currentToken = token;
+      await SecureStore.setItemAsync('auth_token', token);
+
+      // Immediate verification read-back
+      const verifyToken = await SecureStore.getItemAsync('auth_token');
+      if (verifyToken === token) {
+        console.log('--- SESSION PERSISTENCE VERIFIED ---');
+      } else {
+        console.error('--- SESSION PERSISTENCE FAILURE: Read-back failed ---');
+      }
+    } catch (e) {
+      console.error('--- SecureStore Write Error ---:', e);
+    }
   },
 
   async getUser(): Promise<any> {
@@ -209,29 +283,149 @@ const authService = {
       if (!currentToken) {
         const hasToken = await this.isAuthenticated();
         if (!hasToken) {
-          console.log('getUser: No token found');
+          console.log('getUser: No token found, skipping profile fetch');
           return null;
         }
       }
 
-      console.log('getUser: Fetching profile...');
-      // Note: /auth/profile is currently returning 404 on the backend.
-      // We catch this and return the token info as a fallback so the app still works.
-      const response = await authApi.get('/auth/profile', {
-        headers: { Authorization: `Bearer ${currentToken}` }
-      });
-
-      console.log('getUser: Profile fetch success');
-      return response.data.data?.user || response.data.user || response.data;
-    } catch (e: any) {
-      if (e.response?.status === 404) {
-        console.warn('getUser: Profile endpoint (404) - Using local session fallback');
-        // If profile fails, we shouldn't lock the user out. 
-        // We return a basic object so the UI can still show "Welcome"
-        return { full_name: 'User' };
+      console.log('getUser: Fetching live profile data via main API...');
+      // Try /auth/profile first, then /auth/me as common synonyms
+      let response;
+      try {
+        response = await api.get('/auth/profile');
+      } catch (err: any) {
+        if (err.response?.status === 404) {
+          console.log('getUser: /auth/profile 404, trying /auth/me...');
+          response = await api.get('/auth/me');
+        } else {
+          throw err;
+        }
       }
+
+      console.log('getUser RAW RESPONSE:', JSON.stringify(response.data));
+
+      // Attempt extraction
+      const userData = response.data.data?.user || response.data.user || response.data.data || response.data;
+
+      if (userData && userData.full_name) {
+        console.log('getUser: Captured name for cache:', userData.full_name);
+        await SecureStore.setItemAsync('cached_user_name', userData.full_name);
+      }
+
+      console.log('getUser EXTRACTED DATA:', JSON.stringify(userData));
+      return userData;
+    } catch (e: any) {
       console.error('getUser error:', e.response?.status || e.message);
+
+      // Try to return a skeleton user with the cached name if API fails
+      try {
+        const cachedName = await SecureStore.getItemAsync('cached_user_name');
+        if (cachedName) {
+          console.log('getUser: API failed, falling back to cache:', cachedName);
+          return { full_name: cachedName };
+        }
+      } catch (cacheErr) { }
+
       return null;
+    }
+  },
+
+  async updateProfile(userId: string, data: any): Promise<any> {
+    try {
+      let activeUserId = userId;
+      if (!activeUserId || activeUserId === 'me') {
+        const user = await this.getUser();
+        activeUserId = user?.id || user?._id || 'me';
+      }
+
+      const dataIsFormData = isFormData(data);
+      let payload = data;
+
+      // Ensure ID is present in payload if not a FormData object
+      if (!dataIsFormData) {
+        payload = {
+          id: activeUserId !== 'me' ? activeUserId : undefined,
+          ...data
+        };
+      } else {
+        // For FormData, inject ID specifically if not already present
+        if (activeUserId !== 'me' && payload.append) {
+          // Check if id is already appended (some polyfills support .has)
+          const hasId = typeof payload.has === 'function' ? payload.has('id') : false;
+          if (!hasId) {
+             payload.append('id', activeUserId);
+          }
+        }
+      }
+
+      console.log('--- UPDATING PROFILE at /profiles/' + activeUserId + ' ---');
+      const response = await api.put('/profiles/' + activeUserId, payload);
+
+      // Update local cache if full_name was provided in a standard object
+      if (!dataIsFormData && data.full_name) {
+        await SecureStore.setItemAsync('cached_user_name', data.full_name);
+      }
+
+      return response.data;
+    } catch (error: any) {
+      // Fallback: some backends use /auth/profile for updates too
+      try {
+        let activeUserId = userId;
+        const token = await SecureStore.getItemAsync('auth_token');
+        if (token && (!activeUserId || activeUserId === 'me')) {
+          try {
+            const decoded: any = jwtDecode(token);
+            activeUserId = decoded.sub || decoded.id || 'me';
+          } catch (e) { }
+        }
+
+        const dataIsFormData = isFormData(data);
+        let payload = data;
+        if (!dataIsFormData) {
+          payload = {
+            id: activeUserId !== 'me' ? activeUserId : undefined,
+            ...data
+          };
+        } else {
+          // Check if id is already appended
+          if (activeUserId !== 'me' && payload.append) {
+             const hasId = typeof payload.has === 'function' ? payload.has('id') : false;
+             if (!hasId) {
+                payload.append('id', activeUserId);
+             }
+          }
+        }
+
+        console.log('Profile update failed at /profiles/' + userId + ', trying /auth/profile fallback...');
+        const response = await api.patch('/auth/profile', payload);
+
+        if (!dataIsFormData && data.full_name) {
+          await SecureStore.setItemAsync('cached_user_name', data.full_name);
+        }
+
+        return response.data;
+      } catch (innerError: any) {
+        // Use the most descriptive error
+        const msg = parseError(innerError || error);
+        console.error('Update Profile final failure:', msg);
+        throw new Error(msg);
+      }
+    }
+  },
+
+  async verifyEmployer(formData: FormData): Promise<any> {
+    try {
+      console.log('--- SUBMITTING EMPLOYER VERIFICATION TO /api/auth/verify-employer ---');
+      const response = await api.post('/auth/verify-employer', formData);
+      return response.data;
+    } catch (error: any) {
+      console.error('Employer Verification failure:', parseError(error));
+      
+      if (error.response?.status === 500) {
+        throw new Error("Server error (500) during upload. This usually means the backend is missing one of required fields (business_photo, id_front, id_back, or business_certificate) or the file size is too large for the server's configuration.");
+      }
+
+      throw new Error(parseError(error));
     }
   }
 };

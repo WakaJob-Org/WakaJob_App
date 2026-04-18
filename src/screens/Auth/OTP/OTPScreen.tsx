@@ -8,10 +8,11 @@ import {
     Dimensions,
     KeyboardAvoidingView,
     Platform,
+    ActivityIndicator,
     StatusBar,
     Alert,
-    ActivityIndicator,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ScreenCapture from 'expo-screen-capture';
 import Animated, {
@@ -25,34 +26,27 @@ import otpService from '../../../services/otpServices';
 
 const { width, height } = Dimensions.get('window');
 
-interface OTPScreenProps {
-    isVisible: boolean;
-    email: string;
-    onClose: () => void;
-    onVerify: () => void;
-}
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { AuthStackParamList } from '../../../navigation/types';
 
-const OTPScreen: React.FC<OTPScreenProps> = ({ isVisible, email, onClose, onVerify }) => {
+const OTPScreen: React.FC = () => {
+    const navigation = useNavigation<any>();
+    const route = useRoute<RouteProp<AuthStackParamList, 'OTP'>>();
+    const { email } = route.params;
+
     const [otp, setOtp] = useState(['', '', '', '', '', '']);
     const [loading, setLoading] = useState(false);
     const [timer, setTimer] = useState(0);
 
     ScreenCapture.usePreventScreenCapture();
-    const translateY = useSharedValue(height);
     const inputRefs = useRef<Array<TextInput | null>>([]);
 
     useEffect(() => {
-        if (isVisible) {
-            translateY.value = withTiming(0, { duration: 600 });
-            // Small delay to ensure the UI is ready before focusing
-            const timeout = setTimeout(() => {
-                inputRefs.current[0]?.focus();
-            }, 700);
-            return () => clearTimeout(timeout);
-        } else {
-            translateY.value = withTiming(height, { duration: 500 });
-        }
-    }, [isVisible]);
+        const timeout = setTimeout(() => {
+            inputRefs.current[0]?.focus();
+        }, 500);
+        return () => clearTimeout(timeout);
+    }, []);
 
     // Timer logic
     useEffect(() => {
@@ -86,9 +80,6 @@ const OTPScreen: React.FC<OTPScreenProps> = ({ isVisible, email, onClose, onVeri
         }
     };
 
-    const animatedStyle = useAnimatedStyle(() => ({
-        transform: [{ translateY: translateY.value }],
-    }));
 
     const handleOtpChange = (value: string, index: number) => {
         // Essential: Allow auto-fill codes which might come in as 6 digits at once
@@ -139,6 +130,7 @@ const OTPScreen: React.FC<OTPScreenProps> = ({ isVisible, email, onClose, onVeri
         }
     };
 
+    const { verifyOTP } = useAuth();
     const handleVerifySubmit = async () => {
         const code = otp.join('');
         if (code.length < 6) {
@@ -149,20 +141,11 @@ const OTPScreen: React.FC<OTPScreenProps> = ({ isVisible, email, onClose, onVeri
         setLoading(true);
         try {
             console.log('--- VERIFYING OTP ---', code);
-            const response = await otpService.verifyOTP({ email, otp: code });
-            console.log('OTP Verify Response:', JSON.stringify(response));
 
-            // Extract token from either response.token or response.data.token
-            const token = response.token || response.data?.token;
+            // Use the AUTH CONTEXT verifyOTP which updates isAuthenticated and User
+            await verifyOTP({ email, otp: code });
 
-            if (token) {
-                console.log('Token found, saving session...');
-                await authService.setToken(token);
-            } else {
-                console.warn('No token found in successful OTP response');
-            }
-
-            onVerify();
+            console.log('OTP Verified successfully and session persisted.');
         } catch (error: any) {
             // Check for common error messages
             const msg = error.message || error.toString();
@@ -172,20 +155,19 @@ const OTPScreen: React.FC<OTPScreenProps> = ({ isVisible, email, onClose, onVeri
         }
     };
 
-    if (!isVisible && translateY.value === height) return null;
+    const insets = useSafeAreaInsets();
 
     return (
-        <Animated.View style={[styles.container, animatedStyle]}>
-            <StatusBar barStyle="dark-content" />
+        <View style={styles.container}>
 
-            <View style={styles.header}>
-                <TouchableOpacity onPress={onClose} style={styles.backButton}>
+            <View style={[styles.header, { paddingTop: Math.max(insets.top, 20) }]}>
+                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color="#333" />
                 </TouchableOpacity>
             </View>
 
             <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                 style={styles.content}
             >
                 <Animated.View entering={FadeInDown.delay(200).duration(600)}>
@@ -246,22 +228,16 @@ const OTPScreen: React.FC<OTPScreenProps> = ({ isVisible, email, onClose, onVeri
                     </TouchableOpacity>
                 </Animated.View>
             </KeyboardAvoidingView>
-        </Animated.View>
+        </View>
     );
 };
 
 const styles = StyleSheet.create({
     container: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
+        flex: 1,
         backgroundColor: '#FFFFFF',
-        zIndex: 100,
     },
     header: {
-        paddingTop: Platform.OS === 'ios' ? 60 : 40,
         paddingHorizontal: 20,
     },
     backButton: {

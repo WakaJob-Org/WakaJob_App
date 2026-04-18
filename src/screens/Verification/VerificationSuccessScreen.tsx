@@ -9,12 +9,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import authService from '../../services/authService';
-
-interface VerificationSuccessScreenProps {
-    isVisible: boolean;
-    onProfilePress?: () => void;
-    onStartNow?: () => void;
-}
+import { useNavigation } from '@react-navigation/native';
+import { useAuth } from '../../context/AuthContext';
 
 // Illustration: card with verified checkmark badge
 const SuccessIllustration = () => (
@@ -57,6 +53,9 @@ const SuccessIllustration = () => (
                 </View>
                 <Text style={illustrationStyles.checkmark}>✓</Text>
             </View>
+            <View style={illustrationStyles.notchLeft} />
+            <View style={illustrationStyles.notchRight} />
+            <View style={illustrationStyles.notchBottom} />
         </View>
     </View>
 );
@@ -164,6 +163,12 @@ const illustrationStyles = StyleSheet.create({
         height: 36,
         justifyContent: 'center',
         alignItems: 'center',
+        zIndex: 10,
+        elevation: 4,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 4,
     },
     badgeBackground: {
         position: 'absolute',
@@ -197,13 +202,11 @@ const illustrationStyles = StyleSheet.create({
     },
 });
 
-const VerificationSuccessScreen: React.FC<VerificationSuccessScreenProps> = ({
-    isVisible,
-    onProfilePress,
-    onStartNow,
-}) => {
+const VerificationSuccessScreen: React.FC = () => {
+    const { user, refreshUser } = useAuth();
+    const navigation = useNavigation<any>();
     const insets = useSafeAreaInsets();
-    const [profile, setProfile] = useState<any>(null);
+    const [profile, setProfile] = useState<any>(user);
 
     useEffect(() => {
         const loadProfile = async () => {
@@ -216,10 +219,14 @@ const VerificationSuccessScreen: React.FC<VerificationSuccessScreenProps> = ({
                 console.error('Error loading profile:', error);
             }
         };
-        if (isVisible) loadProfile();
-    }, [isVisible]);
+        loadProfile();
+    }, []);
 
-    if (!isVisible) return null;
+    const handleStartNow = async () => {
+        await refreshUser();
+        // Since RootNavigator switches stacks automatically based on user.is_verified,
+        // refreshing user will trigger the transition to AppStack.
+    };
 
     const avatarInitials = profile?.full_name
         ? profile.full_name
@@ -238,7 +245,7 @@ const VerificationSuccessScreen: React.FC<VerificationSuccessScreenProps> = ({
                         <Text style={styles.logoText}>WakaJob</Text>
                     </View>
 
-                    <TouchableOpacity style={styles.avatar} onPress={onProfilePress}>
+                    <TouchableOpacity style={styles.avatar}>
                         {profile?.profile_photo ? (
                             <Image source={{ uri: profile.profile_photo }} style={styles.avatarImage} />
                         ) : (
@@ -266,14 +273,27 @@ const VerificationSuccessScreen: React.FC<VerificationSuccessScreenProps> = ({
                     You now have access to all content
                 </Text>
 
-                {/* Start Now Button */}
-                <TouchableOpacity
-                    style={styles.startButton}
-                    onPress={onStartNow}
-                    activeOpacity={0.8}
-                >
-                    <Text style={styles.startButtonText}>Start Now</Text>
-                </TouchableOpacity>
+                {/* Start Now & Post Job Buttons */}
+                <View style={styles.buttonContainer}>
+                    <TouchableOpacity
+                        style={styles.startButton}
+                        onPress={handleStartNow}
+                        activeOpacity={0.8}
+                    >
+                        <Text style={styles.startButtonText}>Go to Dashboard</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={styles.postJobButton}
+                        onPress={async () => {
+                            await refreshUser();
+                            navigation.navigate('CreateJob');
+                        }}
+                        activeOpacity={0.8}
+                    >
+                        <Text style={styles.postJobButtonText}>Post a Job Now</Text>
+                    </TouchableOpacity>
+                </View>
             </View>
         </View>
     );
@@ -363,6 +383,26 @@ const styles = StyleSheet.create({
     },
     startButtonText: {
         color: '#FFFFFF',
+        fontSize: 16,
+        fontWeight: 'bold',
+    },
+    buttonContainer: {
+        width: '100%',
+        gap: 12,
+        alignItems: 'center',
+    },
+    postJobButton: {
+        backgroundColor: '#E0F2FE',
+        paddingHorizontal: 40,
+        paddingVertical: 16,
+        borderRadius: 12,
+        minWidth: 200,
+        alignItems: 'center',
+        borderWidth: 1.5,
+        borderColor: '#1972ca',
+    },
+    postJobButtonText: {
+        color: '#1972ca',
         fontSize: 16,
         fontWeight: 'bold',
     },

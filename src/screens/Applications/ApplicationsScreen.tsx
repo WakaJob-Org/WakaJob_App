@@ -5,22 +5,19 @@ import {
     Text,
     TouchableOpacity,
     FlatList,
+    RefreshControl,
     ScrollView,
     TextInput,
     Image,
-    RefreshControl,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import jobService from '../../services/jobService';
 import ApplicationsSkeleton from '../../components/ApplicationsSkeleton';
 import ApplicantProfileScreen, { Applicant } from './ApplicantProfileScreen';
 
-interface ApplicationsScreenProps {
-    isVisible: boolean;
-    onBack?: () => void;
-    onViewApplicant?: (applicantId: string) => void;
-}
+import { useNavigation } from '@react-navigation/native';
+import { useAuth } from '../../context/AuthContext';
 
 type StatusKey = 'NEW' | 'UNDER REVIEW' | 'INTERVIEWING' | 'ACCEPTED';
 
@@ -120,8 +117,10 @@ const AVATAR_COLORS: Record<string, string> = {
     EM: '#93C5FD',
 };
 
-const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ isVisible, onBack, onViewApplicant }) => {
-    const insets = useSafeAreaInsets();
+const ApplicationsScreen: React.FC = () => {
+    const navigation = useNavigation();
+    const { user } = useAuth();
+    const isEmployer = user?.role === 'employer';
     const [activeTab, setActiveTab] = useState('All');
     const [searchQuery, setSearchQuery] = useState('');
     const [applicants, setApplicants] = useState<Applicant[]>(MOCK_APPLICANTS);
@@ -146,15 +145,16 @@ const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ isVisible, onBa
     };
 
     React.useEffect(() => {
-        if (isVisible) fetchApplications();
-    }, [isVisible]);
+        fetchApplications();
+    }, []);
 
     const onRefresh = React.useCallback(() => {
         setRefreshing(true);
         fetchApplications(true);
     }, []);
 
-    if (!isVisible) return null;
+    const insets = useSafeAreaInsets();
+
     if (loading) return <ApplicationsSkeleton />;
 
     const filteredApplicants = applicants.filter((item) => {
@@ -230,17 +230,19 @@ const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ isVisible, onBa
 
     return (
         <View style={styles.container}>
-            <SafeAreaView style={{ backgroundColor: '#FFFFFF' }} />
-
             {/* ── Header ── */}
-            <View style={[styles.header, { paddingTop: insets.top > 0 ? 8 : 16 }]}>
-                <TouchableOpacity onPress={onBack} style={styles.headerIconBtn} activeOpacity={0.7}>
-                    <Ionicons name="arrow-back" size={22} color="#1F2937" />
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>Job Applications</Text>
-                <TouchableOpacity style={styles.headerIconBtn} activeOpacity={0.7}>
-                    <Ionicons name="notifications-outline" size={22} color="#1F2937" />
-                </TouchableOpacity>
+            <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%' }}>
+                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerIconBtn} activeOpacity={0.7}>
+                        <Ionicons name="chevron-back" size={24} color="#1972ca" />
+                    </TouchableOpacity>
+                    <Text style={styles.headerTitle}>
+                        {isEmployer ? 'Job Applications' : 'My Applications'}
+                    </Text>
+                    <TouchableOpacity style={styles.headerIconBtn} activeOpacity={0.7}>
+                        <Ionicons name="notifications-outline" size={24} color="#1F2937" />
+                    </TouchableOpacity>
+                </View>
             </View>
 
             {/* ── Search Bar ── */}
@@ -248,7 +250,7 @@ const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ isVisible, onBa
                 <Ionicons name="search-outline" size={18} color="#9CA3AF" style={styles.searchIcon} />
                 <TextInput
                     style={styles.searchInput}
-                    placeholder="Search by name or job title"
+                    placeholder={isEmployer ? "Search by name or job title" : "Search your applications"}
                     placeholderTextColor="#B0B8C5"
                     value={searchQuery}
                     onChangeText={setSearchQuery}
@@ -276,7 +278,7 @@ const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ isVisible, onBa
                 ))}
             </ScrollView>
 
-            {/* ── Applicant List ── */}
+            {/* ── Content List ── */}
             <FlatList
                 data={filteredApplicants}
                 renderItem={renderApplicantCard}
@@ -292,22 +294,28 @@ const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ isVisible, onBa
                     />
                 }
                 ListHeaderComponent={
-                    <Text style={styles.sectionTitle}>Recent Applicants</Text>
+                    <Text style={styles.sectionTitle}>
+                        {isEmployer ? 'Recent Applicants' : 'Recent Applications'}
+                    </Text>
                 }
                 ListEmptyComponent={
                     <View style={styles.emptyState}>
                         <Ionicons name="document-text-outline" size={60} color="#D1D5DB" />
-                        <Text style={styles.emptyStateText}>No applicants found</Text>
+                        <Text style={styles.emptyStateText}>
+                            {isEmployer ? 'No applicants found' : 'No applications found'}
+                        </Text>
                     </View>
                 }
             />
 
-            {/* Applicant Profile Modal */}
-            <ApplicantProfileScreen
-                applicant={selectedApplicant}
-                visible={profileVisible}
-                onClose={() => setProfileVisible(false)}
-            />
+            {/* Applicant Profile Modal (Only relevant for Employer) */}
+            {isEmployer && (
+                <ApplicantProfileScreen
+                    applicant={selectedApplicant}
+                    visible={profileVisible}
+                    onClose={() => setProfileVisible(false)}
+                />
+            )}
         </View>
     );
 };

@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 interface HeaderProps {
@@ -22,37 +22,37 @@ const Header: React.FC<HeaderProps> = ({
     onBackPress,
     showSettings = true
 }) => {
-    return (
-        <View style={styles.headerContainer}>
-            <SafeAreaView>
-                <View style={styles.headerContent}>
-                    <View style={styles.leftSection}>
-                        {showBackButton ? (
-                            <TouchableOpacity onPress={onBackPress} style={styles.iconButton}>
-                                <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
-                            </TouchableOpacity>
-                        ) : (
-                            <View style={styles.greetingContainer}>
-                                <Text style={styles.headerTitle}>{title}</Text>
-                                {userName && <Text style={styles.userName}>Welcome, {userName}</Text>}
-                            </View>
-                        )}
-                    </View>
+    const insets = useSafeAreaInsets();
 
-                    <View style={styles.rightSection}>
-                        <TouchableOpacity style={styles.iconButton} onPress={onNotificationPress}>
-                            <Ionicons name="notifications-outline" size={24} color="#FFFFFF" />
+    return (
+        <View style={[styles.headerContainer, { paddingTop: insets.top }]}>
+            <View style={styles.headerContent}>
+                <View style={styles.leftSection}>
+                    {showBackButton ? (
+                        <TouchableOpacity onPress={onBackPress} style={styles.iconButton}>
+                            <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
                         </TouchableOpacity>
-                        {showSettings && (
-                            <TouchableOpacity onPress={onSettingsPress} style={styles.iconButton}>
-                                <View style={styles.profileIndicator}>
-                                    <Ionicons name="settings-outline" size={26} color="#FFFFFF" />
-                                </View>
-                            </TouchableOpacity>
-                        )}
-                    </View>
+                    ) : (
+                        <View style={styles.greetingContainer}>
+                            <Text style={styles.headerTitle}>{title}</Text>
+                            {userName && <Text style={styles.userName}>Welcome, {userName}</Text>}
+                        </View>
+                    )}
                 </View>
-            </SafeAreaView>
+
+                <View style={styles.rightSection}>
+                    <TouchableOpacity style={styles.iconButton} onPress={onNotificationPress}>
+                        <Ionicons name="notifications-outline" size={24} color="#FFFFFF" />
+                    </TouchableOpacity>
+                    {showSettings && (
+                        <TouchableOpacity onPress={onSettingsPress} style={styles.iconButton}>
+                            <View style={styles.profileIndicator}>
+                                <Ionicons name="settings-outline" size={26} color="#FFFFFF" />
+                            </View>
+                        </TouchableOpacity>
+                    )}
+                </View>
+            </View>
         </View>
     );
 };
