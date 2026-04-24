@@ -77,7 +77,7 @@ const ForgotPasswordScreen: React.FC = () => {
         setLoading(true);
 
         try {
-            await authService.resetPassword({ email, otp, new_password: newPassword });
+            await authService.resetPassword({ email, otp, new_password: newPassword, confirm_password: confirmPassword });
             Alert.alert('Success', 'Your password has been successfully reset. You can now login.');
             navigation.navigate('Login');
         } catch (error: any) {

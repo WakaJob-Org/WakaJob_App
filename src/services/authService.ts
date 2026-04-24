@@ -163,9 +163,6 @@ const authService = {
       const response = await authApi.post('/auth/resend-otp', data);
       return response.data;
     } catch (error: any) {
-      if (error.response?.status === 404) {
-        throw new Error('Backend Missing Endpoint: The backend developer needs to implement POST /auth/resend-otp.');
-      }
       const msg = parseError(error);
       console.error('Resend OTP failure:', msg);
       throw new Error(msg);
@@ -178,10 +175,6 @@ const authService = {
       const response = await authApi.post('/auth/forgot-password', data);
       return response.data;
     } catch (error: any) {
-      // Provide actionable feedback if the endpoint isn't ready
-      if (error.response?.status === 404 || error.response?.status === 500) {
-        throw new Error('Backend implementation pending: The server does not have a "Forgot Password" feature yet. Please ask the backend developer to implement POST /api/auth/forgot-password.');
-      }
       const msg = parseError(error);
       console.error('Forgot PW failure:', msg);
       throw new Error(msg);
@@ -191,12 +184,14 @@ const authService = {
   async resetPassword(data: any): Promise<any> {
     try {
       console.log('--- RESET PASSWORD ATTEMPT ---', data.email);
-      // Map incoming data to likely backend field names
+      // Map incoming data exactly to the new backend swagger requirements
       const payload = {
         email: data.email,
         token: data.otp || data.token,
-        password: data.new_password || data.password
+        new_password: data.new_password || data.password,
+        confirm_password: data.confirm_password || data.new_password || data.password
       };
+      
       const response = await authApi.post('/auth/reset-password', payload);
       return response.data;
     } catch (error: any) {
