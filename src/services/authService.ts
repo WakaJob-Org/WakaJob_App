@@ -187,12 +187,14 @@ const authService = {
   async resetPassword(data: any): Promise<any> {
     try {
       console.log('--- RESET PASSWORD ATTEMPT ---', data.email);
-      // Map incoming data to likely backend field names
+      // Map incoming data exactly to the new backend swagger requirements
       const payload = {
         email: data.email,
         token: data.otp || data.token,
-        password: data.new_password || data.password
+        new_password: data.new_password || data.password,
+        confirm_password: data.confirm_password || data.new_password || data.password
       };
+      
       const response = await authApi.post('/auth/reset-password', payload);
       return response.data;
     } catch (error: any) {
