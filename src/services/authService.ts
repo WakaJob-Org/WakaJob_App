@@ -19,12 +19,15 @@ let currentToken: string | null = null;
 /**
  * Universal error parser for backend responses
  */
+/**
+ * Universal error parser for backend responses
+ */
 const parseError = (error: any): string => {
   if (error.response?.data) {
     const data = error.response.data;
     // If it's HTML (likely a 500 error), return a clean message
     if (typeof data === 'string' && data.toLowerCase().includes('<!doctype html>')) {
-      return 'Server error (500). The backend might be having issues with the image format.';
+      return 'Server error (500). Please try again later.';
     }
     // Handle nested structure: { data: { message: "..." } }
     if (data.data?.message) return data.data.message;
@@ -35,7 +38,26 @@ const parseError = (error: any): string => {
     // Fallback to stringified data
     return typeof data === 'string' ? data : JSON.stringify(data);
   }
+  
+  if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+      return 'Request timed out. The server might be waking up (Render cold start). Please try again.';
+  }
+
+  if (!error.response && error.message === 'Network Error') {
+      return 'Network connection error. Please check if your device has internet access and try again.';
+  }
+
   return error.message || 'An unexpected error occurred';
+};
+
+/**
+ * Robust FormData detection for React Native
+ */
+const isFormData = (data: any): boolean => {
+    return data && (
+        data instanceof FormData || 
+        (typeof data === 'object' && data !== null && (data.constructor?.name === 'FormData' || '_parts' in data))
+    );
 };
 
 const authService = {
@@ -141,9 +163,6 @@ const authService = {
       const response = await authApi.post('/auth/resend-otp', data);
       return response.data;
     } catch (error: any) {
-      if (error.response?.status === 404) {
-        throw new Error('Backend Missing Endpoint: The backend developer needs to implement POST /auth/resend-otp.');
-      }
       const msg = parseError(error);
       console.error('Resend OTP failure:', msg);
       throw new Error(msg);
@@ -165,7 +184,15 @@ const authService = {
   async resetPassword(data: any): Promise<any> {
     try {
       console.log('--- RESET PASSWORD ATTEMPT ---', data.email);
-      const response = await authApi.post('/auth/reset-password', data);
+      // Map incoming data exactly to the new backend swagger requirements
+      const payload = {
+        email: data.email,
+        token: data.otp || data.token,
+        new_password: data.new_password || data.password,
+        confirm_password: data.confirm_password || data.new_password || data.password
+      };
+      
+      const response = await authApi.post('/auth/reset-password', payload);
       return response.data;
     } catch (error: any) {
       const msg = parseError(error);
@@ -250,7 +277,7 @@ const authService = {
     }
   },
 
-  async getUser(): Promise<any> {
+  async getUser(forceRefresh = false): Promise<any> {
     try {
       if (!currentToken) {
         const hasToken = await this.isAuthenticated();
@@ -260,7 +287,7 @@ const authService = {
         }
       }
 
-      console.log('getUser: Fetching live profile data via main API...');
+      console.log(`getUser: Fetching ${forceRefresh ? 'LIVE' : 'profile'} data via main API...`);
       // Try /auth/profile first, then /auth/me as common synonyms
       let response;
       try {
@@ -303,104 +330,105 @@ const authService = {
   },
 
   async updateProfile(userId: string, data: any): Promise<any> {
+    const dataIsFormData = isFormData(data);
+    
     try {
       let activeUserId = userId;
+      // Resolve 'me' or null to actual ID. The backend documentation specifically requires the UUID.
       if (!activeUserId || activeUserId === 'me') {
         const user = await this.getUser();
         activeUserId = user?.id || user?._id || 'me';
       }
 
-      let payload = data;
-
-      // Only append ID if data is a standard object, not FormData
-      if (!(data instanceof FormData)) {
-        payload = {
-          id: activeUserId !== 'me' ? activeUserId : undefined,
-          ...data
-        };
-      } else {
-        // For FormData, inject ID specifically
-        if (activeUserId !== 'me') {
-          payload.append('id', activeUserId);
-        }
+      if (activeUserId === 'me') {
+        throw new Error("Could not resolve your user ID. Please try logging in again.");
       }
 
-      console.log('--- UPDATING PROFILE at /profiles/' + activeUserId + ' ---');
-      const response = await api.put('/profiles/' + activeUserId, payload);
+      // Payload Preparation
+      if (!dataIsFormData) {
+        data.id = activeUserId;
+      } else if (data.append) {
+        const hasId = typeof data.has === 'function' ? data.has('id') : false;
+        if (!hasId) data.append('id', activeUserId);
+      }
 
-      // Update local cache if full_name was provided in a standard object
-      if (!(data instanceof FormData) && data.full_name) {
+      /**
+       * ANDROID RELIABILITY FIX:
+       * We are switching to native 'fetch' for this specific call.
+       * On some Android devices (Samsung/older), native fetch handles the 'FormData' stream
+       * bridge much more robustly than the Axios library.
+       */
+      console.log(`--- UPDATING PROFILE via FETCH at /profiles/${activeUserId} ---`);
+      
+      const token = await SecureStore.getItemAsync('auth_token');
+      const url = `${CONFIG.API_BASE_URL}/profiles/${activeUserId}`;
+
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
+          // Important: Content-Type is OMITTED for FormData to allow fetch to set the boundary
+          ...(!dataIsFormData && { 'Content-Type': 'application/json' })
+        },
+        body: dataIsFormData ? data : JSON.stringify(data)
+      });
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        const errorMsg = responseData?.message || responseData?.error || responseData?.data?.message || `Update failed (${response.status})`;
+        throw new Error(errorMsg);
+      }
+
+      if (!dataIsFormData && data.full_name) {
         await SecureStore.setItemAsync('cached_user_name', data.full_name);
       }
 
-      return response.data;
+      return responseData;
     } catch (error: any) {
-      // Fallback: some backends use /auth/profile for updates too
-      try {
-        let activeUserId = userId;
-        if (!activeUserId || activeUserId === 'me') {
-          const token = await SecureStore.getItemAsync('auth_token');
-          if (token) {
-            try {
-              const decoded: any = jwtDecode(token);
-              activeUserId = decoded.sub || decoded.id || 'me';
-            } catch (e) { }
-          }
-        }
-
-        let payload = data;
-        if (!(data instanceof FormData)) {
-          payload = {
-            id: activeUserId !== 'me' ? activeUserId : undefined,
-            ...data
-          };
-        } else {
-          // For FormData, inject ID specifically if not already present
-          if (activeUserId !== 'me' && !payload.has('id')) {
-            payload.append('id', activeUserId);
-          }
-        }
-
-        console.log('Profile update failed at /profiles/' + userId + ', trying /auth/profile...');
-        const response = await api.patch('/auth/profile', payload);
-
-        if (!(data instanceof FormData) && data.full_name) {
-          await SecureStore.setItemAsync('cached_user_name', data.full_name);
-        }
-
-        return response.data;
-      } catch (innerError) {
-        const msg = parseError(error); // Return the original error msg
-        console.error('Update Profile failure:', msg);
-        throw new Error(msg);
-      }
+      const msg = parseError(error);
+      console.error('Update Profile failure:', msg);
+      throw new Error(msg);
     }
   },
 
   async verifyEmployer(formData: FormData): Promise<any> {
     try {
-      console.log('--- SUBMITTING EMPLOYER VERIFICATION ---');
-      // Using /profiles/verify as the standard endpoint for professional validation
-      const response = await api.post('/profiles/verify', formData);
-      return response.data;
-    } catch (error: any) {
-      // If 404 (Missing Endpoint) or 500 (Server Error with Images), attempt a one-time general update
-      if (error.response?.status === 404) {
-        console.log('verifyEmployer: /profiles/verify 404, falling back to profile update');
-        return this.updateProfile('me', formData);
-      }
-      
-      const msg = parseError(error);
-      console.error('Employer Verification failure:', msg);
-      
-      // If it's a 500 error specifically related to image processing on the backend, 
-      // we might want to let the user proceed to "Pending" anyway if the database record was created.
-      if (error.response?.status === 500) {
-          console.warn('Backend 500 error detected - proceeding with caution');
-          // We throw so the UI shows an error, but with a clearer message
-          throw new Error("Server error processing images. Please try with smaller photos or wait a moment.");
+      /**
+       * ANDROID STABILITY IMPROVEMENT:
+       * Switching to native 'fetch' for the multi-document verification upload.
+       * This handles the complex multipart boundary for 4+ files much more 
+       * reliably on Android than Axios.
+       */
+      console.log('--- SUBMITTING EMPLOYER VERIFICATION via FETCH ---');
+      const token = await SecureStore.getItemAsync('auth_token');
+      const url = `${CONFIG.API_BASE_URL}/auth/verify-employer`;
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
+          // Content-Type is OMITTED so fetch can generate the boundary for FormData
+        },
+        body: formData
+      });
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        console.error('Verification Error Detail:', JSON.stringify(responseData));
+        if (response.status === 500) {
+          throw new Error("Server error (500) during document upload. Please ensure all required files (Council Permit, Business Photo, and ID images) are selected and the files aren't too large.");
+        }
+        throw new Error(responseData?.message || responseData?.error || responseData?.data?.message || `Upload failed (${response.status})`);
       }
 
+      return responseData;
+    } catch (error: any) {
+      const msg = parseError(error);
+      console.error('Employer Verification failure:', msg);
       throw new Error(msg);
     }
   }

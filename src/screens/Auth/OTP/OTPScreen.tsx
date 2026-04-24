@@ -28,6 +28,7 @@ const { width, height } = Dimensions.get('window');
 
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { AuthStackParamList } from '../../../navigation/types';
+import { useAuth } from '../../../context/AuthContext';
 
 const OTPScreen: React.FC = () => {
     const navigation = useNavigation<any>();
@@ -130,6 +131,7 @@ const OTPScreen: React.FC = () => {
         }
     };
 
+    const { verifyOTP } = useAuth();
     const handleVerifySubmit = async () => {
         const code = otp.join('');
         if (code.length < 6) {
@@ -141,8 +143,8 @@ const OTPScreen: React.FC = () => {
         try {
             console.log('--- VERIFYING OTP ---', code);
 
-            // Use authService.verifyOTP which has the robust Deep Token Scan and automatic session persistence
-            await authService.verifyOTP({ email, otp: code });
+            // Use the AUTH CONTEXT verifyOTP which updates isAuthenticated and User
+            await verifyOTP({ email, otp: code });
 
             console.log('OTP Verified successfully and session persisted.');
         } catch (error: any) {

@@ -54,7 +54,9 @@ const ForgotPasswordScreen: React.FC = () => {
             Alert.alert('Success', 'A reset code has been sent to your email.');
             setStep('reset');
         } catch (error: any) {
-            Alert.alert('Error', error || 'Failed to send reset code.');
+            // Fix: Capture error message string to prevent React Native crash
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            Alert.alert('Request Failed', errorMessage);
         } finally {
             setLoading(false);
         }
@@ -75,11 +77,13 @@ const ForgotPasswordScreen: React.FC = () => {
         setLoading(true);
 
         try {
-            await authService.resetPassword({ email, otp, new_password: newPassword });
+            await authService.resetPassword({ email, otp, new_password: newPassword, confirm_password: confirmPassword });
             Alert.alert('Success', 'Your password has been successfully reset. You can now login.');
             navigation.navigate('Login');
         } catch (error: any) {
-            Alert.alert('Reset Failed', error || 'Failed to reset password.');
+            // Fix: Capture error message string to prevent React Native crash
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            Alert.alert('Reset Failed', errorMessage);
         } finally {
             setLoading(false);
         }
@@ -151,9 +155,9 @@ const ForgotPasswordScreen: React.FC = () => {
                                     <Ionicons name="keypad-outline" size={20} color={errors.otp ? "#FF3B30" : "#666"} style={styles.inputIcon} />
                                     <TextInput
                                         style={styles.input}
-                                        placeholder="Enter 4-digit code"
+                                        placeholder="Enter 6-digit code"
                                         keyboardType="number-pad"
-                                        maxLength={4}
+                                        maxLength={6}
                                         placeholderTextColor="#999"
                                         value={otp}
                                         onChangeText={(text) => {

@@ -101,7 +101,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const refreshUser = async () => {
         try {
-            const userData = await authService.getUser();
+            const userData = await authService.getUser(true); // Force live fetch
             setUser(userData);
         } catch (error) {
             console.error('Refresh user error:', error);

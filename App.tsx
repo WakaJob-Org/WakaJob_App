@@ -22,7 +22,7 @@ const MainApp = () => {
     }
   }, [fontsLoaded, isLoading]);
 
-  if (!fontsLoaded) {
+  if (!fontsLoaded || isLoading) {
     return null; // Keep splash screen shown
   }
 

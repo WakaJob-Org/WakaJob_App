@@ -20,8 +20,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { CompositeNavigationProp, useNavigation } from '@react-navigation/native';
-import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSequence, withDelay } from 'react-native-reanimated';
+import { CompositeNavigationProp, useNavigation, useFocusEffect } from '@react-navigation/native';
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSequence, withDelay, FadeInUp, FadeOutUp } from 'react-native-reanimated';
 import jobService, { Job } from '../../services/jobService';
 import authService from '../../services/authService';
 import { useAuth } from '../../context/AuthContext';
@@ -198,8 +198,30 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 // ... other code ...
 
 const DashboardScreen: React.FC = () => {
-    const { user, logout } = useAuth();
+    const { user, logout, refreshUser } = useAuth();
+    
+    useFocusEffect(
+        React.useCallback(() => {
+            refreshUser();
+            return () => {};
+        }, [])
+    );
     const navigation = useNavigation<DashboardNavigationProp>();
+    
+    // Floating Action Button for Employers with verification check
+    const handleFabPress = () => {
+        const status = String(user?.verification_status || '').toLowerCase();
+        const isVerified = user?.is_verified || status === 'approved' || status === 'verified';
+
+        if (isVerified) {
+            navigation.navigate('CreateJob');
+        } else if (status === 'pending') {
+            navigation.navigate('VerificationPending');
+        } else {
+            navigation.navigate('EmployerVerification');
+        }
+    };
+    
     const insets = useSafeAreaInsets();
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedJob, setSelectedJob] = useState<JobType | null>(null);
@@ -300,9 +322,10 @@ const DashboardScreen: React.FC = () => {
                 else if (category.includes('salon') || category.includes('hair') || category.includes('beauty')) localImage = 'salon';
                 else if (category.includes('farm') || category.includes('agri')) localImage = 'farming';
                 else {
-                    // Cyclic fallback to ensure variety even for unknown categories
+                    // Custom hash for string id to ensure stable variety even for unknown categories
                     const fallbacks: (keyof typeof JOB_IMAGES)[] = ['carpentry', 'welding', 'masonry', 'tailoring', 'mechanic', 'salon', 'farming'];
-                    localImage = fallbacks[Math.abs(job.id.hashCode ? job.id.hashCode() : job.id.length) % fallbacks.length];
+                    const hash = job.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+                    localImage = fallbacks[hash % fallbacks.length];
                 }
 
                 return {
@@ -341,10 +364,19 @@ const DashboardScreen: React.FC = () => {
         fetchJobs();
     }, [debouncedSearch, selectedLocation, customLocation]);
 
-    const onRefresh = React.useCallback(() => {
+    const onRefresh = React.useCallback(async () => {
         setRefreshing(true);
-        fetchJobs(true);
-    }, [debouncedSearch, selectedLocation, customLocation]);
+        try {
+            await Promise.all([
+                fetchJobs(true),
+                refreshUser()
+            ]);
+        } catch (error) {
+            console.error('Refresh error:', error);
+        } finally {
+            setRefreshing(false);
+        }
+    }, [debouncedSearch, selectedLocation, customLocation, refreshUser]);
 
     useEffect(() => {
         if (searchQuery.trim()) {
@@ -600,16 +632,13 @@ const DashboardScreen: React.FC = () => {
                 ListEmptyComponent={
                     <View style={styles.empty}>
                         <Ionicons 
-                            name={onlyShowSaved ? "bookmark-outline" : "search-outline"} 
+                            name={"search-outline"} 
                             size={60} 
                             color="#CCC" 
                         />
                         <Text style={styles.emptyTitle}>
-                            {onlyShowSaved ? "No saved jobs yet" : "No jobs found"}
+                            {"No jobs found"}
                         </Text>
-                        {onlyShowSaved && (
-                            <Text style={styles.emptySubtitle}>Bookmark jobs to see them here</Text>
-                        )}
                     </View>
                 }
             />
@@ -663,11 +692,10 @@ const DashboardScreen: React.FC = () => {
                 </View>
             </Modal>
 
-            {/* Floating Action Button for Employers */}
             {user?.role === 'employer' && (
                 <TouchableOpacity
                     style={styles.fab}
-                    onPress={() => navigation.navigate('CreateJob')}
+                    onPress={handleFabPress}
                     activeOpacity={0.8}
                 >
                     <Ionicons name="add" size={30} color="#FFFFFF" />
@@ -804,7 +832,6 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(0,0,0,0.3)',
         justifyContent: 'center',
         alignItems: 'center',
-        backdropFilter: 'blur(4px)',
     },
     jobImage: {
         width: '100%',
@@ -969,6 +996,17 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,
         shadowRadius: 10,
+    },
+    empty: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 50,
+    },
+    emptyTitle: {
+        fontSize: 16,
+        color: '#9BA4B1',
+        fontWeight: '600',
+        marginTop: 15,
     },
 });
 

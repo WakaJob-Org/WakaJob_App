@@ -272,14 +272,27 @@ const VerificationSuccessScreen: React.FC = () => {
                     You now have access to all content
                 </Text>
 
-                {/* Start Now Button */}
-                <TouchableOpacity
-                    style={styles.startButton}
-                    onPress={handleStartNow}
-                    activeOpacity={0.8}
-                >
-                    <Text style={styles.startButtonText}>Start Now</Text>
-                </TouchableOpacity>
+                {/* Start Now & Post Job Buttons */}
+                <View style={styles.buttonContainer}>
+                    <TouchableOpacity
+                        style={styles.startButton}
+                        onPress={handleStartNow}
+                        activeOpacity={0.8}
+                    >
+                        <Text style={styles.startButtonText}>Go to Dashboard</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={styles.postJobButton}
+                        onPress={async () => {
+                            await refreshUser();
+                            navigation.navigate('CreateJob');
+                        }}
+                        activeOpacity={0.8}
+                    >
+                        <Text style={styles.postJobButtonText}>Post a Job Now</Text>
+                    </TouchableOpacity>
+                </View>
             </View>
         </View>
     );
@@ -369,6 +382,26 @@ const styles = StyleSheet.create({
     },
     startButtonText: {
         color: '#FFFFFF',
+        fontSize: 16,
+        fontWeight: 'bold',
+    },
+    buttonContainer: {
+        width: '100%',
+        gap: 12,
+        alignItems: 'center',
+    },
+    postJobButton: {
+        backgroundColor: '#E0F2FE',
+        paddingHorizontal: 40,
+        paddingVertical: 16,
+        borderRadius: 12,
+        minWidth: 200,
+        alignItems: 'center',
+        borderWidth: 1.5,
+        borderColor: '#1972ca',
+    },
+    postJobButtonText: {
+        color: '#1972ca',
         fontSize: 16,
         fontWeight: 'bold',
     },

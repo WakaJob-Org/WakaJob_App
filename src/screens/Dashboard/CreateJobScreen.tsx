@@ -53,7 +53,9 @@ const CreateJobScreen: React.FC = () => {
                 salary: jobData.salary,
                 category: jobData.category,
                 job_type: jobData.type.toLowerCase() as any, // backend expects full-time, part-time, contract
-                qualifications: 'None' // Default for now
+                qualifications: 'None', // Default for now
+                verification_status: user.verification_status || (user.is_verified ? 'approved' : 'pending'),
+                is_verified: !!user.is_verified
             };
 
             await jobService.createJob(backendData);

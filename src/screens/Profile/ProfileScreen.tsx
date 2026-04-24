@@ -19,13 +19,14 @@ import * as ImagePicker from 'expo-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import authService from '../../services/authService';
 import ProfileSkeleton from '../../components/ProfileSkeleton';
+import * as ImageManipulator from 'expo-image-manipulator';
 
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 
 const ProfileScreen: React.FC = () => {
-    const { logout } = useAuth();
-    const navigation = useNavigation();
+    const { logout, refreshUser } = useAuth();
+    const navigation = useNavigation<any>();
     const [username, setUsername] = useState('');
     const [dob, setDob] = useState('March 15, 1992');
     const [bio, setBio] = useState('Passionate UX designer with 5+ years of experience');
@@ -39,40 +40,60 @@ const ProfileScreen: React.FC = () => {
     const [skills, setSkills] = useState<{ id: string; name: string }[]>([]);
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [dobDate, setDobDate] = useState<Date>(new Date());
+    const [role, setRole] = useState<string>('worker');
+    const [isVerified, setIsVerified] = useState<boolean>(false);
+    const [verificationStatus, setVerificationStatus] = useState<string | null>(null);
+    const [rejectionReason, setRejectionReason] = useState<string | null>(null);
 
     ScreenCapture.usePreventScreenCapture();
 
-    React.useEffect(() => {
-        const fetchProfile = async () => {
-            try {
-                setLoading(true);
-                const user = await authService.getUser();
-                if (user) {
-                    setUserId(user.id || user._id || null);
-                    setUsername(user.full_name || user.username || '');
-                    setEmail(user.email || '');
-                    setProfilePhoto(user.profile_image_url || null);
-                    if (user.bio) setBio(user.bio);
-                    if (user.phone_number) setPhone(user.phone_number.replace('+237', ''));
-                    if (user.date_of_birth) {
-                        setDob(user.date_of_birth);
-                        try {
-                            setDobDate(new Date(user.date_of_birth));
-                        } catch (e) { }
+    useFocusEffect(
+        React.useCallback(() => {
+            const fetchProfile = async () => {
+                try {
+                    setLoading(true);
+                    
+                    // Force a fresh fetch of user data including verification status
+                    await refreshUser();
+                    const user = await authService.getUser(); // This will now return the refreshed data
+                    
+                    if (user) {
+                        setUserId(user.id || user._id || null);
+                        setUsername(user.full_name || user.username || '');
+                        setEmail(user.email || '');
+                        setProfilePhoto(user.profile_image_url || null);
+                        if (user.bio) setBio(user.bio);
+                        if (user.phone_number) setPhone(user.phone_number.replace('+237', ''));
+                        if (user.date_of_birth) {
+                            setDob(user.date_of_birth);
+                            try {
+                                setDobDate(new Date(user.date_of_birth));
+                            } catch (e) { }
+                        }
+                        if (user.skills && Array.isArray(user.skills)) {
+                            setSkills(user.skills.map((s: any) => ({ id: Math.random().toString(), name: s })));
+                        }
+                        setRole(user.role || 'worker');
+                        
+                        // Robust verification check: handle both boolean and status string
+                        const status = String(user.verification_status || '').toLowerCase();
+                        const verified = user.is_verified || status === 'approved';
+                        
+                        setIsVerified(verified);
+                        setVerificationStatus(status || (verified ? 'approved' : null));
+                        setRejectionReason(user.rejection_reason || null);
                     }
-                    if (user.skills && Array.isArray(user.skills)) {
-                        setSkills(user.skills.map((s: any) => ({ id: Math.random().toString(), name: s })));
-                    }
+                } catch (error) {
+                    console.error('Error fetching profile:', error);
+                } finally {
+                    setTimeout(() => setLoading(false), 800);
                 }
-            } catch (error) {
-                console.error('Error fetching profile:', error);
-            } finally {
-                setTimeout(() => setLoading(false), 800);
-            }
-        };
+            };
 
-        fetchProfile();
-    }, []);
+            fetchProfile();
+            return () => {}; // Cleanup
+        }, [userId])
+    );
 
     const handleSave = async () => {
         try {
@@ -123,10 +144,44 @@ const ProfileScreen: React.FC = () => {
             }
 
             console.log('--- SAVING PROFILE ---', isLocalFile ? 'FORM DATA' : 'JSON');
-            await authService.updateProfile(userId || 'me', payload);
+            
+            let finalPayload = payload;
 
-            // Immediate navigation without popup for smoother UX
-            await authService.updateProfile(userId || 'me', payload);
+            if (isLocalFile && profilePhoto) {
+                // Resize and compress even profile pictures - prevents large payload issues on some devices
+                try {
+                    const manipResult = await ImageManipulator.manipulateAsync(
+                        profilePhoto,
+                        [{ resize: { width: 700 } }], // Optimized to 700px for unstable mobile connections
+                        { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG }
+                    );
+                    
+                    const uri = manipResult.uri;
+                    
+                    // Robust FormData reconstruction
+                    const formData = new FormData();
+                    formData.append('full_name', username);
+                    formData.append('bio', bio);
+                    formData.append('phone_number', phone.startsWith('+237') ? phone : `+237${phone}`);
+                    formData.append('date_of_birth', dob);
+                    formData.append('skills', JSON.stringify(skills.map(s => s.name)));
+                    
+                    formData.append('profile_image', {
+                        uri: Platform.OS === 'android' ? uri : uri.replace('file://', ''),
+                        name: 'profile_update.jpg', // Standardized filename for high compatibility
+                        type: 'image/jpeg', // ImageManipulator outputs JPEG
+                    } as any);
+                    
+                    finalPayload = formData;
+                } catch (manipError) {
+                    console.warn('Image manipulation failed for profile, using original:', manipError);
+                }
+            }
+
+            await authService.updateProfile(userId || 'me', finalPayload);
+
+            // Refresh the global user context so other screens (like Home) update immediately
+            await refreshUser();
 
             // Immediate navigation without popup for smoother UX
             navigation.goBack();
@@ -356,6 +411,100 @@ const ProfileScreen: React.FC = () => {
                                 />
                             </View>
                         </View>
+                    </View>
+
+                    {/* Account Status Permanent Shortcut */}
+                    <View style={styles.sectionDivider} />
+                    <View style={styles.employerSection}>
+                        <Text style={styles.sectionTitle}>Account Status</Text>
+                        <TouchableOpacity 
+                            style={styles.verificationShortcut}
+                            onPress={() => {
+                                if (isVerified) {
+                                    Alert.alert("Verified Account", "Your account is fully verified. You have full access to employer features.");
+                                } else if (String(verificationStatus).toLowerCase() === 'pending') {
+                                    navigation.navigate('VerificationPending');
+                                } else if (String(verificationStatus).toLowerCase() === 'rejected') {
+                                    navigation.navigate('VerificationFailed', { reason: rejectionReason });
+                                } else {
+                                    navigation.navigate('EmployerVerification');
+                                }
+                            }}
+                        >
+                            <View style={[
+                                styles.statusBadge, 
+                                (isVerified || String(verificationStatus).toLowerCase() === 'approved') ? styles.statusBadgeVerified : 
+                                String(verificationStatus).toLowerCase() === 'pending' ? styles.statusBadgePending : 
+                                String(verificationStatus).toLowerCase() === 'rejected' ? styles.statusBadgeRejected :
+                                styles.statusBadgeNotStarted
+                            ]}>
+                                <Ionicons 
+                                    name={isVerified ? "shield-checkmark" : "shield-checkmark-outline"} 
+                                    size={20} 
+                                    color="#FFF" 
+                                />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.verificationShortcutTitle}>Verification Status</Text>
+                                <Text style={[
+                                    styles.verificationShortcutStatus,
+                                    (isVerified || String(verificationStatus).toLowerCase() === 'approved') ? { color: '#22C55E' } : 
+                                    String(verificationStatus).toLowerCase() === 'pending' ? { color: '#F97316' } : 
+                                    String(verificationStatus).toLowerCase() === 'rejected' ? { color: '#EF4444' } :
+                                    { color: '#64748B' }
+                                ]}>
+                                    {isVerified || String(verificationStatus).toLowerCase() === 'approved' ? 'Verified Employer' : 
+                                     String(verificationStatus).toLowerCase() === 'pending' ? 'Verification Pending' : 
+                                     String(verificationStatus).toLowerCase() === 'rejected' ? 'Verification Rejected' :
+                                     'Unverified Account'}
+                                </Text>
+                            </View>
+                            <Ionicons name="chevron-forward" size={18} color="#9BA4B1" />
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* Employer Account Section */}
+                    <View style={styles.sectionDivider} />
+                    <View style={styles.employerSection}>
+                        <Text style={styles.sectionTitle}>Employer Account</Text>
+                        <Text style={styles.sectionSubtitle}>Post jobs and hire talents in your workspace</Text>
+                        
+                        <View style={styles.employerControls}>
+                            {/* Always show Employer Page/Dashboard link if they are an employer */}
+                            {(role === 'employer') && (
+                                <TouchableOpacity 
+                                    style={styles.employerDashboardBtn}
+                                    onPress={() => navigation.navigate('EmployerDashboard')}
+                                >
+                                    <Ionicons name="stats-chart" size={20} color="#FFFFFF" />
+                                    <Text style={styles.employerBtnText}>Employer Page</Text>
+                                </TouchableOpacity>
+                            )}
+
+                            {/* Post a Job button logic */}
+                            <TouchableOpacity 
+                                style={[
+                                    styles.postJobShortBtn, 
+                                    role !== 'employer' && { flex: 0, width: '100%' }
+                                ]}
+                                onPress={() => {
+                                    if (isVerified || (role === 'employer' && isVerified)) {
+                                        navigation.navigate('CreateJob');
+                                    } else if (verificationStatus === 'pending') {
+                                        navigation.navigate('VerificationPending');
+                                    } else if (verificationStatus === 'rejected') {
+                                        navigation.navigate('VerificationFailed', { reason: rejectionReason });
+                                    } else {
+                                        // No active verification or rejected - start/restart employer enrollment
+                                        navigation.navigate('EmployerVerification');
+                                    }
+                                }}
+                            >
+                                <Ionicons name="add-circle" size={20} color="#1972ca" />
+                                <Text style={styles.postJobShortText}>Post a Job</Text>
+                            </TouchableOpacity>
+                        </View>
+
                     </View>
 
                     {/* Bottom Button */}
@@ -608,6 +757,145 @@ const styles = StyleSheet.create({
         color: '#1972ca',
         fontWeight: '600',
     },
+    employerSection: {
+        paddingHorizontal: 20,
+        paddingVertical: 20,
+    },
+    sectionTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#1F2937',
+        marginBottom: 4,
+    },
+    sectionSubtitle: {
+        fontSize: 13,
+        color: '#6B7280',
+        marginBottom: 20,
+    },
+    employerControls: {
+        flexDirection: 'row',
+        gap: 12,
+    },
+    employerDashboardBtn: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#1972ca',
+        height: 50,
+        borderRadius: 12,
+        gap: 8,
+    },
+    employerBtnText: {
+        color: '#FFFFFF',
+        fontSize: 15,
+        fontWeight: '700',
+    },
+    postJobShortBtn: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#E0F2FE',
+        height: 50,
+        borderRadius: 12,
+        gap: 8,
+        borderWidth: 1,
+        borderColor: '#1972ca',
+    },
+    postJobShortText: {
+        color: '#1972ca',
+        fontSize: 15,
+        fontWeight: '700',
+    },
+    sectionDivider: {
+        height: 8,
+        backgroundColor: '#F3F4F6',
+        marginVertical: 10,
+    },
+    statusBanner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 12,
+        borderRadius: 10,
+        gap: 10,
+    },
+    statusText: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: '#F97316',
+        flex: 1,
+    },
+    applicationSectionTitle: {
+        fontSize: 15,
+        fontWeight: 'bold',
+        color: '#4B5563',
+        marginBottom: 10,
+        marginTop: 5,
+    },
+    activeApplicationBanner: {
+        backgroundColor: '#F8FAFC',
+        borderWidth: 1.5,
+        borderColor: '#E2E8F0',
+        borderRadius: 15,
+        padding: 16,
+        marginTop: 0,
+    },
+    applicationIconContainer: {
+        width: 44,
+        height: 44,
+        borderRadius: 12,
+        backgroundColor: '#E0F2FE',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 15,
+    },
+    applicationTitleText: {
+        fontSize: 15,
+        fontWeight: '700',
+        color: '#1F2937',
+        marginBottom: 2,
+    },
+    applicationStatusText: {
+        fontSize: 13,
+        color: '#64748B',
+        fontWeight: '500',
+    },
+    verificationShortcut: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FFFFFF',
+        borderWidth: 1,
+        borderColor: '#F1F5F9',
+        borderRadius: 15,
+        padding: 12,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+        elevation: 1,
+    },
+    verificationShortcutTitle: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#1F2937',
+    },
+    verificationShortcutStatus: {
+        fontSize: 12,
+        fontWeight: '600',
+        marginTop: 1,
+    },
+    statusBadge: {
+        width: 38,
+        height: 38,
+        borderRadius: 10,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
+    },
+    statusBadgeVerified: { backgroundColor: '#22C55E' },
+    statusBadgePending: { backgroundColor: '#F97316' },
+    statusBadgeNotStarted: { backgroundColor: '#64748B' },
 });
 
 export default ProfileScreen;

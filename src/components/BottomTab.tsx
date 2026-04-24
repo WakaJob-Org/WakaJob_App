@@ -4,7 +4,7 @@ import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-export type TabType = 'jobs' | 'save' | 'applications' | 'profile';
+export type TabType = 'jobs' | 'saved' | 'applications' | 'profile';
 
 interface BottomTabProps {
     activeTab: TabType;
@@ -16,7 +16,7 @@ const BottomTab: React.FC<BottomTabProps> = ({ activeTab, onTabPress }) => {
 
     const tabs: { type: TabType; icon: keyof typeof Ionicons.glyphMap; label: string }[] = [
         { type: 'jobs', icon: 'home-outline', label: 'Home' },
-        { type: 'save', icon: 'bookmark-outline', label: 'Saved' },
+        { type: 'saved', icon: 'bookmark-outline', label: 'Saved' },
         { type: 'applications', icon: 'briefcase-outline', label: 'Applications' },
         { type: 'profile', icon: 'person-outline', label: 'Profile' },
     ];
