@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -7,6 +7,17 @@ import * as SplashScreen from 'expo-splash-screen';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import RootNavigator from './src/navigation/RootNavigator';
 import 'react-native-gesture-handler';
+
+// Original Auth Screens
+import SplashScreenUI from './src/screens/Splash/SplashScreen';
+import SignupScreen from './src/screens/Auth/Signup/SignupScreen';
+import LoginScreen from './src/screens/Auth/Login/LoginScreen';
+import DashboardScreen from './src/screens/Dashboard/DashboardScreen';
+
+// Custom Screens (Patrick)
+import CreateJobScreen from './src/screens/Dashboard/CreateJobScreen';
+import ApplicationsScreen from './src/screens/Applications/ApplicationsScreen';
+import ApplicantProfileScreen from './src/screens/Applications/ApplicantProfileScreen';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -27,7 +38,7 @@ const MainApp = () => {
   }
 
   return (
-    <View style={styles.container} onLayout={onLayoutRootView}>
+    <View style={styles.container || styles.appContainer} onLayout={onLayoutRootView}>
       <StatusBar style="light" hidden={false} translucent={true} />
       <RootNavigator />
     </View>
@@ -45,7 +56,7 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  container: {
+  appContainer: {
     flex: 1,
     backgroundColor: '#FFFFFF',
   },

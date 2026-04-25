@@ -14,6 +14,7 @@ import {
     ActivityIndicator,
     StyleProp,
     ViewStyle,
+    Modal,
 } from 'react-native';
 import { jwtDecode } from 'jwt-decode';
 import * as ImagePicker from 'expo-image-picker';
@@ -21,6 +22,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as Location from 'expo-location';
 import * as SecureStore from 'expo-secure-store';
 import * as ImageManipulator from 'expo-image-manipulator';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 
 // Defensive import for MapView
 let MapView: any = null;
@@ -52,6 +54,7 @@ const EmployerVerificationScreen: React.FC = () => {
     const [location, setLocation] = useState('');
     const [isApprenticeOpen, setIsApprenticeOpen] = useState<boolean | null>(null);
     const [loading, setLoading] = useState(false);
+    const cameraRef = React.useRef<any>(null);
 
     // File states
     const [workLocationPic, setWorkLocationPic] = useState<string | null>(null);
@@ -65,6 +68,72 @@ const EmployerVerificationScreen: React.FC = () => {
         longitudeDelta: 0.05,
     });
     const [detecting, setDetecting] = useState(false);
+    const [permission, requestPermission] = useCameraPermissions();
+    const [isCameraOpen, setIsCameraOpen] = useState(false);
+    const [cameraTarget, setCameraTarget] = useState<string | null>(null);
+
+    // Validation State
+    const [errors, setErrors] = useState<any>({});
+    const [touched, setTouched] = useState<any>({});
+
+    const validateField = (name: string, value: any) => {
+        let error = '';
+        switch (name) {
+            case 'bio':
+                if (!value.trim()) error = 'Professional bio is required';
+                else if (value.trim().split(/\s+/).length > 50) error = 'Bio must be under 50 words';
+                break;
+            case 'location':
+                if (!value.trim()) error = 'Service location is required';
+                break;
+            case 'workLocationPic':
+                if (!value) error = 'Photo of work location is required';
+                break;
+            case 'idFrontPic':
+                if (!value) error = 'Front of ID card is required';
+                break;
+            case 'idBackPic':
+                if (!value) error = 'Back of ID card is required';
+                break;
+            case 'permitDoc':
+                if (!value) error = 'Council permit document is required';
+                break;
+            case 'isApprenticeOpen':
+                if (value === null) error = 'Mentorship preference is required';
+                break;
+        }
+        setErrors(prev => ({ ...prev, [name]: error }));
+        return error;
+    };
+
+    const handleFieldChange = (name: string, value: any) => {
+        switch (name) {
+            case 'bio': setBio(value); break;
+            case 'location': setLocation(value); break;
+            case 'isApprenticeOpen': setIsApprenticeOpen(value); break;
+        }
+        if (touched[name]) validateField(name, value);
+    };
+
+    const handleBlur = (name: string) => {
+        setTouched(prev => ({ ...prev, [name]: true }));
+        const value = name === 'bio' ? bio : name === 'location' ? location : null;
+        validateField(name, value);
+    };
+
+    const isFormValid = () => {
+        const requiredFields = ['bio', 'location', 'isApprenticeOpen', 'workLocationPic', 'idFrontPic', 'idBackPic', 'permitDoc'];
+        const currentErrors = {
+            bio: validateField('bio', bio),
+            location: validateField('location', location),
+            isApprenticeOpen: validateField('isApprenticeOpen', isApprenticeOpen),
+            workLocationPic: validateField('workLocationPic', workLocationPic),
+            idFrontPic: validateField('idFrontPic', idFrontPic),
+            idBackPic: validateField('idBackPic', idBackPic),
+            permitDoc: validateField('permitDoc', permitDoc),
+        };
+        return Object.values(currentErrors).every(err => !err);
+    };
 
     const handleAutoDetect = async () => {
         try {
@@ -144,15 +213,54 @@ const EmployerVerificationScreen: React.FC = () => {
         }
     };
 
+    const openCamera = async (target: string) => {
+        if (!permission?.granted) {
+            const result = await requestPermission();
+            if (!result.granted) {
+                Alert.alert("Permission Required", "Camera access is required to take verification photos.");
+                return;
+            }
+        }
+        setCameraTarget(target);
+        setIsCameraOpen(true);
+    };
+
+    const handleCameraCapture = async () => {
+        if (cameraRef.current) {
+            try {
+                const photo = await cameraRef.current.takePictureAsync({
+                    quality: 0.7,
+                    skipProcessing: true // Speed up capture
+                });
+                
+                if (photo.uri) {
+                    const uri = photo.uri;
+                    switch (cameraTarget) {
+                        case 'Work Location Image': setWorkLocationPic(uri); break;
+                        case 'ID Front': setIdFrontPic(uri); break;
+                        case 'ID Back': setIdBackPic(uri); break;
+                    }
+                    setIsCameraOpen(false);
+                    validateField(cameraTarget!, uri);
+                }
+            } catch (error) {
+                console.error("Capture error:", error);
+                Alert.alert("Error", "Failed to capture photo.");
+            }
+        }
+    };
+
     const handleFileUpload = (type: string) => {
-        // Show choice for documents (Permit/ID) or just gallery for Location
-        if (type === 'Work Location Image') {
-            pickImage(type);
-        } else {
+        // Enforce camera for ID and Work Location
+        if (type === 'Work Location Image' || type === 'ID Front' || type === 'ID Back') {
+            openCamera(type);
+        } else if (type === 'Council Permit') {
+            // Permit can still be uploaded from gallery or documents
             Alert.alert(
-                "Upload Document",
-                "Choose how you would like to upload this file",
+                "Upload Council Permit",
+                "Choose how you would like to upload your permit document",
                 [
+                    { text: "Take Photo", onPress: () => openCamera(type) },
                     { text: "Choose from Gallery", onPress: () => pickImage(type) },
                     { text: "Select Document / PDF", onPress: () => pickDocument(type) },
                     { text: "Cancel", style: "cancel" }
@@ -162,19 +270,8 @@ const EmployerVerificationScreen: React.FC = () => {
     };
 
     const handleSubmit = async () => {
-        const wordCount = bio.trim().split(/\s+/).length;
-        if (!bio || !location || isApprenticeOpen === null) {
-            Alert.alert("Missing Information", "Please complete all text fields and preferences.");
-            return;
-        }
-
-        if (wordCount > 50) {
-            Alert.alert("Bio Too Long", `Your bio must not exceed 50 words. Current count: ${wordCount} words.`);
-            return;
-        }
-
-        if (!workLocationPic || !idFrontPic || !idBackPic || !permitDoc) {
-            Alert.alert("Documents Required", "Please upload all required documents: Work Location image, ID Front, ID Back, and Council Permit.");
+        if (!isFormValid()) {
+            Alert.alert("Form Invalid", "Please fill all required fields correctly.");
             return;
         }
 
@@ -318,7 +415,7 @@ const EmployerVerificationScreen: React.FC = () => {
     };
 
     return (
-        <View style={styles.container}>
+            {/* Header */}
             <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color="#333" />
@@ -328,31 +425,48 @@ const EmployerVerificationScreen: React.FC = () => {
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
                 <Animated.View entering={FadeInDown.duration(600)}>
+                    
                     {/* Work Location Image */}
                     <View style={styles.imageUploadSection}>
                         <TouchableOpacity
-                            style={styles.mainUploadBox}
+                            style={[
+                                styles.mainUploadBox,
+                                touched.workLocationPic && errors.workLocationPic ? styles.errorBorder : 
+                                workLocationPic ? styles.successBorder : null
+                            ]}
                             onPress={() => handleFileUpload("Work Location Image")}
                         >
                             <View style={styles.dashedBox}>
                                 {workLocationPic ? (
-                                    <Image source={{ uri: workLocationPic }} style={styles.uploadedImage} />
+                                    <View style={{ flex: 1, position: 'relative' }}>
+                                        <Image source={{ uri: workLocationPic }} style={styles.uploadedImage} />
+                                        <View style={styles.checkmarkBadge}>
+                                            <Ionicons name="checkmark-circle" size={20} color="#22C55E" />
+                                        </View>
+                                    </View>
                                 ) : (
                                     <Ionicons name="cloud-upload" size={32} color="#9BA4B1" />
                                 )}
                             </View>
-                            <View style={styles.cameraCircle}>
+                            <View style={[styles.cameraCircle, touched.workLocationPic && errors.workLocationPic && { backgroundColor: '#EF4444' }]}>
                                 <Ionicons name="camera" size={18} color="#FFF" />
                             </View>
                         </TouchableOpacity>
                         <Text style={styles.sectionTitleCenter}>Work Location Image</Text>
                         <Text style={styles.sectionSubtitleCenter}>Upload a photo of your workspace or business location</Text>
+                        {touched.workLocationPic && errors.workLocationPic && (
+                            <Text style={styles.errorTextCenter}>{errors.workLocationPic}</Text>
+                        )}
                     </View>
 
                     {/* Council Permit */}
                     <View style={styles.section}>
                         <Text style={styles.sectionLabel}>Council Permit</Text>
-                        <View style={styles.permitBox}>
+                        <View style={[
+                            styles.permitBox,
+                            touched.permitDoc && errors.permitDoc ? styles.errorBorder : 
+                            permitDoc ? styles.successBorder : null
+                        ]}>
                             <View style={[styles.fileIconBox, { backgroundColor: '#F0F7FF' }]}>
                                 <Ionicons name="document-text" size={24} color="#1972ca" />
                             </View>
@@ -363,38 +477,59 @@ const EmployerVerificationScreen: React.FC = () => {
                                 <Text style={styles.fileHint}>pdf, jpg or png · 5mb</Text>
                             </View>
                             <TouchableOpacity style={styles.selectFileBtn} onPress={() => handleFileUpload("Council Permit")}>
-                                <Text style={styles.selectFileText}>Select File</Text>
+                                <Text style={styles.selectFileText}>{permitDoc ? "Change" : "Select File"}</Text>
                             </TouchableOpacity>
                         </View>
+                        {touched.permitDoc && errors.permitDoc && <Text style={styles.errorText}>{errors.permitDoc}</Text>}
                     </View>
 
                     {/* Professional Bio */}
                     <View style={styles.section}>
                         <Text style={styles.sectionLabel}>Professional Bio</Text>
                         <TextInput
-                            style={styles.bioInput}
+                            style={[
+                                styles.bioInput,
+                                touched.bio && errors.bio ? styles.errorBorder : 
+                                bio && !errors.bio ? styles.successBorder : null
+                            ]}
                             placeholder="Briefly describe your trade experience and skills..."
                             multiline
                             numberOfLines={4}
                             textAlignVertical="top"
                             value={bio}
-                            onChangeText={setBio}
+                            onChangeText={(text) => handleFieldChange('bio', text)}
+                            onBlur={() => handleBlur('bio')}
                         />
-                        <Text style={[
-                            styles.wordCount, 
-                            bio.trim().split(/\s+/).length > 50 && { color: '#EF4444' }
-                        ]}>
-                            {bio.trim() === '' ? 0 : bio.trim().split(/\s+/).length}/50 words
-                        </Text>
+                        <View style={styles.bioFooter}>
+                            {touched.bio && errors.bio && <Text style={styles.errorTextSmall}>{errors.bio}</Text>}
+                            <Text style={[
+                                styles.wordCount, 
+                                bio.trim().split(/\s+/).length > 50 && { color: '#EF4444' }
+                            ]}>
+                                {bio.trim() === '' ? 0 : bio.trim().split(/\s+/).length}/50 words
+                            </Text>
+                        </View>
                     </View>
 
                     {/* Government ID */}
                     <View style={styles.section}>
                         <Text style={styles.sectionLabel}>Government ID Card</Text>
                         <View style={styles.idGrid}>
-                            <TouchableOpacity style={styles.idBox} onPress={() => handleFileUpload("ID Front")}>
+                            <TouchableOpacity 
+                                style={[
+                                    styles.idBox,
+                                    touched.idFrontPic && errors.idFrontPic ? styles.errorBorder : 
+                                    idFrontPic ? styles.successBorder : null
+                                ]} 
+                                onPress={() => handleFileUpload("ID Front")}
+                            >
                                 {idFrontPic ? (
-                                    <Image source={{ uri: idFrontPic }} style={styles.uploadedImage} />
+                                    <View style={{ flex: 1, width: '100%', position: 'relative' }}>
+                                        <Image source={{ uri: idFrontPic }} style={styles.uploadedImage} />
+                                        <View style={styles.checkmarkBadgeMini}>
+                                            <Ionicons name="checkmark-circle" size={16} color="#22C55E" />
+                                        </View>
+                                    </View>
                                 ) : (
                                     <>
                                         <Ionicons name="cloud-upload" size={24} color="#9BA4B1" />
@@ -402,9 +537,21 @@ const EmployerVerificationScreen: React.FC = () => {
                                     </>
                                 )}
                             </TouchableOpacity>
-                            <TouchableOpacity style={styles.idBox} onPress={() => handleFileUpload("ID Back")}>
+                            <TouchableOpacity 
+                                style={[
+                                    styles.idBox,
+                                    touched.idBackPic && errors.idBackPic ? styles.errorBorder : 
+                                    idBackPic ? styles.successBorder : null
+                                ]} 
+                                onPress={() => handleFileUpload("ID Back")}
+                            >
                                 {idBackPic ? (
-                                    <Image source={{ uri: idBackPic }} style={styles.uploadedImage} />
+                                    <View style={{ flex: 1, width: '100%', position: 'relative' }}>
+                                        <Image source={{ uri: idBackPic }} style={styles.uploadedImage} />
+                                        <View style={styles.checkmarkBadgeMini}>
+                                            <Ionicons name="checkmark-circle" size={16} color="#22C55E" />
+                                        </View>
+                                    </View>
                                 ) : (
                                     <>
                                         <Ionicons name="cloud-upload" size={24} color="#9BA4B1" />
@@ -413,21 +560,33 @@ const EmployerVerificationScreen: React.FC = () => {
                                 )}
                             </TouchableOpacity>
                         </View>
+                        {(touched.idFrontPic && errors.idFrontPic) || (touched.idBackPic && errors.idBackPic) ? (
+                            <Text style={styles.errorText}>{errors.idFrontPic || errors.idBackPic}</Text>
+                        ) : null}
                     </View>
 
                     {/* Service Location */}
                     <View style={styles.section}>
                         <Text style={styles.sectionLabel}>Service Location</Text>
-                        <View style={styles.locationInputWrapper}>
+                        <View style={[
+                            styles.locationInputWrapper,
+                            touched.location && errors.location ? styles.errorBorder : 
+                            location && !errors.location ? styles.successBorder : null
+                        ]}>
                             <Ionicons name="location" size={20} color="#1972ca" style={styles.locationIcon} />
                             <TextInput
                                 style={styles.locationInput}
                                 placeholder="street address, city, country"
                                 value={location}
-                                onChangeText={setLocation}
+                                onChangeText={(text) => handleFieldChange('location', text)}
+                                onBlur={() => handleBlur('location')}
                                 placeholderTextColor="#9BA4B1"
                             />
+                            {location && !errors.location && (
+                                <Ionicons name="checkmark-circle" size={20} color="#22C55E" />
+                            )}
                         </View>
+                        {touched.location && errors.location && <Text style={styles.errorText}>{errors.location}</Text>}
                         
                         <TouchableOpacity 
                             style={styles.autoDetectBtn} 
@@ -466,11 +625,11 @@ const EmployerVerificationScreen: React.FC = () => {
                         <View style={styles.toggleRow}>
                             <TouchableOpacity
                                 style={styles.checkboxWrapper}
-                                onPress={() => setIsApprenticeOpen(true)}
+                                onPress={() => handleFieldChange('isApprenticeOpen', true)}
                                 activeOpacity={0.7}
                             >
                                 <View style={[styles.checkbox, isApprenticeOpen === true && styles.checkboxSelected]}>
-                                    <Ionicons name="location" size={18} color={isApprenticeOpen === true ? "#FFF" : "#1972ca"} />
+                                    <Ionicons name="checkmark" size={18} color={isApprenticeOpen === true ? "#FFF" : "#1972ca"} />
                                     <View style={styles.checkboxLabelContainer}>
                                         <Text style={[styles.checkboxLabel, isApprenticeOpen === true && styles.checkboxLabelSelected]}>Yes</Text>
                                     </View>
@@ -479,33 +638,76 @@ const EmployerVerificationScreen: React.FC = () => {
 
                             <TouchableOpacity
                                 style={styles.checkboxWrapper}
-                                onPress={() => setIsApprenticeOpen(false)}
+                                onPress={() => handleFieldChange('isApprenticeOpen', false)}
                                 activeOpacity={0.7}
                             >
                                 <View style={[styles.checkbox, isApprenticeOpen === false && styles.checkboxSelected]}>
-                                    <Ionicons name="location" size={18} color={isApprenticeOpen === false ? "#FFF" : "#1972ca"} />
+                                    <Ionicons name="close" size={18} color={isApprenticeOpen === false ? "#FFF" : "#1972ca"} />
                                     <View style={styles.checkboxLabelContainer}>
                                         <Text style={[styles.checkboxLabel, isApprenticeOpen === false && styles.checkboxLabelSelected]}>No</Text>
                                     </View>
                                 </View>
                             </TouchableOpacity>
                         </View>
+                        {touched.isApprenticeOpen && errors.isApprenticeOpen && (
+                            <Text style={[styles.errorText, { marginTop: 10 }]}>{errors.isApprenticeOpen}</Text>
+                        )}
                     </View>
 
                     {/* Submit Button */}
                     <TouchableOpacity
-                        style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+                        style={[
+                            styles.submitButton, 
+                            (loading || !isFormValid()) && styles.submitButtonDisabled
+                        ]}
                         onPress={handleSubmit}
-                        disabled={loading}
+                        disabled={loading || !isFormValid()}
                     >
                         {loading ? (
                             <ActivityIndicator color="#FFF" />
                         ) : (
-                            <Text style={styles.submitButtonText}>Submit for Verification</Text>
+                            <>
+                                <Ionicons name="shield-checkmark" size={20} color="#FFF" style={{ marginRight: 8 }} />
+                                <Text style={styles.submitButtonText}>Submit for Verification</Text>
+                            </>
                         )}
                     </TouchableOpacity>
                 </Animated.View>
             </ScrollView>
+
+            {/* Forced Camera Modal */}
+            <Modal visible={isCameraOpen} animationType="slide" transparent={false}>
+                <View style={styles.cameraContainer}>
+                    <CameraView
+                        style={styles.camera}
+                        facing="back"
+                        ref={cameraRef}
+                    >
+                        <View style={styles.cameraOverlay}>
+                            <TouchableOpacity 
+                                style={styles.closeCamera} 
+                                onPress={() => setIsCameraOpen(false)}
+                            >
+                                <Ionicons name="close" size={30} color="#FFF" />
+                            </TouchableOpacity>
+                            
+                            <View style={styles.cameraGuide}>
+                                <Text style={styles.guideText}>Center your {cameraTarget} within the frame</Text>
+                                <View style={styles.cameraFrame} />
+                            </View>
+
+                            <View style={styles.cameraControls}>
+                                <TouchableOpacity 
+                                    style={styles.captureButton} 
+                                    onPress={handleCameraCapture}
+                                >
+                                    <View style={styles.captureButtonInner} />
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </CameraView>
+                </View>
+            </Modal>
         </View>
     );
 };
@@ -794,8 +996,112 @@ const styles = StyleSheet.create({
         fontSize: 11,
         color: '#9BA4B1',
         textAlign: 'right',
-        marginTop: 5,
         fontWeight: '600',
+    },
+    // New Styles
+    errorBorder: {
+        borderColor: '#EF4444',
+        borderWidth: 1.5,
+    },
+    successBorder: {
+        borderColor: '#22C55E',
+        borderWidth: 1.5,
+    },
+    errorText: {
+        color: '#EF4444',
+        fontSize: 12,
+        fontWeight: '500',
+        marginTop: 5,
+    },
+    errorTextSmall: {
+        color: '#EF4444',
+        fontSize: 11,
+        fontWeight: '500',
+    },
+    errorTextCenter: {
+        color: '#EF4444',
+        fontSize: 12,
+        fontWeight: '500',
+        marginTop: 5,
+        textAlign: 'center',
+    },
+    bioFooter: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginTop: 5,
+    },
+    checkmarkBadge: {
+        position: 'absolute',
+        top: 8,
+        right: 8,
+        backgroundColor: '#FFF',
+        borderRadius: 12,
+        padding: 2,
+    },
+    checkmarkBadgeMini: {
+        position: 'absolute',
+        top: 5,
+        right: 5,
+        backgroundColor: '#FFF',
+        borderRadius: 10,
+        padding: 1,
+    },
+    cameraContainer: {
+        flex: 1,
+        backgroundColor: '#000',
+    },
+    camera: {
+        flex: 1,
+    },
+    cameraOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.3)',
+        justifyContent: 'space-between',
+        paddingVertical: 50,
+        paddingHorizontal: 20,
+    },
+    closeCamera: {
+        alignSelf: 'flex-start',
+        padding: 10,
+    },
+    cameraGuide: {
+        alignItems: 'center',
+    },
+    guideText: {
+        color: '#FFF',
+        fontSize: 16,
+        fontWeight: '600',
+        textAlign: 'center',
+        marginBottom: 20,
+        textShadowColor: 'rgba(0,0,0,0.5)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 3,
+    },
+    cameraFrame: {
+        width: width * 0.8,
+        height: width * 0.6,
+        borderWidth: 2,
+        borderColor: '#FFF',
+        borderRadius: 20,
+        borderStyle: 'dashed',
+    },
+    cameraControls: {
+        alignItems: 'center',
+    },
+    captureButton: {
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        backgroundColor: 'rgba(255,255,255,0.3)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    captureButtonInner: {
+        width: 66,
+        height: 66,
+        borderRadius: 33,
+        backgroundColor: '#FFF',
     },
 });
 
