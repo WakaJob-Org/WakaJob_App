@@ -26,7 +26,7 @@ import { useNavigation } from '@react-navigation/native';
 
 const ForgotPasswordScreen: React.FC = () => {
     const navigation = useNavigation<any>();
-    const [step, setStep] = useState<'request' | 'reset'>('request');
+    const [step, setStep] = useState<'request' | 'verify' | 'reset'>('request');
     const [loading, setLoading] = useState(false);
 
     // Request State
@@ -52,9 +52,8 @@ const ForgotPasswordScreen: React.FC = () => {
         try {
             await authService.forgotPassword({ email });
             Alert.alert('Success', 'A reset code has been sent to your email.');
-            setStep('reset');
+            setStep('verify');
         } catch (error: any) {
-            // Fix: Capture error message string to prevent React Native crash
             const errorMessage = error instanceof Error ? error.message : String(error);
             Alert.alert('Request Failed', errorMessage);
         } finally {
@@ -62,9 +61,28 @@ const ForgotPasswordScreen: React.FC = () => {
         }
     };
 
+    const handleVerifyCode = async () => {
+        if (!otp || otp.length < 4) {
+            setErrors({ otp: 'Please enter a valid OTP' });
+            return;
+        }
+        setErrors({});
+        setLoading(true);
+
+        try {
+            // We call verifyOTP to ensure the code is correct before showing password fields
+            await authService.verifyOTP({ email, otp });
+            setStep('reset');
+        } catch (error: any) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            Alert.alert('Verification Failed', errorMessage);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleResetPassword = async () => {
         const newErrors: any = {};
-        if (!otp || otp.length < 4) newErrors.otp = 'Please enter a valid OTP';
         if (!newPassword || newPassword.length < 6) newErrors.newPassword = 'Password must be at least 6 characters';
         if (newPassword !== confirmPassword) newErrors.confirmPassword = 'Passwords do not match';
 
@@ -81,13 +99,21 @@ const ForgotPasswordScreen: React.FC = () => {
             Alert.alert('Success', 'Your password has been successfully reset. You can now login.');
             navigation.navigate('Login');
         } catch (error: any) {
-            // Fix: Capture error message string to prevent React Native crash
             const errorMessage = error instanceof Error ? error.message : String(error);
             Alert.alert('Reset Failed', errorMessage);
         } finally {
             setLoading(false);
         }
     };
+
+    const renderHeaderTitle = () => {
+        switch(step) {
+            case 'request': return 'Forgot Password';
+            case 'verify': return 'Verify Code';
+            case 'reset': return 'Create New Password';
+            default: return 'Forgot Password';
+        }
+    }
 
     return (
         <View style={styles.container}>
@@ -100,15 +126,18 @@ const ForgotPasswordScreen: React.FC = () => {
                 style={{ flex: 1 }}
             >
                 <View style={styles.headerTitleRow}>
-                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                        <Ionicons name="close" size={24} color="#333" />
+                    <TouchableOpacity 
+                        onPress={() => step === 'request' ? navigation.goBack() : setStep(step === 'verify' ? 'request' : 'verify')} 
+                        style={styles.backButton}
+                    >
+                        <Ionicons name={step === 'request' ? "close" : "arrow-back"} size={24} color="#333" />
                     </TouchableOpacity>
-                    <Text style={styles.topTitle}>{step === 'request' ? 'Forgot Password' : 'Reset Password'}</Text>
+                    <Text style={styles.topTitle}>{renderHeaderTitle()}</Text>
                     <View style={{ width: 40 }} />
                 </View>
 
                 <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-                    {step === 'request' ? (
+                    {step === 'request' && (
                         <View style={styles.form}>
                             <Text style={styles.description}>
                                 Enter the email address associated with your account and we'll send you a code to reset your password.
@@ -143,10 +172,12 @@ const ForgotPasswordScreen: React.FC = () => {
                                 {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.actionButtonText}>Send Reset Code</Text>}
                             </TouchableOpacity>
                         </View>
-                    ) : (
+                    )}
+
+                    {step === 'verify' && (
                         <View style={styles.form}>
                             <Text style={styles.description}>
-                                Enter the code sent to {email} along with your new password.
+                                Enter the 6-digit code sent to {email}.
                             </Text>
 
                             <View style={styles.inputWrapper}>
@@ -168,6 +199,31 @@ const ForgotPasswordScreen: React.FC = () => {
                                 </View>
                                 {errors.otp ? <Text style={styles.errorText}>{errors.otp}</Text> : null}
                             </View>
+
+                            <TouchableOpacity
+                                style={styles.actionButton}
+                                activeOpacity={0.8}
+                                onPress={handleVerifyCode}
+                                disabled={loading}
+                            >
+                                {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.actionButtonText}>Verify Code</Text>}
+                            </TouchableOpacity>
+                            
+                            <TouchableOpacity 
+                                style={{marginTop: 15, alignItems: 'center'}}
+                                onPress={handleSendCode}
+                                disabled={loading}
+                            >
+                                <Text style={{color: '#666', fontSize: 14}}>Didn't receive a code? <Text style={{color: '#007AFF', fontWeight: 'bold'}}>Resend</Text></Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
+
+                    {step === 'reset' && (
+                        <View style={styles.form}>
+                            <Text style={styles.description}>
+                                Choose a strong new password for your account.
+                            </Text>
 
                             <View style={styles.inputWrapper}>
                                 <Text style={styles.label}>New Password</Text>
@@ -216,7 +272,7 @@ const ForgotPasswordScreen: React.FC = () => {
                                 onPress={handleResetPassword}
                                 disabled={loading}
                             >
-                                {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.actionButtonText}>Reset Password</Text>}
+                                {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.actionButtonText}>Update Password</Text>}
                             </TouchableOpacity>
                         </View>
                     )}

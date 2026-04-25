@@ -81,7 +81,10 @@ const ProfileScreen: React.FC = () => {
                         
                         setIsVerified(verified);
                         setVerificationStatus(status || (verified ? 'approved' : null));
-                        setRejectionReason(user.rejection_reason || null);
+                        
+                        // Check multiple sources for rejection reason to ensure compatibility
+                        const reason = user.reasons_reject || user.rejection_reason || user.rejection_message || user.reason || user.notes || null;
+                        setRejectionReason(reason);
                     }
                 } catch (error) {
                     console.error('Error fetching profile:', error);
@@ -470,8 +473,8 @@ const ProfileScreen: React.FC = () => {
                         <Text style={styles.sectionSubtitle}>Post jobs and hire talents in your workspace</Text>
                         
                         <View style={styles.employerControls}>
-                            {/* Always show Employer Page/Dashboard link if they are an employer */}
-                            {(role === 'employer') && (
+                            {/* Show Employer Page/Dashboard link ONLY if they are a verified employer */}
+                            {(role === 'employer' && isVerified) && (
                                 <TouchableOpacity 
                                     style={styles.employerDashboardBtn}
                                     onPress={() => navigation.navigate('EmployerDashboard')}

@@ -704,7 +704,7 @@ const DashboardScreen: React.FC = () => {
                 </View>
             </Modal>
 
-            {user?.role === 'employer' && (
+            {user?.role === 'employer' && (user?.is_verified || user?.verification_status === 'approved') && (
                 <TouchableOpacity
                     style={styles.fab}
                     onPress={handleFabPress}
