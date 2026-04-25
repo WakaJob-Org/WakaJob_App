@@ -45,6 +45,12 @@ const SuccessIllustration = () => (
         {/* Verified checkmark badge */}
         <View style={illustrationStyles.badgeOuter}>
             <View style={illustrationStyles.badge}>
+                <View style={illustrationStyles.badgeBackground}>
+                    <View style={illustrationStyles.badgeLayer} />
+                    <View style={[illustrationStyles.badgeLayer, illustrationStyles.badgeLayerRotated1]} />
+                    <View style={[illustrationStyles.badgeLayer, illustrationStyles.badgeLayerRotated2]} />
+                    <View style={[illustrationStyles.badgeLayer, illustrationStyles.badgeLayerRotated3]} />
+                </View>
                 <Text style={illustrationStyles.checkmark}>✓</Text>
             </View>
             <View style={illustrationStyles.notchLeft} />
@@ -155,8 +161,6 @@ const illustrationStyles = StyleSheet.create({
     badge: {
         width: 36,
         height: 36,
-        borderRadius: 18,
-        backgroundColor: '#1972ca',
         justifyContent: 'center',
         alignItems: 'center',
         zIndex: 10,
@@ -166,38 +170,35 @@ const illustrationStyles = StyleSheet.create({
         shadowOpacity: 0.25,
         shadowRadius: 4,
     },
+    badgeBackground: {
+        position: 'absolute',
+        width: '100%',
+        height: '100%',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    badgeLayer: {
+        position: 'absolute',
+        width: 30,
+        height: 30,
+        backgroundColor: '#1972ca',
+        borderRadius: 4,
+    },
+    badgeLayerRotated1: {
+        transform: [{ rotate: '22.5deg' }],
+    },
+    badgeLayerRotated2: {
+        transform: [{ rotate: '45deg' }],
+    },
+    badgeLayerRotated3: {
+        transform: [{ rotate: '67.5deg' }],
+    },
     checkmark: {
         color: '#FFFFFF',
         fontSize: 20,
         fontWeight: 'bold',
         marginTop: -1,
-    },
-    notchLeft: {
-        position: 'absolute',
-        left: 0,
-        top: 14,
-        width: 8,
-        height: 8,
-        backgroundColor: '#1972ca',
-        transform: [{ rotate: '45deg' }],
-    },
-    notchRight: {
-        position: 'absolute',
-        right: 0,
-        top: 14,
-        width: 8,
-        height: 8,
-        backgroundColor: '#1972ca',
-        transform: [{ rotate: '45deg' }],
-    },
-    notchBottom: {
-        position: 'absolute',
-        bottom: 0,
-        left: 16,
-        width: 8,
-        height: 8,
-        backgroundColor: '#1972ca',
-        transform: [{ rotate: '45deg' }],
+        zIndex: 1,
     },
 });
 

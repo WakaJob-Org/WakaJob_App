@@ -50,6 +50,12 @@ const VerificationIllustration = () => (
 
         {/* Exclamation badge */}
         <View style={illustrationStyles.badge}>
+            <View style={illustrationStyles.badgeBackground}>
+                <View style={illustrationStyles.badgeLayer} />
+                <View style={[illustrationStyles.badgeLayer, illustrationStyles.badgeLayerRotated1]} />
+                <View style={[illustrationStyles.badgeLayer, illustrationStyles.badgeLayerRotated2]} />
+                <View style={[illustrationStyles.badgeLayer, illustrationStyles.badgeLayerRotated3]} />
+            </View>
             <Text style={illustrationStyles.badgeText}>!</Text>
         </View>
     </View>
@@ -150,20 +156,37 @@ const illustrationStyles = StyleSheet.create({
         right: 10,
         width: 36,
         height: 36,
-        borderRadius: 18,
-        backgroundColor: '#1A3A5C',
         justifyContent: 'center',
         alignItems: 'center',
-        elevation: 4,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 4,
+    },
+    badgeBackground: {
+        position: 'absolute',
+        width: '100%',
+        height: '100%',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    badgeLayer: {
+        position: 'absolute',
+        width: 30,
+        height: 30,
+        backgroundColor: '#1A3A5C',
+        borderRadius: 4,
+    },
+    badgeLayerRotated1: {
+        transform: [{ rotate: '22.5deg' }],
+    },
+    badgeLayerRotated2: {
+        transform: [{ rotate: '45deg' }],
+    },
+    badgeLayerRotated3: {
+        transform: [{ rotate: '67.5deg' }],
     },
     badgeText: {
         color: '#FFFFFF',
-        fontSize: 20,
+        fontSize: 18,
         fontWeight: 'bold',
+        zIndex: 1,
     },
 });
 

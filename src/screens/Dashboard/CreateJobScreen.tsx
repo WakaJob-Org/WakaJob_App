@@ -1,3 +1,4 @@
+// src/screens/Dashboard/CreateJobScreen.tsx
 import React, { useState } from 'react';
 import {
     StyleSheet,
@@ -6,34 +7,88 @@ import {
     TouchableOpacity,
     ScrollView,
     TextInput,
-    SafeAreaView,
+    Modal,
+    Switch,
+    Alert,
+    Image,
+    KeyboardAvoidingView,
+    Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import jobService from '../../services/jobService';
 import authService from '../../services/authService';
 import Header from '../../components/Header';
-import { Alert } from 'react-native';
 
 import { useNavigation } from '@react-navigation/native';
 
 const CreateJobScreen: React.FC = () => {
     const navigation = useNavigation();
     const [loading, setLoading] = useState(false);
+    const [jobImages, setJobImages] = useState<string[]>([]);
+    const [questions, setQuestions] = useState<string[]>(['']);
+    const [isApprentice, setIsApprentice] = useState(false);
     const [jobData, setJobData] = useState({
         title: '',
-        company: '',
+        description: '',
         location: '',
         salary: '',
-        category: 'Technology',
+        category: 'General',
         type: 'Full-time',
-        description: '',
-        email: '',
-        phone: '',
     });
 
+    const handlePickImage = async () => {
+        if (jobImages.length >= 7) {
+            Alert.alert('Limit Reached', 'You can only upload a maximum of 7 photos.');
+            return;
+        }
+
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+            Alert.alert('Permission denied', 'We need permission to access your photo library.');
+            return;
+        }
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true,
+            quality: 0.8,
+            allowsMultipleSelection: true,
+            selectionLimit: 7 - jobImages.length,
+        });
+
+        if (!result.canceled && result.assets.length > 0) {
+            const newImages = result.assets.map(asset => asset.uri);
+            setJobImages(prev => [...prev, ...newImages].slice(0, 7));
+        }
+    };
+
+    const handleAddQuestion = () => {
+        if (questions.length >= 5) {
+            Alert.alert('Limit reached', 'You can only add up to 5 screening questions.');
+            return;
+        }
+        setQuestions([...questions, '']);
+    };
+
+    const handleRemoveQuestion = (index: number) => {
+        setQuestions(questions.filter((_, i) => i !== index));
+    };
+
+    const handleUpdateQuestion = (text: string, index: number) => {
+        const newQuestions = [...questions];
+        newQuestions[index] = text;
+        setQuestions(newQuestions);
+    };
+
     const handlePost = async () => {
-        if (!jobData.title || !jobData.description || !jobData.location || !jobData.salary) {
-            Alert.alert("Error", "Please fill in all required fields");
+        if (!jobData.title || !jobData.description || !jobData.location || !jobData.salary || !jobData.category) {
+            Alert.alert('Error', 'Please fill in all required fields (Job Name, Description, Location, Salary, Category).');
+            return;
+        }
+
+        if (jobImages.length === 0) {
+            Alert.alert('Image Required', 'Please add at least one image to your job post.');
             return;
         }
 
@@ -41,197 +96,406 @@ const CreateJobScreen: React.FC = () => {
         try {
             const user = await authService.getUser();
             if (!user || !user.id) {
-                Alert.alert("Error", "User session not found. Please log in again.");
+                Alert.alert('Error', 'User session not found. Please log in again.');
                 return;
             }
 
-            const backendData = {
-                employer_id: user.id,
-                position_vacant: jobData.title,
-                description: jobData.description,
-                location: jobData.location,
-                salary: jobData.salary,
-                category: jobData.category,
-                job_type: jobData.type.toLowerCase() as any, // backend expects full-time, part-time, contract
-                qualifications: 'None', // Default for now
-                verification_status: user.verification_status || (user.is_verified ? 'approved' : 'pending'),
-                is_verified: !!user.is_verified
-            };
+            let uploadedUrls: string[] = [];
+            if (jobImages.length > 0) {
+                try {
+                    const uploadPromises = jobImages.map(uri => jobService.uploadImage(uri));
+                    uploadedUrls = await Promise.all(uploadPromises);
+                } catch (imgError: any) {
+                    console.error('Some images failed to upload:', imgError);
+                    Alert.alert('Upload Error', 'Failed to upload job images. Please try again.');
+                    setLoading(false);
+                    return;
+                }
+            }
 
-            await jobService.createJob(backendData);
-            navigation.goBack();
+            await proceedWithPost(user.id, uploadedUrls);
         } catch (error: any) {
-            Alert.alert("Post Failed", typeof error === 'string' ? error : "Could not create job listing.");
+            Alert.alert('Post Failed', typeof error === 'string' ? error : 'Could not create job listing.');
         } finally {
             setLoading(false);
         }
     };
 
+    const proceedWithPost = async (employerId: string, imageUrls: string[]) => {
+        try {
+            // Filter out empty questions
+            const validQuestions = questions.filter(q => q.trim().length > 0);
+
+            const backendData = {
+                employer_id: employerId,
+                position_vacant: jobData.title,
+                description: jobData.description,
+                location: jobData.location,
+                salary: jobData.salary,
+                category: jobData.category,
+                job_type: (jobData.type.toLowerCase() === 'full-time' ? 'full-time' : 
+                          jobData.type.toLowerCase() === 'part-time' ? 'part-time' : 'contract') as any,
+                qualifications: 'None',
+                is_apprentice: isApprentice,
+                image_url: imageUrls[0] || undefined,
+                images: imageUrls,
+                screening_questions: validQuestions,
+            };
+
+            await jobService.createJob(backendData);
+            Alert.alert('Success', 'Job posted successfully!');
+            navigation.goBack();
+        } catch (error: any) {
+            Alert.alert('Post Failed', typeof error === 'string' ? error : 'Could not create job listing.');
+        }
+    };
+
+    const CATEGORIES = ['Construction', 'Salon', 'Mechanics', 'Tailoring', 'Farming', 'Healthcare', 'Education', 'Other'];
+
     return (
-        <SafeAreaView style={styles.container}>
+        <SafeAreaView style={styles.safeArea}>
             <Header
                 title="Post a Job"
                 showBackButton={true}
                 onBackPress={() => navigation.goBack()}
-                showSettings={false}
             />
 
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-                <View style={styles.form}>
-                    <View style={styles.inputGroup}>
-                        <Text style={styles.label}>Job Title</Text>
-                        <TextInput
-                            style={styles.input}
-                            placeholder="e.g. Senior Developer"
-                            value={jobData.title}
-                            onChangeText={(text) => setJobData({ ...jobData, title: text })}
-                        />
-                    </View>
-
-                    <View style={styles.inputGroup}>
-                        <Text style={styles.label}>Company Name</Text>
-                        <TextInput
-                            style={styles.input}
-                            placeholder="e.g. TechCorp"
-                            value={jobData.company}
-                            onChangeText={(text) => setJobData({ ...jobData, company: text })}
-                        />
-                    </View>
-
-                    <View style={styles.row}>
-                        <View style={[styles.inputGroup, { flex: 1 }]}>
-                            <Text style={styles.label}>Location</Text>
+            <KeyboardAvoidingView 
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                style={{ flex: 1 }}
+            >
+                <ScrollView
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={styles.scrollContent}
+                    keyboardShouldPersistTaps="handled"
+                >
+                    <View style={styles.form}>
+                        {/* ── Job Name ── */}
+                        <View style={styles.fieldGroup}>
+                            <Text style={styles.label}>Job Name</Text>
                             <TextInput
                                 style={styles.input}
-                                placeholder="e.g. Lagos, NG"
-                                value={jobData.location}
-                                onChangeText={(text) => setJobData({ ...jobData, location: text })}
+                                placeholder="e.g. Senior Carpenter"
+                                placeholderTextColor="#B0B8C5"
+                                value={jobData.title}
+                                onChangeText={(text) => setJobData({ ...jobData, title: text })}
                             />
                         </View>
-                        <View style={[styles.inputGroup, { flex: 1 }]}>
-                            <Text style={styles.label}>Salary Range</Text>
+
+                        {/* ── Category ── */}
+                        <View style={styles.fieldGroup}>
+                            <Text style={styles.label}>Category</Text>
+                            <View style={styles.categoryGrid}>
+                                {CATEGORIES.map((cat) => (
+                                    <TouchableOpacity 
+                                        key={cat}
+                                        style={[styles.categoryChip, jobData.category === cat && styles.categoryChipActive]}
+                                        onPress={() => setJobData({ ...jobData, category: cat })}
+                                    >
+                                        <Text style={[styles.categoryText, jobData.category === cat && styles.categoryTextActive]}>{cat}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        </View>
+
+                        {/* ── Job Description ── */}
+                        <View style={styles.fieldGroup}>
+                            <Text style={styles.label}>Job Description</Text>
                             <TextInput
-                                style={styles.input}
-                                placeholder="e.g. $2k - $4k"
-                                value={jobData.salary}
-                                onChangeText={(text) => setJobData({ ...jobData, salary: text })}
+                                style={[styles.input, styles.textArea]}
+                                placeholder="Describe the job, requirements, and responsibilities..."
+                                placeholderTextColor="#B0B8C5"
+                                multiline
+                                numberOfLines={5}
+                                textAlignVertical="top"
+                                value={jobData.description}
+                                onChangeText={(text) => setJobData({ ...jobData, description: text })}
                             />
                         </View>
+
+                        {/* ── Job Images ── */}
+                        <View style={styles.fieldGroup}>
+                            <Text style={styles.label}>Job Images ({jobImages.length}/7)</Text>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.imageScroll}>
+                                {jobImages.map((uri, index) => (
+                                    <View key={index} style={styles.imageWrapper}>
+                                        <Image source={{ uri }} style={styles.thumbnail} />
+                                        <TouchableOpacity
+                                            style={styles.removeBtn}
+                                            onPress={() => setJobImages(jobImages.filter((_, i) => i !== index))}
+                                        >
+                                            <Ionicons name="close-circle" size={24} color="#EF4444" />
+                                        </TouchableOpacity>
+                                    </View>
+                                ))}
+                                {jobImages.length < 7 && (
+                                    <TouchableOpacity
+                                        style={[styles.imagePicker, jobImages.length > 0 && styles.miniPicker]}
+                                        onPress={handlePickImage}
+                                        activeOpacity={0.8}
+                                    >
+                                        <View style={styles.imagePickerContent}>
+                                            <Ionicons name="camera-outline" size={jobImages.length > 0 ? 20 : 28} color="#1972ca" />
+                                            {jobImages.length === 0 && <Text style={styles.uploadSub}>Max 7 photos</Text>}
+                                        </View>
+                                    </TouchableOpacity>
+                                )}
+                            </ScrollView>
+                        </View>
+
+                        {/* ── Location & Salary ── */}
+                        <View style={styles.row}>
+                            <View style={[styles.fieldGroup, { flex: 1, marginRight: 10 }]}>
+                                <Text style={styles.label}>Location</Text>
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="e.g. Douala"
+                                    placeholderTextColor="#B0B8C5"
+                                    value={jobData.location}
+                                    onChangeText={(text) => setJobData({ ...jobData, location: text })}
+                                />
+                            </View>
+                            <View style={[styles.fieldGroup, { flex: 1 }]}>
+                                <Text style={styles.label}>Salary Range (FCFA)</Text>
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="e.g. 50k - 100k"
+                                    placeholderTextColor="#B0B8C5"
+                                    value={jobData.salary}
+                                    onChangeText={(text) => setJobData({ ...jobData, salary: text })}
+                                />
+                            </View>
+                        </View>
+
+                        {/* ── Question Section ── */}
+                        <View style={styles.fieldGroup}>
+                            <View style={styles.rowBetween}>
+                                <Text style={styles.label}>Screening Questions</Text>
+                                <TouchableOpacity onPress={handleAddQuestion}>
+                                    <Text style={styles.addQuestText}>+ Add Question</Text>
+                                </TouchableOpacity>
+                            </View>
+                            {questions.map((q, index) => (
+                                <View key={index} style={styles.questionWrapper}>
+                                    <TextInput
+                                        style={[styles.input, { flex: 1 }]}
+                                        placeholder={`Question ${index + 1}`}
+                                        value={q}
+                                        onChangeText={(text) => handleUpdateQuestion(text, index)}
+                                    />
+                                    <TouchableOpacity onPress={() => handleRemoveQuestion(index)} style={styles.removeQuestBtn}>
+                                        <Ionicons name="trash-outline" size={20} color="#EF4444" />
+                                    </TouchableOpacity>
+                                </View>
+                            ))}
+                        </View>
+
+                        {/* ── Apprentice Toggle ── */}
+                        <View style={styles.toggleCard}>
+                            <View style={styles.toggleTextBlock}>
+                                <Text style={styles.toggleTitle}>Open for Apprentices?</Text>
+                                <Text style={styles.toggleSub}>Labels this job for entry-level learners.</Text>
+                            </View>
+                            <Switch
+                                value={isApprentice}
+                                onValueChange={setIsApprentice}
+                                trackColor={{ false: '#E5E7EB', true: '#1972ca' }}
+                                thumbColor="#FFFFFF"
+                            />
+                        </View>
+
+                        <TouchableOpacity
+                            style={[styles.postBtn, loading && styles.postBtnDisabled]}
+                            onPress={handlePost}
+                            disabled={loading}
+                        >
+                            <Text style={styles.postBtnText}>{loading ? 'Posting...' : 'Post Job Now'}</Text>
+                        </TouchableOpacity>
                     </View>
-
-                    <View style={styles.inputGroup}>
-                        <Text style={styles.label}>Job Description</Text>
-                        <TextInput
-                            style={[styles.input, styles.textArea]}
-                            placeholder="Tell us about the role..."
-                            multiline
-                            numberOfLines={5}
-                            value={jobData.description}
-                            onChangeText={(text) => setJobData({ ...jobData, description: text })}
-                        />
-                    </View>
-
-                    <View style={styles.sectionDivider} />
-
-                    <Text style={styles.sectionTitle}>Contact Info</Text>
-
-                    <View style={styles.inputGroup}>
-                        <Text style={styles.label}>Email for Applications</Text>
-                        <TextInput
-                            style={styles.input}
-                            placeholder="jobs@company.com"
-                            keyboardType="email-address"
-                            value={jobData.email}
-                            onChangeText={(text) => setJobData({ ...jobData, email: text })}
-                        />
-                    </View>
-
-                    <View style={styles.inputGroup}>
-                        <Text style={styles.label}>Phone Number</Text>
-                        <TextInput
-                            style={styles.input}
-                            placeholder="+234 ..."
-                            keyboardType="phone-pad"
-                            value={jobData.phone}
-                            onChangeText={(text) => setJobData({ ...jobData, phone: text })}
-                        />
-                    </View>
-                </View>
-
-                <TouchableOpacity style={styles.postButton} onPress={handlePost}>
-                    <Text style={styles.postButtonText}>Post Job Listing</Text>
-                </TouchableOpacity>
-            </ScrollView>
+                </ScrollView>
+            </KeyboardAvoidingView>
         </SafeAreaView>
     );
 };
 
 const styles = StyleSheet.create({
-    container: {
+    safeArea: {
         flex: 1,
         backgroundColor: '#FFFFFF',
     },
     scrollContent: {
+        paddingHorizontal: 20,
+        paddingTop: 16,
         paddingBottom: 40,
     },
     form: {
-        padding: 20,
+        flex: 1,
     },
-    inputGroup: {
-        marginBottom: 20,
+    fieldGroup: {
+        marginBottom: 22,
     },
     label: {
         fontSize: 14,
         fontWeight: '600',
-        color: '#333',
-        marginBottom: 8,
+        color: '#1F2937',
+        marginBottom: 10,
     },
     input: {
-        backgroundColor: '#F8FAFC',
+        backgroundColor: '#FFFFFF',
         borderWidth: 1,
-        borderColor: '#E2E8F0',
+        borderColor: '#E5E7EB',
         borderRadius: 12,
-        padding: 15,
+        paddingHorizontal: 16,
+        paddingVertical: 14,
         fontSize: 14,
-        color: '#333',
+        color: '#1F2937',
     },
     textArea: {
-        height: 120,
-        textAlignVertical: 'top',
+        height: 110,
+        paddingTop: 14,
     },
     row: {
         flexDirection: 'row',
-        gap: 15,
+        alignItems: 'center',
     },
-    sectionDivider: {
-        height: 1,
-        backgroundColor: '#F1F5F9',
-        marginVertical: 10,
-        marginBottom: 25,
+    rowBetween: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 10,
     },
-    sectionTitle: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        color: '#333',
-        marginBottom: 20,
+    categoryGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
     },
-    postButton: {
+    categoryChip: {
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+        backgroundColor: '#FFFFFF',
+    },
+    categoryChipActive: {
         backgroundColor: '#1972ca',
-        marginHorizontal: 20,
-        height: 55,
-        borderRadius: 15,
+        borderColor: '#1972ca',
+    },
+    categoryText: {
+        fontSize: 12,
+        color: '#6B7280',
+        fontWeight: '500',
+    },
+    categoryTextActive: {
+        color: '#FFFFFF',
+        fontWeight: '600',
+    },
+    imageScroll: {
+        flexDirection: 'row',
+        gap: 12,
+        paddingBottom: 4,
+    },
+    imageWrapper: {
+        position: 'relative',
+        width: 100,
+        height: 100,
+        borderRadius: 12,
+        overflow: 'hidden',
+        backgroundColor: '#F3F4F6',
+    },
+    thumbnail: {
+        width: '100%',
+        height: '100%',
+        resizeMode: 'cover',
+    },
+    removeBtn: {
+        position: 'absolute',
+        top: 2,
+        right: 2,
+        zIndex: 10,
+    },
+    imagePicker: {
+        width: 100,
+        height: 100,
+        borderWidth: 1.5,
+        borderColor: '#D0DCF5',
+        borderStyle: 'dashed',
+        borderRadius: 12,
+        backgroundColor: '#F7FAFF',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    miniPicker: {
+        width: 100,
+        height: 100,
+    },
+    imagePickerContent: {
+        alignItems: 'center',
+    },
+    uploadSub: {
+        fontSize: 10,
+        color: '#9CA3AF',
+        marginTop: 4,
+    },
+    questionWrapper: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        marginBottom: 10,
+    },
+    removeQuestBtn: {
+        padding: 8,
+    },
+    addQuestText: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: '#1972ca',
+    },
+    toggleCard: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        backgroundColor: '#F9FAFB',
+        borderWidth: 1,
+        borderColor: '#F0F0F0',
+        borderRadius: 14,
+        padding: 16,
+        marginBottom: 28,
+    },
+    toggleTextBlock: {
+        flex: 1,
+        paddingRight: 16,
+    },
+    toggleTitle: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#1F2937',
+        marginBottom: 4,
+    },
+    toggleSub: {
+        fontSize: 12,
+        color: '#6B7280',
+    },
+    postBtn: {
+        backgroundColor: '#1972ca',
+        borderRadius: 14,
+        height: 56,
         justifyContent: 'center',
         alignItems: 'center',
         shadowColor: '#1972ca',
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 10,
-        elevation: 8,
+        shadowOpacity: 0.25,
+        shadowRadius: 12,
+        elevation: 6,
+        marginBottom: 20,
     },
-    postButtonText: {
+    postBtnDisabled: {
+        opacity: 0.6,
+    },
+    postBtnText: {
         color: '#FFFFFF',
         fontSize: 16,
-        fontWeight: 'bold',
+        fontWeight: '700',
     },
 });
 

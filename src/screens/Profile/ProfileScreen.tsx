@@ -239,7 +239,7 @@ const ProfileScreen: React.FC = () => {
             <View style={[styles.header, { paddingTop: insets.top }]}>
                 <View style={styles.headerContent}>
                     <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-                        <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+                        <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>Edit Profile</Text>
                     <TouchableOpacity onPress={handleSave} disabled={saving}>
