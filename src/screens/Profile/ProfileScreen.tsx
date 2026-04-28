@@ -82,8 +82,8 @@ const ProfileScreen: React.FC = () => {
                         setIsVerified(verified);
                         setVerificationStatus(status || (verified ? 'approved' : null));
                         
-                        // Check multiple sources for rejection reason to ensure compatibility
-                        const reason = user.reasons_reject || user.rejection_reason || user.rejection_message || user.reason || user.notes || null;
+                        // Check rejection_reason directly (consolidated field)
+                        const reason = user.rejection_reason || user.reason_reject || user.reasons_reject || user.rejection_message || user.reason || user.notes || null;
                         setRejectionReason(reason);
                     }
                 } catch (error) {
@@ -442,7 +442,12 @@ const ProfileScreen: React.FC = () => {
                                 styles.statusBadgeNotStarted
                             ]}>
                                 <Ionicons 
-                                    name={isVerified ? "shield-checkmark" : "shield-checkmark-outline"} 
+                                    name={
+                                        (isVerified || String(verificationStatus).toLowerCase() === 'approved') ? "checkmark-circle" : 
+                                        String(verificationStatus).toLowerCase() === 'pending' ? "time-outline" : 
+                                        String(verificationStatus).toLowerCase() === 'rejected' ? "shield-outline" :
+                                        "information-circle"
+                                    } 
                                     size={20} 
                                     color="#FFF" 
                                 />
@@ -898,6 +903,7 @@ const styles = StyleSheet.create({
     },
     statusBadgeVerified: { backgroundColor: '#22C55E' },
     statusBadgePending: { backgroundColor: '#F97316' },
+    statusBadgeRejected: { backgroundColor: '#EF4444' },
     statusBadgeNotStarted: { backgroundColor: '#64748B' },
 });
 

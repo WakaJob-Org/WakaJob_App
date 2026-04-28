@@ -542,16 +542,6 @@ const DashboardScreen: React.FC = () => {
                             <Text style={styles.welcomeTitle}>Available Jobs</Text>
                             <Text style={styles.welcomeDesc}>Based on your location and preferences</Text>
                         </View>
-                        <View style={styles.quickActions}>
-                            <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('CreateJob')}>
-                                <Ionicons name="add-circle" size={20} color="#FFFFFF" />
-                                <Text style={styles.actionBtnText}>Post Job</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={[styles.actionBtn, styles.actionBtnOutline]} onPress={() => navigation.navigate('Applications')}>
-                                <Ionicons name="people" size={20} color="#1972ca" />
-                                <Text style={[styles.actionBtnText, styles.actionBtnTextOutline]}>Apps</Text>
-                            </TouchableOpacity>
-                        </View>
                     </View>
                 </View>
 

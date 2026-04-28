@@ -415,6 +415,7 @@ const EmployerVerificationScreen: React.FC = () => {
     };
 
     return (
+        <View style={styles.container}>
             {/* Header */}
             <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
