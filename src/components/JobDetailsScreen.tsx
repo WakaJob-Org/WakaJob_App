@@ -44,7 +44,14 @@ const JobDetailsScreen: React.FC<JobDetailsScreenProps> = ({ isVisible, job, onC
                 <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
                     <View style={styles.companySection}>
                         <View style={styles.logoContainer}>
-                            <Ionicons name="briefcase" size={40} color="#1972ca" />
+                            {job.imageUrl || job.image_url ? (
+                                <Image 
+                                    source={{ uri: job.imageUrl || job.image_url }} 
+                                    style={styles.logoImage} 
+                                />
+                            ) : (
+                                <Ionicons name="briefcase" size={40} color="#1972ca" />
+                            )}
                         </View>
                         <Text style={styles.jobTitleText}>{job.title}</Text>
                         <Text style={styles.companyNameText}>{job.company}</Text>
@@ -158,6 +165,12 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         marginBottom: 20,
+        overflow: 'hidden',
+    },
+    logoImage: {
+        width: '100%',
+        height: '100%',
+        resizeMode: 'cover',
     },
     jobTitleText: {
         fontSize: 22,

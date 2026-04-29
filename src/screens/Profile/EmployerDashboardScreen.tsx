@@ -29,6 +29,10 @@ const EmployerDashboardScreen: React.FC = () => {
         }, [])
     );
 
+    const handlePostJob = () => {
+        navigation.navigate('CreateJob');
+    };
+
     const fetchEmployerData = async () => {
         try {
             setLoading(true);
