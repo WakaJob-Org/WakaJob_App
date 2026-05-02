@@ -11,6 +11,7 @@ import {
     KeyboardAvoidingView,
     Platform,
     Alert,
+    RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -44,18 +45,30 @@ const ProfileScreen: React.FC = () => {
     const [isVerified, setIsVerified] = useState<boolean>(false);
     const [verificationStatus, setVerificationStatus] = useState<string | null>(null);
     const [rejectionReason, setRejectionReason] = useState<string | null>(null);
+    const [refreshing, setRefreshing] = useState(false);
+    const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
     ScreenCapture.usePreventScreenCapture();
 
     useFocusEffect(
         React.useCallback(() => {
-            const fetchProfile = async () => {
+            const fetchProfile = async (isManualRefresh = false) => {
+                // If we've already loaded once and this isn't a manual pull-to-refresh, skip the fetch
+                if (hasLoadedOnce && !isManualRefresh) {
+                    setLoading(false);
+                    return;
+                }
+
                 try {
-                    setLoading(true);
+                    if (isManualRefresh) {
+                        setRefreshing(true);
+                    } else {
+                        setLoading(true);
+                    }
                     
                     // Force a fresh fetch of user data including verification status
                     await refreshUser();
-                    const user = await authService.getUser(); // This will now return the refreshed data
+                    const user = await authService.getUser(); // This returns the refreshed data
                     
                     if (user) {
                         setUserId(user.id || user._id || null);
@@ -85,18 +98,57 @@ const ProfileScreen: React.FC = () => {
                         // Check rejection_reason directly (consolidated field)
                         const reason = user.rejection_reason || user.reason_reject || user.reasons_reject || user.rejection_message || user.reason || user.notes || null;
                         setRejectionReason(reason);
+
+                        // Mark as loaded so we don't fetch automatically again
+                        setHasLoadedOnce(true);
                     }
                 } catch (error) {
                     console.error('Error fetching profile:', error);
                 } finally {
-                    setTimeout(() => setLoading(false), 800);
+                    setLoading(false);
+                    setRefreshing(false);
                 }
             };
 
             fetchProfile();
             return () => {}; // Cleanup
-        }, [userId])
+        }, [userId, hasLoadedOnce])
     );
+
+    // Manual refresh handler for Pull-to-Refresh
+    const onRefresh = React.useCallback(async () => {
+        // We pass true to indicate this is a manual refresh that should ignore the hasLoadedOnce flag
+        const refreshProfile = async () => {
+            try {
+                setRefreshing(true);
+                await refreshUser();
+                const user = await authService.getUser();
+                if (user) {
+                    setUsername(user.full_name || user.username || '');
+                    setEmail(user.email || '');
+                    setProfilePhoto(user.profile_image_url || null);
+                    if (user.bio) setBio(user.bio);
+                    if (user.phone_number) setPhone(user.phone_number.replace('+237', ''));
+                    if (user.date_of_birth) setDob(user.date_of_birth);
+                    if (user.skills && Array.isArray(user.skills)) {
+                        setSkills(user.skills.map((s: any) => ({ id: Math.random().toString(), name: s })));
+                    }
+                    setRole(user.role || 'worker');
+                    const status = String(user.verification_status || '').toLowerCase();
+                    const verified = user.is_verified || status === 'approved';
+                    setIsVerified(verified);
+                    setVerificationStatus(status || (verified ? 'approved' : null));
+                    const reason = user.rejection_reason || user.reason_reject || user.reasons_reject || user.rejection_message || user.reason || user.notes || null;
+                    setRejectionReason(reason);
+                }
+            } catch (error) {
+                console.error('Manual refresh error:', error);
+            } finally {
+                setRefreshing(false);
+            }
+        };
+        refreshProfile();
+    }, []);
 
     const handleSave = async () => {
         try {
@@ -261,6 +313,14 @@ const ProfileScreen: React.FC = () => {
                     showsVerticalScrollIndicator={false}
                     contentContainerStyle={styles.scrollContent}
                     keyboardShouldPersistTaps="handled"
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={refreshing}
+                            onRefresh={onRefresh}
+                            colors={['#1972ca']} // Android
+                            tintColor={'#1972ca'} // iOS
+                        />
+                    }
                 >
                     {/* Profile Picture Section */}
                     <View style={styles.avatarSection}>
