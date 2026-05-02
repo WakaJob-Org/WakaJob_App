@@ -9,6 +9,7 @@ import {
     ActivityIndicator,
     SafeAreaView,
     Alert,
+    RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -21,6 +22,7 @@ const EmployerDashboardScreen: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [jobs, setJobs] = useState<Job[]>([]);
     const [activeTab, setActiveTab] = useState<'listings' | 'applicants'>('listings');
+    const [refreshing, setRefreshing] = useState(false);
 
     useFocusEffect(
         React.useCallback(() => {
@@ -33,9 +35,9 @@ const EmployerDashboardScreen: React.FC = () => {
         navigation.navigate('CreateJob');
     };
 
-    const fetchEmployerData = async () => {
+    const fetchEmployerData = async (isRefreshing = false) => {
         try {
-            setLoading(true);
+            if (!isRefreshing) setLoading(true);
             const user = await authService.getUser();
             if (!user) return;
 
@@ -46,6 +48,48 @@ const EmployerDashboardScreen: React.FC = () => {
             setJobs(myJobs);
         } catch (error) {
             console.error('Error fetching employer data:', error);
+        } finally {
+            if (!isRefreshing) setLoading(false);
+        }
+    };
+
+    const onRefresh = React.useCallback(async () => {
+        setRefreshing(true);
+        await fetchEmployerData(true);
+        setRefreshing(false);
+    }, []);
+
+    const handleJobOptions = (job: Job) => {
+        Alert.alert(
+            'Manage Job',
+            `What would you like to do with "${job.position_vacant}"?`,
+            [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Edit', onPress: () => navigation.navigate('CreateJob', { jobToEdit: job }) },
+                { text: 'Delete', style: 'destructive', onPress: () => confirmDeleteJob(job) }
+            ]
+        );
+    };
+
+    const confirmDeleteJob = (job: Job) => {
+        Alert.alert(
+            'Delete Job',
+            `Are you sure you want to delete "${job.position_vacant}"? This cannot be undone.`,
+            [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Delete', style: 'destructive', onPress: () => deleteJob(job.id) }
+            ]
+        );
+    };
+
+    const deleteJob = async (jobId: string) => {
+        try {
+            setLoading(true);
+            await jobService.deleteJob(jobId);
+            setJobs(prev => prev.filter(j => j.id !== jobId));
+            Alert.alert('Success', 'Job deleted successfully.');
+        } catch (error: any) {
+            Alert.alert('Error', error || 'Failed to delete job.');
         } finally {
             setLoading(false);
         }
@@ -67,7 +111,7 @@ const EmployerDashboardScreen: React.FC = () => {
                     </View>
                 </View>
             </View>
-            <TouchableOpacity onPress={() => Alert.alert('Options', 'Manage job listing')}>
+            <TouchableOpacity onPress={() => handleJobOptions(item)}>
                 <Ionicons name="ellipsis-vertical" size={20} color="#9CA3AF" />
             </TouchableOpacity>
         </TouchableOpacity>
@@ -108,6 +152,14 @@ const EmployerDashboardScreen: React.FC = () => {
                             keyExtractor={(item) => item.id}
                             renderItem={renderJobItem}
                             contentContainerStyle={styles.listContent}
+                            refreshControl={
+                                <RefreshControl 
+                                    refreshing={refreshing} 
+                                    onRefresh={onRefresh} 
+                                    colors={['#1972ca']} 
+                                    tintColor={'#1972ca'} 
+                                />
+                            }
                             ListEmptyComponent={
                                 <View style={styles.emptyState}>
                                     <View style={styles.emptyIconContainer}>

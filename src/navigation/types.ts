@@ -25,6 +25,7 @@ export type AppStackParamList = {
     Notifications: undefined;
     Settings: undefined;
     CreateJob: undefined;
+    JobDetails: { job: any };
     ProfileSetup: undefined;
     
     // Employer flow screens in AppStack

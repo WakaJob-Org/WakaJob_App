@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     StyleSheet,
     View,
@@ -17,7 +17,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import jobService from '../../services/jobService';
 import authService from '../../services/authService';
 
@@ -29,7 +29,12 @@ interface CreateJobScreenProps {
 
 const CreateJobScreen: React.FC<CreateJobScreenProps> = ({ isVisible, onClose, onPost }) => {
     const navigation = useNavigation();
+    const route = useRoute<any>();
     const isModal = isVisible !== undefined;
+    
+    // Check if we are editing an existing job
+    const jobToEdit = route.params?.jobToEdit;
+    const isEditing = !!jobToEdit;
     
     // Form State
     const [jobPhoto, setJobPhoto] = useState<string | null>(null);
@@ -61,6 +66,47 @@ const CreateJobScreen: React.FC<CreateJobScreenProps> = ({ isVisible, onClose, o
 
     const JOB_TYPES = ['Full-time', 'Part-time', 'Contract', 'Task-based'];
     const CONTACT_METHODS = ['In-App', 'Phone Call', 'WhatsApp'];
+
+    useEffect(() => {
+        if (jobToEdit) {
+            setJobTitle(jobToEdit.position_vacant || jobToEdit.title || '');
+            setCategory(jobToEdit.category || '');
+            setLocation(jobToEdit.location || '');
+            setSalary(jobToEdit.salary || '');
+            
+            const mappedJobType = jobToEdit.job_type === 'full-time' ? 'Full-time' 
+                : jobToEdit.job_type === 'part-time' ? 'Part-time'
+                : jobToEdit.job_type === 'contract' ? 'Contract'
+                : jobToEdit.job_type === 'task-based' ? 'Task-based'
+                : jobToEdit.job_type || 'Full-time';
+            setJobType(mappedJobType);
+            
+            setJobPhoto(jobToEdit.image_url || jobToEdit.job_image || null);
+            
+            if (jobToEdit.qualifications) {
+                setCustomReqs(jobToEdit.qualifications.split(',').map((q: string) => q.trim()).filter((q: string) => q));
+            }
+            
+            if (jobToEdit.description) {
+                const parts = jobToEdit.description.split('--- Additional Details ---');
+                setDescription(parts[0].trim());
+                if (parts.length > 1) {
+                    const details = parts[1];
+                    if (details.includes('Contact Method: Phone Call')) setContactMethod('Phone Call');
+                    else if (details.includes('Contact Method: WhatsApp')) setContactMethod('WhatsApp');
+                    
+                    setPerks({
+                        meals: details.includes('meals'),
+                        transport: details.includes('transport'),
+                        tools: details.includes('tools'),
+                        housing: details.includes('housing'),
+                    });
+                } else {
+                    setDescription(jobToEdit.description);
+                }
+            }
+        }
+    }, [jobToEdit]);
 
     const handlePickImage = async () => {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -144,20 +190,28 @@ Perks: ${Object.entries(perks).filter(([_, v]) => v).map(([k]) => k).join(', ') 
             formData.append('requires_cover_letter', String(reqCoverLetter));
             formData.append('employer_id', user.id);
             
-            if (jobPhoto) {
+            if (jobPhoto && !jobPhoto.startsWith('http')) {
                 const filename = jobPhoto.split('/').pop() || 'job_photo.jpg';
                 const match = /\.(\w+)$/.exec(filename);
-                const type = match ? `image/${match[1]}` : `image`;
+                const type = match ? `image/${match[1]}` : `image/jpeg`;
 
                 formData.append('job_image', {
                     uri: jobPhoto,
                     name: filename,
                     type,
                 } as any);
+            } else if (jobPhoto && isEditing) {
+                // Keep existing image URL if not changed
+                formData.append('image_url', jobPhoto);
             }
 
-            await jobService.createJob(formData);
-            Alert.alert('Success', 'Your opportunity has been posted successfully!');
+            if (isEditing) {
+                await jobService.updateJob(jobToEdit.id, formData as any);
+                Alert.alert('Success', 'Your opportunity has been updated successfully!');
+            } else {
+                await jobService.createJob(formData);
+                Alert.alert('Success', 'Your opportunity has been posted successfully!');
+            }
             
             if (onPost) onPost();
             handleClose();
@@ -194,7 +248,7 @@ Perks: ${Object.entries(perks).filter(([_, v]) => v).map(([k]) => k).join(', ') 
                 <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
                     <Ionicons name="close" size={24} color="#1F2937" />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Create Opportunity</Text>
+                <Text style={styles.headerTitle}>{isEditing ? 'Edit Opportunity' : 'Create Opportunity'}</Text>
                 <View style={{ width: 40 }} />
             </View>
 
@@ -397,8 +451,8 @@ Perks: ${Object.entries(perks).filter(([_, v]) => v).map(([k]) => k).join(', ') 
                                 <ActivityIndicator color="#FFF" />
                             ) : (
                                 <>
-                                    <Text style={styles.postButtonText}>Launch Opportunity</Text>
-                                    <Ionicons name="paper-plane" size={20} color="#FFF" style={{ marginLeft: 10 }} />
+                                    <Text style={styles.postButtonText}>{isEditing ? 'Save Changes' : 'Launch Opportunity'}</Text>
+                                    <Ionicons name={isEditing ? "save-outline" : "paper-plane"} size={20} color="#FFF" style={{ marginLeft: 10 }} />
                                 </>
                             )}
                         </TouchableOpacity>

@@ -81,8 +81,6 @@ const DashboardScreen: React.FC = () => {
     
     const insets = useSafeAreaInsets();
     const [searchQuery, setSearchQuery] = useState('');
-    const [selectedJob, setSelectedJob] = useState<JobType | null>(null);
-    const [showDetails, setShowDetails] = useState(false);
     const [savedJobsList, setSavedJobsList] = useState<string[]>([]);
     const [allJobs, setAllJobs] = useState<JobType[]>([]);
     const [filteredJobs, setFilteredJobs] = useState<JobType[]>([]);
@@ -241,16 +239,6 @@ const DashboardScreen: React.FC = () => {
 
     if (loading) return <DashboardSkeleton />;
 
-    const handleJobPress = (job: JobType) => {
-        setSelectedJob(job);
-        setShowDetails(true);
-    };
-
-    const handleApply = () => {
-        Alert.alert("Success", "Application sent successfully!");
-        setShowDetails(false);
-    };
-
     const handleSaveJob = async (jobId: string) => {
         try {
             if (savedJobsList.includes(jobId)) {
@@ -284,7 +272,11 @@ const DashboardScreen: React.FC = () => {
         const isExpanded = expandedJobId === item.id;
 
         return (
-            <View style={styles.jobCard}>
+            <TouchableOpacity 
+                style={styles.jobCard} 
+                activeOpacity={0.9} 
+                onPress={() => navigation.navigate('JobDetails', { job: item, isSaved: isJobSaved(item.id) })}
+            >
                 <View style={styles.imageContainer}>
                     {item.imageUrl ? (
                         <Image source={{ uri: item.imageUrl }} style={styles.jobImage} />
@@ -312,11 +304,21 @@ const DashboardScreen: React.FC = () => {
                 <View style={styles.cardBody}>
                     <Text style={styles.jobTitleText} numberOfLines={1}>{item.title}</Text>
                     <Text style={styles.companySubText} numberOfLines={1}>{item.company}</Text>
-                    <Text style={styles.locationText} numberOfLines={1}>Location: {item.location}</Text>
+                    
+                    <View style={styles.cardDetailsRow}>
+                        <View style={styles.cardDetailItem}>
+                            <Ionicons name="location-outline" size={14} color="#64748B" />
+                            <Text style={styles.cardDetailText} numberOfLines={1}>{item.location}</Text>
+                        </View>
+                        <View style={styles.cardDetailItem}>
+                            <Ionicons name="wallet-outline" size={14} color="#64748B" />
+                            <Text style={styles.cardDetailText} numberOfLines={1}>{item.salary}</Text>
+                        </View>
+                    </View>
 
                     {/* Tags */}
                     <View style={styles.tagRow}>
-                        {[item.type, ...(item.tags || [])].map((tag, idx) => (
+                        {[item.type, item.category, ...(item.tags || [])].filter(Boolean).map((tag, idx) => (
                             <View key={idx} style={[styles.tag, idx === 0 ? styles.activeTag : null]}>
                                 <Text style={[styles.tagText, idx === 0 ? styles.activeTagText : null]}>{tag}</Text>
                             </View>
@@ -325,9 +327,9 @@ const DashboardScreen: React.FC = () => {
 
                     {/* Action Row */}
                     <View style={styles.actionRow}>
-                        <TouchableOpacity style={styles.mainApplyBtn} onPress={() => handleJobPress(item)}>
-                            <Text style={styles.mainApplyBtnText}>Apply Now</Text>
-                        </TouchableOpacity>
+                        <View style={styles.mainApplyBtn}>
+                            <Text style={styles.mainApplyBtnText}>View Details</Text>
+                        </View>
                         <TouchableOpacity 
                             style={styles.dropdownBtn}
                             onPress={() => setExpandedJobId(isExpanded ? null : item.id)}
@@ -352,7 +354,7 @@ const DashboardScreen: React.FC = () => {
                         </View>
                     )}
                 </View>
-            </View>
+            </TouchableOpacity>
         );
     };
 
@@ -491,55 +493,6 @@ const DashboardScreen: React.FC = () => {
                     </View>
                 }
             />
-
-            <Modal visible={!!showDetails} animationType="slide" transparent={true}>
-                <View style={styles.modalBg}>
-                    <View style={styles.modalContent}>
-                        <SafeAreaView style={styles.modalHeader}>
-                            <TouchableOpacity onPress={() => setShowDetails(false)} style={styles.closeBtn}>
-                                <Ionicons name="close" size={24} color="#333" />
-                            </TouchableOpacity>
-                            <Text style={styles.modalTitle}>Job Details</Text>
-                            <View style={{ width: 40 }} />
-                        </SafeAreaView>
-
-                        <ScrollView style={styles.modalBody}>
-                            {selectedJob && (
-                                <>
-                                    <View style={styles.modalHeaderInfo}>
-                                        <View style={[styles.modalIcon, { backgroundColor: getCompanyColor(selectedJob.company.charAt(0)) }]}>
-                                            <Text style={styles.modalIconText}>{selectedJob.company.charAt(0)}</Text>
-                                        </View>
-                                        <View>
-                                            <Text style={styles.modalJobTitle}>{selectedJob.title}</Text>
-                                            <Text style={styles.modalCompany}>{selectedJob.company}</Text>
-                                        </View>
-                                    </View>
-
-                                    <View style={styles.modalSpecBox}>
-                                        <Text style={styles.modalSpecText}><Ionicons name="location" size={14} /> {selectedJob.location}</Text>
-                                        <Text style={styles.modalSpecText}><Ionicons name="time" size={14} /> {selectedJob.type}</Text>
-                                        <Text style={styles.modalSpecText}><Ionicons name="cash" size={14} /> {selectedJob.salary}</Text>
-                                    </View>
-
-                                    <Text style={styles.sectionTitle}>Description</Text>
-                                    <Text style={styles.sectionContent}>{selectedJob.description}</Text>
-
-                                    <Text style={styles.sectionTitle}>Contact</Text>
-                                    <Text style={styles.sectionContent}>{selectedJob.email}</Text>
-                                    <Text style={styles.sectionContent}>{selectedJob.phone}</Text>
-                                </>
-                            )}
-                        </ScrollView>
-
-                        <View style={styles.modalFooter}>
-                            <TouchableOpacity style={styles.modalApplyBtn} onPress={handleApply}>
-                                <Text style={styles.modalApplyBtnText}>Apply Now</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                </View>
-            </Modal>
 
             {user?.role === 'employer' && (user?.is_verified || user?.verification_status === 'approved') && (
                 <TouchableOpacity
@@ -710,12 +663,22 @@ const styles = StyleSheet.create({
     companySubText: {
         fontSize: 14,
         color: '#9BA4B1',
-        marginBottom: 4,
+        marginBottom: 10,
     },
-    locationText: {
-        fontSize: 14,
-        color: '#9BA4B1',
+    cardDetailsRow: {
+        flexDirection: 'row',
+        gap: 15,
         marginBottom: 16,
+    },
+    cardDetailItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        flex: 1,
+    },
+    cardDetailText: {
+        fontSize: 13,
+        color: '#64748B',
     },
     tagRow: {
         flexDirection: 'row',
