@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     StyleSheet,
     View,
@@ -26,14 +26,15 @@ import { useNavigation } from '@react-navigation/native';
 
 const ForgotPasswordScreen: React.FC = () => {
     const navigation = useNavigation<any>();
-    const [step, setStep] = useState<'request' | 'reset'>('request');
+    const [step, setStep] = useState<'request' | 'verify' | 'reset'>('request');
     const [loading, setLoading] = useState(false);
 
     // Request State
     const [email, setEmail] = useState('');
 
     // Reset State
-    const [otp, setOtp] = useState('');
+    const [otp, setOtp] = useState(['', '', '', '', '', '']);
+    const otpRefs = useRef<Array<TextInput | null>>([]);
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
@@ -42,7 +43,8 @@ const ForgotPasswordScreen: React.FC = () => {
 
 
     const handleSendCode = async () => {
-        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        const cleanEmail = email.trim().toLowerCase();
+        if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
             setErrors({ email: 'Please enter a valid email address' });
             return;
         }
@@ -50,11 +52,11 @@ const ForgotPasswordScreen: React.FC = () => {
         setLoading(true);
 
         try {
-            await authService.forgotPassword({ email });
+            await authService.forgotPassword({ email: cleanEmail });
+            setEmail(cleanEmail);
             Alert.alert('Success', 'A reset code has been sent to your email.');
-            setStep('reset');
+            setStep('verify');
         } catch (error: any) {
-            // Fix: Capture error message string to prevent React Native crash
             const errorMessage = error instanceof Error ? error.message : String(error);
             Alert.alert('Request Failed', errorMessage);
         } finally {
@@ -62,9 +64,21 @@ const ForgotPasswordScreen: React.FC = () => {
         }
     };
 
+    const handleVerifyCode = async () => {
+        const otpString = otp.join('');
+        if (!otpString || otpString.length < 6) {
+            setErrors({ otp: 'Please enter a valid 6-digit OTP' });
+            return;
+        }
+        
+        // We skip the intermediate /auth/verify-otp call because most backends
+        // verify the reset code during the final /auth/reset-password step.
+        // This avoids "Token Expired" errors caused by using the wrong verification endpoint.
+        setStep('reset');
+    };
+
     const handleResetPassword = async () => {
         const newErrors: any = {};
-        if (!otp || otp.length < 4) newErrors.otp = 'Please enter a valid OTP';
         if (!newPassword || newPassword.length < 6) newErrors.newPassword = 'Password must be at least 6 characters';
         if (newPassword !== confirmPassword) newErrors.confirmPassword = 'Passwords do not match';
 
@@ -76,18 +90,61 @@ const ForgotPasswordScreen: React.FC = () => {
         setErrors({});
         setLoading(true);
 
+        const otpString = otp.join('');
         try {
-            await authService.resetPassword({ email, otp, new_password: newPassword, confirm_password: confirmPassword });
+            await authService.resetPassword({ email, otp: otpString, new_password: newPassword, confirm_password: confirmPassword });
             Alert.alert('Success', 'Your password has been successfully reset. You can now login.');
             navigation.navigate('Login');
         } catch (error: any) {
-            // Fix: Capture error message string to prevent React Native crash
             const errorMessage = error instanceof Error ? error.message : String(error);
             Alert.alert('Reset Failed', errorMessage);
         } finally {
             setLoading(false);
         }
     };
+
+    const handleOtpChange = (value: string, index: number) => {
+        // Handle auto-fill codes which might come in as 6 digits at once
+        if (value.length > 1) {
+            const cleanValue = value.replace(/[^0-9]/g, '').slice(0, 6);
+            const characters = cleanValue.split('');
+            const newOtp = [...otp];
+
+            characters.forEach((char, i) => {
+                if (index + i < 6) newOtp[index + i] = char;
+            });
+
+            setOtp(newOtp);
+            const nextFocus = Math.min(index + characters.length, 5);
+            otpRefs.current[nextFocus]?.focus();
+            return;
+        }
+
+        const newOtp = [...otp];
+        newOtp[index] = value;
+        setOtp(newOtp);
+
+        if (value && index < 5) {
+            otpRefs.current[index + 1]?.focus();
+        }
+        
+        if (errors.otp) setErrors({ ...errors, otp: '' });
+    };
+
+    const handleKeyPress = (e: any, index: number) => {
+        if (e.nativeEvent.key === 'Backspace' && !otp[index] && index > 0) {
+            otpRefs.current[index - 1]?.focus();
+        }
+    };
+
+    const renderHeaderTitle = () => {
+        switch(step) {
+            case 'request': return 'Forgot Password';
+            case 'verify': return 'Verify Code';
+            case 'reset': return 'Create New Password';
+            default: return 'Forgot Password';
+        }
+    }
 
     return (
         <View style={styles.container}>
@@ -100,15 +157,18 @@ const ForgotPasswordScreen: React.FC = () => {
                 style={{ flex: 1 }}
             >
                 <View style={styles.headerTitleRow}>
-                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                        <Ionicons name="close" size={24} color="#333" />
+                    <TouchableOpacity 
+                        onPress={() => step === 'request' ? navigation.goBack() : setStep(step === 'verify' ? 'request' : 'verify')} 
+                        style={styles.backButton}
+                    >
+                        <Ionicons name={step === 'request' ? "close" : "arrow-back"} size={24} color="#333" />
                     </TouchableOpacity>
-                    <Text style={styles.topTitle}>{step === 'request' ? 'Forgot Password' : 'Reset Password'}</Text>
+                    <Text style={styles.topTitle}>{renderHeaderTitle()}</Text>
                     <View style={{ width: 40 }} />
                 </View>
 
                 <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-                    {step === 'request' ? (
+                    {step === 'request' && (
                         <View style={styles.form}>
                             <Text style={styles.description}>
                                 Enter the email address associated with your account and we'll send you a code to reset your password.
@@ -143,31 +203,63 @@ const ForgotPasswordScreen: React.FC = () => {
                                 {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.actionButtonText}>Send Reset Code</Text>}
                             </TouchableOpacity>
                         </View>
-                    ) : (
+                    )}
+
+                    {step === 'verify' && (
                         <View style={styles.form}>
                             <Text style={styles.description}>
-                                Enter the code sent to {email} along with your new password.
+                                Enter the 6-digit code sent to {email}.
                             </Text>
 
                             <View style={styles.inputWrapper}>
                                 <Text style={styles.label}>Reset Code (OTP)</Text>
-                                <View style={[styles.inputContainer, errors.otp && styles.inputError]}>
-                                    <Ionicons name="keypad-outline" size={20} color={errors.otp ? "#FF3B30" : "#666"} style={styles.inputIcon} />
-                                    <TextInput
-                                        style={styles.input}
-                                        placeholder="Enter 6-digit code"
-                                        keyboardType="number-pad"
-                                        maxLength={6}
-                                        placeholderTextColor="#999"
-                                        value={otp}
-                                        onChangeText={(text) => {
-                                            setOtp(text);
-                                            if (errors.otp) setErrors({ ...errors, otp: '' });
-                                        }}
-                                    />
+                                <View style={styles.otpContainer}>
+                                    {otp.map((digit, index) => (
+                                        <TextInput
+                                            key={index}
+                                            ref={(el) => (otpRefs.current[index] = el)}
+                                            style={[
+                                                styles.otpInput,
+                                                errors.otp && styles.otpInputError,
+                                                digit !== '' && styles.otpInputFilled
+                                            ]}
+                                            value={digit}
+                                            onChangeText={(text) => handleOtpChange(text, index)}
+                                            onKeyPress={(e) => handleKeyPress(e, index)}
+                                            keyboardType="number-pad"
+                                            maxLength={1}
+                                            placeholder="0"
+                                            placeholderTextColor="#CCC"
+                                        />
+                                    ))}
                                 </View>
                                 {errors.otp ? <Text style={styles.errorText}>{errors.otp}</Text> : null}
                             </View>
+
+                            <TouchableOpacity
+                                style={styles.actionButton}
+                                activeOpacity={0.8}
+                                onPress={handleVerifyCode}
+                                disabled={loading}
+                            >
+                                {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.actionButtonText}>Verify Code</Text>}
+                            </TouchableOpacity>
+                            
+                            <TouchableOpacity 
+                                style={{marginTop: 15, alignItems: 'center'}}
+                                onPress={handleSendCode}
+                                disabled={loading}
+                            >
+                                <Text style={{color: '#666', fontSize: 14}}>Didn't receive a code? <Text style={{color: '#007AFF', fontWeight: 'bold'}}>Resend</Text></Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
+
+                    {step === 'reset' && (
+                        <View style={styles.form}>
+                            <Text style={styles.description}>
+                                Choose a strong new password for your account.
+                            </Text>
 
                             <View style={styles.inputWrapper}>
                                 <Text style={styles.label}>New Password</Text>
@@ -216,7 +308,7 @@ const ForgotPasswordScreen: React.FC = () => {
                                 onPress={handleResetPassword}
                                 disabled={loading}
                             >
-                                {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.actionButtonText}>Reset Password</Text>}
+                                {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.actionButtonText}>Update Password</Text>}
                             </TouchableOpacity>
                         </View>
                     )}
@@ -328,6 +420,32 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontSize: 18,
         fontWeight: 'bold',
+    },
+    otpContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginTop: 10,
+        marginBottom: 10,
+    },
+    otpInput: {
+        width: (Dimensions.get('window').width - 80) / 6,
+        height: 56,
+        borderWidth: 1,
+        borderColor: '#E0E0E0',
+        borderRadius: 12,
+        fontSize: 20,
+        fontWeight: 'bold',
+        textAlign: 'center',
+        backgroundColor: '#FAFAFA',
+        color: '#333',
+    },
+    otpInputError: {
+        borderColor: '#FF3B30',
+        backgroundColor: '#FFF9F9',
+    },
+    otpInputFilled: {
+        borderColor: '#1972ca',
+        backgroundColor: '#FFFFFF',
     },
 });
 

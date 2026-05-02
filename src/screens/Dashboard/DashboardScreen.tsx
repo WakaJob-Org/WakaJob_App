@@ -44,152 +44,10 @@ interface JobType {
     phone: string;
     postedAt: string;
     imageUrl?: string;
-    localImage?: keyof typeof JOB_IMAGES;
     tags?: string[];
     hasApprentice?: boolean;
     requirements?: string[];
 }
-
-const JOB_IMAGES = {
-    carpentry: require('../../../assets/images/jobs/carpentry.png'),
-    welding: require('../../../assets/images/jobs/welding.png'),
-    masonry: require('../../../assets/images/jobs/masonry.png'),
-    tailoring: require('../../../assets/images/jobs/tailoring.png'),
-    mechanic: require('../../../assets/images/jobs/mechanic.png'),
-    salon: require('../../../assets/images/jobs/salon.png'),
-    farming: require('../../../assets/images/jobs/farming.png'),
-};
-
-const MOCK_JOBS: JobType[] = [
-    {
-        id: 'mock-1',
-        title: 'Senior Hair Stylist',
-        company: 'Glamour Beauty Salon',
-        location: 'Akwa, Douala',
-        salary: '15,000 - 30,000 FCFA',
-        type: 'Full-time',
-        description: "Professional braiding, weaving, and modern hair treatments in a high-end environment.",
-        category: 'Salon',
-        email: 'glamour@wakajob.com',
-        phone: '+237 600 000 777',
-        postedAt: new Date().toISOString(),
-        localImage: 'salon',
-        tags: ['Full-time', 'Commission', 'Premium'],
-        hasApprentice: true,
-    },
-    {
-        id: 'mock-2',
-        title: 'Modern Farm Manager',
-        company: 'Green Fields Agri',
-        location: 'Santa, NW Region',
-        salary: '45,000 - 80,000 FCFA',
-        type: 'Permanent',
-        description: "Overseeing sustainable crop production and managing a team of community farmers.",
-        category: 'Farming',
-        email: 'green@wakajob.com',
-        phone: '+237 600 000 888',
-        postedAt: new Date().toISOString(),
-        localImage: 'farming',
-        tags: ['Management', 'Outdoor', 'Housing provided'],
-        hasApprentice: false,
-    },
-    {
-        id: 'mock-3',
-        title: 'Custom Furniture Maker',
-        company: 'Nkwen Craft Studio',
-        location: 'mile 6 nkwen, Bamenda',
-        salary: '25,000 - 45,000 FCFA',
-        type: 'Full-time',
-        description: "Expert furniture making and custom carpentry for residential projects.",
-        category: 'Carpentry',
-        email: 'carpentry@wakajob.com',
-        phone: '+237 600 000 001',
-        postedAt: new Date().toISOString(),
-        localImage: 'carpentry',
-        tags: ['Full-time', 'Mon-fri', 'work-in'],
-        hasApprentice: true,
-    },
-    {
-        id: 'mock-4',
-        title: 'Metal Gate Specialist',
-        company: 'Elite Iron Works',
-        location: 'Bamenda Central',
-        salary: '30,000 - 55,000 FCFA',
-        type: 'Contract',
-        description: "Specialized in gate construction and decorative structural steel.",
-        category: 'Welding',
-        email: 'welding@wakajob.com',
-        phone: '+237 600 000 002',
-        postedAt: new Date().toISOString(),
-        localImage: 'welding',
-        tags: ['Expert', 'Safety-first', 'Insured'],
-        hasApprentice: true,
-    },
-    {
-        id: 'mock-5',
-        title: 'Fashion Tailor',
-        company: 'Threads of Bamenda',
-        location: 'Commercial Avenue',
-        salary: '20,000 - 35,000 FCFA',
-        type: 'Full-time',
-        description: "Creating premium traditional and modern attire with a focus on finish.",
-        category: 'Tailoring',
-        email: 'fashion@wakajob.com',
-        phone: '+237 600 000 004',
-        postedAt: new Date().toISOString(),
-        localImage: 'tailoring',
-        tags: ['Creative', 'Indoor', 'Apprentice ok'],
-        hasApprentice: true,
-    },
-    {
-        id: 'mock-6',
-        title: 'Expert Mechanic',
-        company: 'Metro Auto Care',
-        location: 'Bonaberi, Douala',
-        salary: '35,000 - 60,000 FCFA',
-        type: 'Full-time',
-        description: "Engine diagnostics and general mechanical repairs for luxury cars.",
-        category: 'Mechanics',
-        email: 'garage@wakajob.com',
-        phone: '+237 600 000 005',
-        postedAt: new Date().toISOString(),
-        localImage: 'mechanic',
-        tags: ['Full-time', 'Morning', 'Tools provided'],
-        hasApprentice: true,
-    },
-    {
-        id: 'mock-7',
-        title: 'Construction Mason',
-        company: 'Royal Construction',
-        location: 'Bastos, Yaoundé',
-        salary: '40,000 - 75,000 FCFA',
-        type: 'Full-time',
-        description: "High-end bricklaying and architectural concrete work.",
-        category: 'Construction',
-        email: 'build@wakajob.com',
-        phone: '+237 600 000 111',
-        postedAt: new Date().toISOString(),
-        localImage: 'masonry',
-        tags: ['Skilled', 'Hard-work', 'Health-plan'],
-        hasApprentice: false,
-    },
-    {
-        id: 'mock-8',
-        title: 'Bridal Gown Specialist',
-        company: 'Victoria Fashion',
-        location: 'Molyko, Buea',
-        salary: '30,000 - 50,000 FCFA',
-        type: 'Full-time',
-        description: "High-end bridal and formal wear design and production.",
-        category: 'Tailoring',
-        email: 'victoria@wakajob.com',
-        phone: '+237 600 000 222',
-        postedAt: new Date().toISOString(),
-        localImage: 'tailoring',
-        tags: ['Premium', 'High-end', 'Details'],
-        hasApprentice: true,
-    }
-];
 
 import DashboardSkeleton from '../../components/DashboardSkeleton';
 
@@ -201,6 +59,7 @@ const DashboardScreen: React.FC = () => {
     useFocusEffect(
         React.useCallback(() => {
             refreshUser();
+            fetchJobs(); // Ensure jobs are refreshed when screen is focused
             return () => {};
         }, [])
     );
@@ -222,8 +81,6 @@ const DashboardScreen: React.FC = () => {
     
     const insets = useSafeAreaInsets();
     const [searchQuery, setSearchQuery] = useState('');
-    const [selectedJob, setSelectedJob] = useState<JobType | null>(null);
-    const [showDetails, setShowDetails] = useState(false);
     const [savedJobsList, setSavedJobsList] = useState<string[]>([]);
     const [allJobs, setAllJobs] = useState<JobType[]>([]);
     const [filteredJobs, setFilteredJobs] = useState<JobType[]>([]);
@@ -235,15 +92,17 @@ const DashboardScreen: React.FC = () => {
     const [selectedLocation, setSelectedLocation] = useState('');
     const [customLocation, setCustomLocation] = useState('');
     
-    // Debounced search query (500ms delay)
+    // Debounced search and location (500ms delay)
     const [debouncedSearch, setDebouncedSearch] = useState('');
+    const [debouncedLocation, setDebouncedLocation] = useState('');
 
     useEffect(() => {
         const handler = setTimeout(() => {
             setDebouncedSearch(searchQuery);
+            setDebouncedLocation(customLocation);
         }, 500);
         return () => clearTimeout(handler);
-    }, [searchQuery]);
+    }, [searchQuery, customLocation]);
 
     const BAMENDA_LOCATIONS = [
         'Molyko, Buea',
@@ -293,64 +152,50 @@ const DashboardScreen: React.FC = () => {
     const displayName = profile?.full_name || user?.full_name || 'User';
     const avatarInitials = getInitials(displayName);
 
-    const fetchJobs = async (isRefreshing = false) => {
+    const fetchJobs = async (isRefreshing = false, showSkeleton = false) => {
         try {
-            if (!isRefreshing) setLoading(true);
+            if (showSkeleton) setLoading(true);
             
             // Prepare Query Params
             const apiParams: any = {};
             if (debouncedSearch.trim()) apiParams.search = debouncedSearch;
             
-            const locationToUse = selectedLocation === 'Custom' ? customLocation : selectedLocation;
+            const locationToUse = selectedLocation === 'Custom' ? debouncedLocation : selectedLocation;
             if (locationToUse.trim()) apiParams.location = locationToUse;
 
             const fetchedJobs = await jobService.getJobs(apiParams);
 
             const mappedJobs: JobType[] = fetchedJobs.map(job => {
                 const category = (job.category || '').toLowerCase();
-                const title = job.position_vacant || job.category || 'Professional Trade';
+                const title = job.title || job.position_vacant || job.category || 'Professional Trade';
                 
-                let localImage: keyof typeof JOB_IMAGES | undefined;
-
-                if (category.includes('carpent')) localImage = 'carpentry';
-                else if (category.includes('weld')) localImage = 'welding';
-                else if (category.includes('mason') || category.includes('construct')) localImage = 'masonry';
-                else if (category.includes('fashion') || category.includes('tailor')) localImage = 'tailoring';
-                else if (category.includes('mechanic')) localImage = 'mechanic';
-                else if (category.includes('salon') || category.includes('hair') || category.includes('beauty')) localImage = 'salon';
-                else if (category.includes('farm') || category.includes('agri')) localImage = 'farming';
-                else {
-                    // Custom hash for string id to ensure stable variety even for unknown categories
-                    const fallbacks: (keyof typeof JOB_IMAGES)[] = ['carpentry', 'welding', 'masonry', 'tailoring', 'mechanic', 'salon', 'farming'];
-                    const hash = job.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-                    localImage = fallbacks[hash % fallbacks.length];
-                }
-
                 return {
                     id: job.id,
                     title: title,
-                    company: `${job.category || 'General'} Services Ltd`,
-                    location: job.location || 'Cameroon',
+                    company: job.employer_name || 'Private Employer',
+                    location: job.location || 'Not specified',
                     salary: job.salary || 'Competitive',
                     type: job.job_type || 'Full-time',
                     description: job.description,
                     category: job.category,
-                    email: 'support@wakajob.com',
-                    phone: 'N/A',
+                    email: job.employer_email || '',
+                    phone: job.employer_phone || '',
                     postedAt: job.created_at,
-                    localImage: localImage,
+                    imageUrl: job.image_url || job.job_image,
                     requirements: job.qualifications ? job.qualifications.split(',') : []
                 };
             });
 
-            const finalJobs = mappedJobs.length > 0 ? [...mappedJobs, ...MOCK_JOBS] : MOCK_JOBS;
-            setAllJobs(finalJobs);
-            setFilteredJobs(finalJobs);
+            // Filter: Only show jobs that have an uploaded image
+            const jobsWithImages = mappedJobs.filter(job => !!job.imageUrl);
+
+            setAllJobs(jobsWithImages);
+            setFilteredJobs(jobsWithImages);
         } catch (error) {
             console.error('Error fetching jobs:', error);
             if (!isRefreshing) {
-                setAllJobs(MOCK_JOBS);
-                setFilteredJobs(MOCK_JOBS);
+                setAllJobs([]);
+                setFilteredJobs([]);
             }
         } finally {
             setLoading(false);
@@ -359,8 +204,10 @@ const DashboardScreen: React.FC = () => {
     };
 
     useEffect(() => {
-        fetchJobs();
-    }, [debouncedSearch, selectedLocation, customLocation]);
+        // Initial load shows skeleton, subsequent filter updates don't (smoother UX)
+        const isInitialLoad = allJobs.length === 0 && !debouncedSearch && !selectedLocation && !debouncedLocation;
+        fetchJobs(false, isInitialLoad);
+    }, [debouncedSearch, selectedLocation, debouncedLocation]);
 
     const onRefresh = React.useCallback(async () => {
         setRefreshing(true);
@@ -391,16 +238,6 @@ const DashboardScreen: React.FC = () => {
     }, [searchQuery, allJobs]);
 
     if (loading) return <DashboardSkeleton />;
-
-    const handleJobPress = (job: JobType) => {
-        setSelectedJob(job);
-        setShowDetails(true);
-    };
-
-    const handleApply = () => {
-        Alert.alert("Success", "Application sent successfully!");
-        setShowDetails(false);
-    };
 
     const handleSaveJob = async (jobId: string) => {
         try {
@@ -435,11 +272,13 @@ const DashboardScreen: React.FC = () => {
         const isExpanded = expandedJobId === item.id;
 
         return (
-            <View style={styles.jobCard}>
+            <TouchableOpacity 
+                style={styles.jobCard} 
+                activeOpacity={0.9} 
+                onPress={() => navigation.navigate('JobDetails', { job: item, isSaved: isJobSaved(item.id) })}
+            >
                 <View style={styles.imageContainer}>
-                    {item.localImage ? (
-                        <Image source={JOB_IMAGES[item.localImage]} style={styles.jobImage} />
-                    ) : item.imageUrl ? (
+                    {item.imageUrl ? (
                         <Image source={{ uri: item.imageUrl }} style={styles.jobImage} />
                     ) : (
                         <View style={[styles.jobImage, styles.placeholderImage]}>
@@ -465,11 +304,21 @@ const DashboardScreen: React.FC = () => {
                 <View style={styles.cardBody}>
                     <Text style={styles.jobTitleText} numberOfLines={1}>{item.title}</Text>
                     <Text style={styles.companySubText} numberOfLines={1}>{item.company}</Text>
-                    <Text style={styles.locationText} numberOfLines={1}>Location: {item.location}</Text>
+                    
+                    <View style={styles.cardDetailsRow}>
+                        <View style={styles.cardDetailItem}>
+                            <Ionicons name="location-outline" size={14} color="#64748B" />
+                            <Text style={styles.cardDetailText} numberOfLines={1}>{item.location}</Text>
+                        </View>
+                        <View style={styles.cardDetailItem}>
+                            <Ionicons name="wallet-outline" size={14} color="#64748B" />
+                            <Text style={styles.cardDetailText} numberOfLines={1}>{item.salary}</Text>
+                        </View>
+                    </View>
 
                     {/* Tags */}
                     <View style={styles.tagRow}>
-                        {(item.tags || [item.type, 'Mon-fri', 'work-in']).map((tag, idx) => (
+                        {[item.type, item.category, ...(item.tags || [])].filter(Boolean).map((tag, idx) => (
                             <View key={idx} style={[styles.tag, idx === 0 ? styles.activeTag : null]}>
                                 <Text style={[styles.tagText, idx === 0 ? styles.activeTagText : null]}>{tag}</Text>
                             </View>
@@ -478,9 +327,9 @@ const DashboardScreen: React.FC = () => {
 
                     {/* Action Row */}
                     <View style={styles.actionRow}>
-                        <TouchableOpacity style={styles.mainApplyBtn} onPress={() => handleJobPress(item)}>
-                            <Text style={styles.mainApplyBtnText}>Apply Now</Text>
-                        </TouchableOpacity>
+                        <View style={styles.mainApplyBtn}>
+                            <Text style={styles.mainApplyBtnText}>View Details</Text>
+                        </View>
                         <TouchableOpacity 
                             style={styles.dropdownBtn}
                             onPress={() => setExpandedJobId(isExpanded ? null : item.id)}
@@ -505,7 +354,7 @@ const DashboardScreen: React.FC = () => {
                         </View>
                     )}
                 </View>
-            </View>
+            </TouchableOpacity>
         );
     };
 
@@ -541,16 +390,6 @@ const DashboardScreen: React.FC = () => {
                         <View style={{ flex: 1 }}>
                             <Text style={styles.welcomeTitle}>Available Jobs</Text>
                             <Text style={styles.welcomeDesc}>Based on your location and preferences</Text>
-                        </View>
-                        <View style={styles.quickActions}>
-                            <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('CreateJob')}>
-                                <Ionicons name="add-circle" size={20} color="#FFFFFF" />
-                                <Text style={styles.actionBtnText}>Post Job</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={[styles.actionBtn, styles.actionBtnOutline]} onPress={() => navigation.navigate('Applications')}>
-                                <Ionicons name="people" size={20} color="#1972ca" />
-                                <Text style={[styles.actionBtnText, styles.actionBtnTextOutline]}>Apps</Text>
-                            </TouchableOpacity>
                         </View>
                     </View>
                 </View>
@@ -655,56 +494,7 @@ const DashboardScreen: React.FC = () => {
                 }
             />
 
-            <Modal visible={!!showDetails} animationType="slide" transparent={true}>
-                <View style={styles.modalBg}>
-                    <View style={styles.modalContent}>
-                        <SafeAreaView style={styles.modalHeader}>
-                            <TouchableOpacity onPress={() => setShowDetails(false)} style={styles.closeBtn}>
-                                <Ionicons name="close" size={24} color="#333" />
-                            </TouchableOpacity>
-                            <Text style={styles.modalTitle}>Job Details</Text>
-                            <View style={{ width: 40 }} />
-                        </SafeAreaView>
-
-                        <ScrollView style={styles.modalBody}>
-                            {selectedJob && (
-                                <>
-                                    <View style={styles.modalHeaderInfo}>
-                                        <View style={[styles.modalIcon, { backgroundColor: getCompanyColor(selectedJob.company.charAt(0)) }]}>
-                                            <Text style={styles.modalIconText}>{selectedJob.company.charAt(0)}</Text>
-                                        </View>
-                                        <View>
-                                            <Text style={styles.modalJobTitle}>{selectedJob.title}</Text>
-                                            <Text style={styles.modalCompany}>{selectedJob.company}</Text>
-                                        </View>
-                                    </View>
-
-                                    <View style={styles.modalSpecBox}>
-                                        <Text style={styles.modalSpecText}><Ionicons name="location" size={14} /> {selectedJob.location}</Text>
-                                        <Text style={styles.modalSpecText}><Ionicons name="time" size={14} /> {selectedJob.type}</Text>
-                                        <Text style={styles.modalSpecText}><Ionicons name="cash" size={14} /> {selectedJob.salary}</Text>
-                                    </View>
-
-                                    <Text style={styles.sectionTitle}>Description</Text>
-                                    <Text style={styles.sectionContent}>{selectedJob.description}</Text>
-
-                                    <Text style={styles.sectionTitle}>Contact</Text>
-                                    <Text style={styles.sectionContent}>{selectedJob.email}</Text>
-                                    <Text style={styles.sectionContent}>{selectedJob.phone}</Text>
-                                </>
-                            )}
-                        </ScrollView>
-
-                        <View style={styles.modalFooter}>
-                            <TouchableOpacity style={styles.modalApplyBtn} onPress={handleApply}>
-                                <Text style={styles.modalApplyBtnText}>Apply Now</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                </View>
-            </Modal>
-
-            {user?.role === 'employer' && (
+            {user?.role === 'employer' && (user?.is_verified || user?.verification_status === 'approved') && (
                 <TouchableOpacity
                     style={styles.fab}
                     onPress={handleFabPress}
@@ -873,12 +663,22 @@ const styles = StyleSheet.create({
     companySubText: {
         fontSize: 14,
         color: '#9BA4B1',
-        marginBottom: 4,
+        marginBottom: 10,
     },
-    locationText: {
-        fontSize: 14,
-        color: '#9BA4B1',
+    cardDetailsRow: {
+        flexDirection: 'row',
+        gap: 15,
         marginBottom: 16,
+    },
+    cardDetailItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        flex: 1,
+    },
+    cardDetailText: {
+        fontSize: 13,
+        color: '#64748B',
     },
     tagRow: {
         flexDirection: 'row',

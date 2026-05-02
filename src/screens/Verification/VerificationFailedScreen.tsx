@@ -10,6 +10,7 @@ import {
     Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import authService from '../../services/authService';
 
 interface VerificationFailedScreenProps {
@@ -190,12 +191,18 @@ const illustrationStyles = StyleSheet.create({
     },
 });
 
+import { useRoute, useNavigation } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 
 const VerificationFailedScreen: React.FC = () => {
     const { user } = useAuth();
     const insets = useSafeAreaInsets();
+    const route = useRoute<any>();
+    const navigation = useNavigation<any>();
     const [profile, setProfile] = useState<any>(user);
+    
+    // Get the rejection reason from the navigation params
+    const rejectionReason = route.params?.reason || profile?.rejection_reason || "No specific reason provided.";
 
     useEffect(() => {
         const loadProfile = async () => {
@@ -217,81 +224,42 @@ const VerificationFailedScreen: React.FC = () => {
             .map((n: string) => n.charAt(0).toUpperCase())
             .slice(0, 2)
             .join('')
-        : 'FW';
-
-    const handleContactSupport = () => {
-        const email = 'wakajob@gmail.com';
-        const subject = 'Account Verification Issue';
-        const body =
-            'Hello WakaJob Support,\n\nI am having trouble verifying my account. Please assist me.\n\nThank you.';
-        const mailtoUrl = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-
-        Linking.canOpenURL(mailtoUrl)
-            .then((supported) => {
-                if (supported) {
-                    Linking.openURL(mailtoUrl);
-                } else {
-                    Alert.alert(
-                        'Contact Support',
-                        `Please send an email to ${email} for assistance with your account verification.`,
-                        [{ text: 'OK' }]
-                    );
-                }
-            })
-            .catch(() => {
-                Alert.alert(
-                    'Contact Support',
-                    `Please send an email to ${email} for assistance with your account verification.`,
-                    [{ text: 'OK' }]
-                );
-            });
-    };
+        : 'U';
 
     return (
         <View style={styles.container}>
             {/* Header */}
             <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
                 <View style={styles.headerContent}>
+                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+                        <Ionicons name="arrow-back" size={24} color="#1972ca" />
+                    </TouchableOpacity>
                     <View style={styles.logoRow}>
                         <Text style={styles.logoText}>WakaJob</Text>
                     </View>
-
-                    <TouchableOpacity style={styles.avatar}>
-                        {profile?.profile_photo ? (
-                            <Image source={{ uri: profile.profile_photo }} style={styles.avatarImage} />
-                        ) : (
-                            <View style={styles.avatarInner}>
-                                <Text style={styles.avatarChar}>{avatarInitials}</Text>
-                            </View>
-                        )}
-                    </TouchableOpacity>
+                    <View style={{ width: 40 }} />
                 </View>
             </View>
 
             {/* Center Content */}
             <View style={styles.centerContent}>
-                {/* Illustration */}
                 <View style={styles.illustrationContainer}>
                     <VerificationIllustration />
                 </View>
 
-                {/* Title */}
-                <Text style={styles.title}>Verification Failed</Text>
+                <Text style={styles.title}>Verification Rejected</Text>
 
-                {/* Description */}
-                <Text style={styles.description}>
-                    Unfortunately we were unable to verify your{'\n'}
-                    account. please contact us via email{'\n'}
-                    at wakajob@gmail.com
-                </Text>
+                <View style={styles.reasonBox}>
+                    <Text style={styles.reasonLabel}>Reason for rejection:</Text>
+                    <Text style={styles.reasonText}>"{rejectionReason}"</Text>
+                </View>
 
-                {/* Contact Support Button */}
                 <TouchableOpacity
-                    style={styles.contactButton}
-                    onPress={handleContactSupport}
+                    style={styles.resubmitButton}
+                    onPress={() => navigation.navigate('EmployerVerification')}
                     activeOpacity={0.8}
                 >
-                    <Text style={styles.contactButtonText}>Contact Support</Text>
+                    <Text style={styles.resubmitButtonText}>Resubmit Verification</Text>
                 </TouchableOpacity>
             </View>
         </View>
@@ -314,6 +282,9 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingVertical: 10,
     },
+    headerIconButton: {
+        padding: 5,
+    },
     logoRow: {
         flexDirection: 'row',
         alignItems: 'flex-start',
@@ -323,67 +294,81 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         color: '#1972ca',
     },
-    avatar: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        overflow: 'hidden',
-        backgroundColor: '#F3F4F6',
-    },
-    avatarImage: {
-        width: '100%',
-        height: '100%',
-    },
-    avatarInner: {
-        width: '100%',
-        height: '100%',
-        backgroundColor: '#A8B8C8',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    avatarChar: {
-        color: '#FFFFFF',
-        fontWeight: '600',
-        fontSize: 14,
-    },
     centerContent: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        paddingHorizontal: 40,
-        marginTop: -40,
+        paddingHorizontal: 30,
+        marginTop: -20,
     },
     illustrationContainer: {
-        marginBottom: 30,
+        marginBottom: 20,
         alignItems: 'center',
-        justifyContent: 'center',
     },
     title: {
-        fontSize: 22,
+        fontSize: 24,
         fontWeight: 'bold',
         color: '#1F2937',
         textAlign: 'center',
-        marginBottom: 16,
+        marginBottom: 10,
+    },
+    reasonBox: {
+        backgroundColor: '#FFF1F2',
+        borderWidth: 1,
+        borderColor: '#FECDD3',
+        borderRadius: 16,
+        padding: 20,
+        width: '100%',
+        marginBottom: 20,
+    },
+    reasonLabel: {
+        fontSize: 12,
+        fontWeight: 'bold',
+        color: '#E11D48',
+        textTransform: 'uppercase',
+        letterSpacing: 1,
+        marginBottom: 8,
+    },
+    reasonText: {
+        fontSize: 15,
+        color: '#1F2937',
+        lineHeight: 22,
+        fontStyle: 'italic',
     },
     description: {
-        fontSize: 15,
-        color: '#9CA3AF',
+        fontSize: 14,
+        color: '#6B7280',
         textAlign: 'center',
-        lineHeight: 22,
+        lineHeight: 20,
         marginBottom: 30,
     },
-    contactButton: {
-        backgroundColor: '#2E86DE',
+    resubmitButton: {
+        backgroundColor: '#1972ca',
         paddingHorizontal: 40,
-        paddingVertical: 16,
-        borderRadius: 12,
-        minWidth: 200,
+        paddingVertical: 18,
+        borderRadius: 16,
+        width: '100%',
         alignItems: 'center',
+        shadowColor: '#1972ca',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+        elevation: 6,
     },
-    contactButtonText: {
+    resubmitButtonText: {
         color: '#FFFFFF',
         fontSize: 16,
         fontWeight: 'bold',
+    },
+    contactButton: {
+        marginTop: 20,
+        padding: 10,
+    },
+    contactButtonText: {
+        color: '#64748B',
+        fontSize: 14,
+        fontWeight: '600',
+        textDecorationLine: 'underline',
     },
 });
 

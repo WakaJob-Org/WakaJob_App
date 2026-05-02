@@ -76,7 +76,7 @@ const EmployerDashboardScreen: React.FC<EmployerDashboardScreenProps> = ({
                     <Ionicons name="briefcase" size={24} color="#1972ca" />
                 </View>
                 <View style={styles.jobInfo}>
-                    <Text style={styles.jobTitle}>{item.position_vacant}</Text>
+                    <Text style={styles.jobTitle}>{item.title || item.position_vacant}</Text>
                     <Text style={styles.jobCategory}>{item.category} • {item.job_type}</Text>
                 </View>
                 <TouchableOpacity style={styles.editBtn}>

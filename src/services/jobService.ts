@@ -14,21 +14,22 @@ export interface Job {
     category: string;
     is_active: boolean;
     created_at: string;
+    image_url?: string;
+    job_image?: string;
 }
 
 export interface CreateJobData {
-    employer_id: string;
-    position_vacant: string;
+    title: string;
     description: string;
     location: string;
-    salary?: string;
-    category?: string;
-    job_type: 'full-time' | 'part-time' | 'contract' | 'freelance';
-    qualifications?: string;
+    category: string;
+    payment_rate?: string;
+    requires_cv?: boolean;
+    requires_cover_letter?: boolean;
+    job_image?: any;
     image_url?: string;
-    images?: string[];
-    screening_questions?: string[];
-    is_apprentice?: boolean;
+    job_type?: string;
+    employer_id?: string;
 }
 
 const jobService = {
@@ -57,12 +58,15 @@ const jobService = {
         }
     },
 
-    createJob: async (data: CreateJobData) => {
+    createJob: async (data: any) => {
         try {
+            // Most modern backends handle both JSON and FormData. 
+            // We'll send the data as provided, and api.ts will handle the headers.
             const response = await api.post<Job>('/jobs', data);
             return response.data;
         } catch (error: any) {
-            throw error.response?.data?.message || 'Failed to post job';
+            console.error('Job creation error:', error.response?.data || error.message);
+            throw error.response?.data?.message || error.message || 'Failed to post job';
         }
     },
 

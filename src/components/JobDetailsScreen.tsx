@@ -7,44 +7,76 @@ import {
     ScrollView,
     Modal,
     Dimensions,
+    Image,
+    ActivityIndicator,
+    SafeAreaView,
+    Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
+import { useRoute, useNavigation } from '@react-navigation/native';
+import jobService from '../services/jobService';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-interface JobDetailsScreenProps {
-    isVisible: boolean;
-    job: any;
-    onClose: () => void;
-    onApply: () => void;
-}
+const JobDetailsScreen: React.FC = () => {
+    const route = useRoute<any>();
+    const navigation = useNavigation<any>();
+    const { job, isSaved: initialIsSaved } = route.params || {};
 
-const JobDetailsScreen: React.FC<JobDetailsScreenProps> = ({ isVisible, job, onClose, onApply }) => {
+    const [isSaved, setIsSaved] = useState(initialIsSaved || false);
+    const [isApplying, setIsApplying] = useState(false);
+
     if (!job) return null;
 
+    const handleSave = async () => {
+        try {
+            setIsSaved(!isSaved); // Optimistic UI
+            await jobService.saveJob(job.id);
+        } catch (error) {
+            setIsSaved(isSaved); // Revert on failure
+            Alert.alert("Error", "Failed to save job.");
+        }
+    };
+
+    const handleApply = async () => {
+        try {
+            setIsApplying(true);
+            await jobService.applyToJob(job.id);
+            Alert.alert("Success", "Application sent successfully!");
+        } catch (error: any) {
+            Alert.alert("Error", error || "Failed to apply for the job.");
+        } finally {
+            setIsApplying(false);
+        }
+    };
+
     return (
-        <Modal
-            visible={isVisible}
-            animationType="slide"
-            transparent={false}
-            onRequestClose={onClose}
-        >
-            <View style={styles.container}>
+        <SafeAreaView style={styles.container}>
                 <View style={styles.header}>
-                    <TouchableOpacity onPress={onClose} style={styles.backButton}>
+                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                         <Ionicons name="chevron-back" size={24} color="#333" />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>Job Details</Text>
-                    <TouchableOpacity style={styles.bookmarkButton}>
-                        <Ionicons name="bookmark-outline" size={24} color="#333" />
+                    <TouchableOpacity style={styles.bookmarkButton} onPress={handleSave}>
+                        <Ionicons 
+                            name={isSaved ? "bookmark" : "bookmark-outline"} 
+                            size={24} 
+                            color={isSaved ? "#1972ca" : "#333"} 
+                        />
                     </TouchableOpacity>
                 </View>
 
                 <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
                     <View style={styles.companySection}>
                         <View style={styles.logoContainer}>
-                            <Ionicons name="briefcase" size={40} color="#1972ca" />
+                            {job.imageUrl || job.image_url ? (
+                                <Image 
+                                    source={{ uri: job.imageUrl || job.image_url }} 
+                                    style={styles.logoImage} 
+                                />
+                            ) : (
+                                <Ionicons name="briefcase" size={40} color="#1972ca" />
+                            )}
                         </View>
                         <Text style={styles.jobTitleText}>{job.title}</Text>
                         <Text style={styles.companyNameText}>{job.company}</Text>
@@ -97,12 +129,19 @@ const JobDetailsScreen: React.FC<JobDetailsScreenProps> = ({ isVisible, job, onC
                 </ScrollView>
 
                 <View style={styles.footer}>
-                    <TouchableOpacity style={styles.applyButton} onPress={onApply}>
-                        <Text style={styles.applyButtonText}>Apply Now</Text>
+                    <TouchableOpacity 
+                        style={[styles.applyButton, isApplying && styles.applyButtonDisabled]} 
+                        onPress={handleApply}
+                        disabled={isApplying}
+                    >
+                        {isApplying ? (
+                            <ActivityIndicator color="#FFF" />
+                        ) : (
+                            <Text style={styles.applyButtonText}>Apply Now</Text>
+                        )}
                     </TouchableOpacity>
                 </View>
-            </View>
-        </Modal>
+        </SafeAreaView>
     );
 };
 
@@ -158,6 +197,12 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         marginBottom: 20,
+        overflow: 'hidden',
+    },
+    logoImage: {
+        width: '100%',
+        height: '100%',
+        resizeMode: 'cover',
     },
     jobTitleText: {
         fontSize: 22,
@@ -272,6 +317,9 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontSize: 16,
         fontWeight: 'bold',
+    },
+    applyButtonDisabled: {
+        opacity: 0.7,
     },
 });
 
