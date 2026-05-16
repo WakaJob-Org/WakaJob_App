@@ -1,4 +1,5 @@
 import api from './api';
+import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { jwtDecode } from 'jwt-decode';
 
@@ -70,9 +71,26 @@ const jobService = {
         }
     },
 
-    applyToJob: async (jobId: string) => {
+    applyToJob: async (jobId: string, data?: { intro_text?: string; voice_note_uri?: string; application_type?: 'professional' | 'apprentice' }) => {
         try {
-            const response = await api.post(`/applications`, { jobId });
+            const formData = new FormData();
+            formData.append('job_id', jobId);
+            
+            if (data?.intro_text) formData.append('intro_text', data.intro_text);
+            if (data?.application_type) formData.append('application_type', data.application_type);
+            
+            if (data?.voice_note_uri) {
+                const filename = data.voice_note_uri.split('/').pop() || 'voice_note.m4a';
+                formData.append('voice_note', {
+                    uri: Platform.OS === 'ios' ? data.voice_note_uri.replace('file://', '') : data.voice_note_uri,
+                    name: filename,
+                    type: 'audio/m4a',
+                } as any);
+            }
+
+            const response = await api.post(`/applications`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
             return response.data;
         } catch (error: any) {
             throw error.response?.data?.message || 'Failed to apply for job';

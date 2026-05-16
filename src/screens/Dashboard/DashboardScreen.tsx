@@ -25,6 +25,7 @@ import jobService, { Job } from '../../services/jobService';
 import authService from '../../services/authService';
 import { useAuth } from '../../context/AuthContext';
 import { AppStackParamList, MainTabParamList } from '../../navigation/types';
+import ApplyModal from '../../components/ApplyModal';
 
 type DashboardNavigationProp = CompositeNavigationProp<
     BottomTabNavigationProp<MainTabParamList, 'Jobs'>,
@@ -91,6 +92,9 @@ const DashboardScreen: React.FC = () => {
     const [showFilterDropdown, setShowFilterDropdown] = useState(false);
     const [selectedLocation, setSelectedLocation] = useState('');
     const [customLocation, setCustomLocation] = useState('');
+    const [showApplyModal, setShowApplyModal] = useState(false);
+    const [applyingJob, setApplyingJob] = useState<JobType | null>(null);
+    const [defaultAppType, setDefaultAppType] = useState<'professional' | 'apprentice'>('professional');
     
     // Debounced search and location (500ms delay)
     const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -344,7 +348,9 @@ const DashboardScreen: React.FC = () => {
                             <TouchableOpacity 
                                 style={styles.apprenticeOption}
                                 onPress={() => {
-                                    Alert.alert("Apprenticeship", "You are applying as an apprentice for this position.");
+                                    setApplyingJob(item);
+                                    setDefaultAppType('apprentice');
+                                    setShowApplyModal(true);
                                     setExpandedJobId(null);
                                 }}
                             >
@@ -513,6 +519,23 @@ const DashboardScreen: React.FC = () => {
                     <Text style={styles.toastText}>{toastMessage}</Text>
                 </View>
             </Animated.View>
+
+            {applyingJob && (
+                <ApplyModal 
+                    visible={showApplyModal}
+                    onClose={() => setShowApplyModal(false)}
+                    initialApplicationType={defaultAppType}
+                    onApply={async (data) => {
+                        try {
+                            await jobService.applyToJob(applyingJob.id, data);
+                            showToast("Application sent successfully!");
+                        } catch (error: any) {
+                            Alert.alert("Error", error || "Failed to apply.");
+                        }
+                    }}
+                    jobTitle={applyingJob.title}
+                />
+            )}
         </View>
     );
 };
