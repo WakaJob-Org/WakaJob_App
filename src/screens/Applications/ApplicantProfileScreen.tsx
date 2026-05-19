@@ -53,6 +53,7 @@ interface ApplicantProfileScreenProps {
     onMessage?: () => void;
     onCall?: () => void;
     onShortlist?: () => void;
+    onDecline?: () => void;
     onHire?: (details: HireDetails) => void;
 }
 
@@ -178,6 +179,7 @@ const ApplicantProfileScreen: React.FC<ApplicantProfileScreenProps> = ({
     onMessage,
     onCall,
     onShortlist,
+    onDecline,
     onHire,
 }) => {
     const insets = useSafeAreaInsets();
@@ -217,6 +219,19 @@ const ApplicantProfileScreen: React.FC<ApplicantProfileScreenProps> = ({
     const handleShortlist = () => {
         if (onShortlist) { onShortlist(); return; }
         Alert.alert('Shortlisted', `${applicant.name} has been added to your shortlist.`);
+    };
+
+    const handleDecline = () => {
+        Alert.alert(
+            'Decline Application',
+            `Are you sure you want to pass on ${applicant.name}?`,
+            [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Decline', style: 'destructive', onPress: () => {
+                    if (onDecline) onDecline();
+                }}
+            ]
+        );
     };
 
     const handleConfirmHire = (details: { startDate: string; duration: string; rate: string }) => {
@@ -383,8 +398,8 @@ const ApplicantProfileScreen: React.FC<ApplicantProfileScreenProps> = ({
 
                 {/* ── Bottom Actions ── */}
                 <View style={[styles.bottomBar, { paddingBottom: insets.bottom > 0 ? insets.bottom : 16 }]}>
-                    <TouchableOpacity style={styles.shortlistBtn} activeOpacity={0.8} onPress={handleShortlist}>
-                        <Text style={styles.shortlistBtnText}>Shortlist</Text>
+                    <TouchableOpacity style={styles.declineBtn} activeOpacity={0.8} onPress={handleDecline}>
+                        <Text style={styles.declineBtnText}>Decline</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.hireBtn} activeOpacity={0.85} onPress={() => setHireSheetVisible(true)}>
                         <Text style={styles.hireBtnText}>Hire Now</Text>
@@ -903,19 +918,20 @@ const styles = StyleSheet.create({
         borderTopWidth: 1,
         borderTopColor: '#F3F4F6',
     },
-    shortlistBtn: {
+    declineBtn: {
         flex: 1,
         height: 52,
         borderRadius: 14,
         borderWidth: 1.5,
-        borderColor: '#1972ca',
+        borderColor: '#EF4444',
         justifyContent: 'center',
         alignItems: 'center',
+        backgroundColor: '#FEF2F2',
     },
-    shortlistBtnText: {
+    declineBtnText: {
         fontSize: 15,
         fontWeight: '700',
-        color: '#1972ca',
+        color: '#EF4444',
     },
     hireBtn: {
         flex: 1,

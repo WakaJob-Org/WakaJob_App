@@ -97,6 +97,15 @@ const jobService = {
         }
     },
 
+    updateApplicationStatus: async (applicationId: string, status: 'ACCEPTED' | 'REJECTED' | 'INTERVIEWING' | 'UNDER REVIEW') => {
+        try {
+            const response = await api.put(`/applications/${applicationId}/status`, { status });
+            return response.data;
+        } catch (error: any) {
+            throw error.response?.data?.message || 'Failed to update application status';
+        }
+    },
+
     saveJob: async (jobId: string) => {
         try {
             // Extract UUID from token to satisfy Supabase RLS policies
