@@ -15,14 +15,9 @@ import Animated, { FadeInDown, FadeInRight } from 'react-native-reanimated';
 
 const { width } = Dimensions.get('window');
 
-interface Notification {
-    id: string;
-    type: 'application_received' | 'application_accepted' | 'job_match' | 'profile_viewed' | 'message';
-    title: string;
-    description: string;
-    time: string;
-    isUnread: boolean;
-}
+import notificationService, { NotificationData } from '../../services/notificationService';
+
+type Notification = NotificationData;
 
 const MOCK_NOTIFICATIONS: Notification[] = [
     {
@@ -81,8 +76,28 @@ const NotificationsScreen: React.FC = () => {
     const navigation = useNavigation();
     const insets = useSafeAreaInsets();
     const [activeTab, setActiveTab] = useState('All');
-    const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS);
+    const [notifications, setNotifications] = useState<Notification[]>([]);
     const [refreshing, setRefreshing] = useState(false);
+    const [loading, setLoading] = useState(true);
+
+    const fetchNotifications = async () => {
+        try {
+            const data = await notificationService.getNotifications();
+            // If the backend is empty, you could fallback to MOCK_NOTIFICATIONS for demo purposes
+            // setNotifications(data.length > 0 ? data : MOCK_NOTIFICATIONS);
+            setNotifications(data.length > 0 ? data : MOCK_NOTIFICATIONS); // using mock fallback for now since backend might not have them
+        } catch (error) {
+            console.error('Error loading notifications:', error);
+            setNotifications(MOCK_NOTIFICATIONS); // Fallback on error
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+        }
+    };
+
+    React.useEffect(() => {
+        fetchNotifications();
+    }, []);
 
     const getIcon = (type: string) => {
         switch (type) {
@@ -95,20 +110,31 @@ const NotificationsScreen: React.FC = () => {
         }
     };
 
-    const handleMarkAllRead = () => {
+    const handleMarkAllRead = async () => {
+        // Optimistic update
         setNotifications(notifications.map(n => ({ ...n, isUnread: false })));
+        try {
+            await notificationService.markAllAsRead();
+        } catch (error) {
+            console.error(error);
+        }
     };
 
-    const handleNotificationPress = (id: string) => {
+    const handleNotificationPress = async (id: string) => {
+        // Optimistic update
         setNotifications(notifications.map(n => 
             n.id === id ? { ...n, isUnread: false } : n
         ));
+        try {
+            await notificationService.markAsRead(id);
+        } catch (error) {
+            console.error(error);
+        }
     };
 
     const onRefresh = () => {
         setRefreshing(true);
-        // Simulate loading
-        setTimeout(() => setRefreshing(false), 1500);
+        fetchNotifications();
     };
 
     const renderItem = ({ item, index }: { item: Notification, index: number }) => {
