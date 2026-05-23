@@ -238,6 +238,22 @@ const jobService = {
         }
     },
 
+    getJobApplicants: async (jobId: string) => {
+        try {
+            const response = await api.get(`/jobs/${jobId}/applications`);
+            const raw = response.data;
+            if (Array.isArray(raw)) return raw;
+            if (Array.isArray(raw?.applications)) return raw.applications;
+            if (Array.isArray(raw?.data)) return raw.data;
+            if (Array.isArray(raw?.results)) return raw.results;
+            console.warn(`Unexpected /jobs/${jobId}/applications response shape:`, typeof raw, raw);
+            return [];
+        } catch (error: any) {
+            console.error(`Failed to fetch applicants for job ${jobId}:`, error.response?.data?.message || error?.message);
+            return [];
+        }
+    },
+
     getSavedJobs: async (workerId?: string) => {
         try {
             const endpoint = workerId ? `/jobs/saved/${workerId}` : '/jobs/saved';
