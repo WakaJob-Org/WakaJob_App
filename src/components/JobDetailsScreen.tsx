@@ -16,6 +16,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import jobService from '../services/jobService';
 import authService from '../services/authService';
+import ApplyModal from './ApplyModal';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -32,6 +33,7 @@ const JobDetailsScreen: React.FC = () => {
         perks: [],
         requirements: []
     });
+    const [showApplyModal, setShowApplyModal] = useState(false);
 
     useEffect(() => {
         if (job) {
@@ -92,10 +94,10 @@ const JobDetailsScreen: React.FC = () => {
         });
     };
 
-    const handleApply = async () => {
+    const handleApply = async (data: { intro_text: string; application_type: 'professional' | 'apprentice' }) => {
         try {
             setIsApplying(true);
-            await jobService.applyToJob(job.id);
+            await jobService.applyToJob(job.id, data);
             Alert.alert("Success", "Application sent successfully!");
         } catch (error: any) {
             Alert.alert("Error", error || "Failed to apply.");
@@ -259,7 +261,7 @@ const JobDetailsScreen: React.FC = () => {
 
                 <TouchableOpacity 
                     style={[styles.applyBtn, isApplying && { opacity: 0.7 }]} 
-                    onPress={handleApply}
+                    onPress={() => setShowApplyModal(true)}
                     disabled={isApplying}
                 >
                     {isApplying ? (
@@ -269,6 +271,13 @@ const JobDetailsScreen: React.FC = () => {
                     )}
                 </TouchableOpacity>
             </View>
+
+            <ApplyModal 
+                visible={showApplyModal}
+                onClose={() => setShowApplyModal(false)}
+                onApply={handleApply}
+                jobTitle={job.title}
+            />
         </View>
     );
 };

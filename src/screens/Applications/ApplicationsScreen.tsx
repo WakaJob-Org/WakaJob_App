@@ -19,9 +19,9 @@ import ApplicantProfileScreen, { Applicant } from './ApplicantProfileScreen';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 
-type StatusKey = 'NEW' | 'UNDER REVIEW' | 'INTERVIEWING' | 'ACCEPTED';
+type StatusKey = 'NEW' | 'UNDER REVIEW' | 'INTERVIEWING' | 'ACCEPTED' | 'REJECTED';
 
-const FILTER_TABS = ['All', 'New', 'Reviewing', 'Interview', 'Accepted'];
+const FILTER_TABS = ['All', 'New', 'Reviewing', 'Interview', 'Accepted', 'Rejected'];
 
 const MOCK_APPLICANTS: Applicant[] = [
     {
@@ -108,6 +108,12 @@ const STATUS_CONFIG: Record<StatusKey, { label: string; bg: string; text: string
         text: '#16A34A',
         borderColor: '#BBF7D0',
     },
+    'REJECTED': {
+        label: 'REJECTED',
+        bg: '#FEF2F2',
+        text: '#EF4444',
+        borderColor: '#FECACA',
+    },
 };
 
 const AVATAR_COLORS: Record<string, string> = {
@@ -167,9 +173,25 @@ const ApplicationsScreen: React.FC = () => {
             (activeTab === 'New' && item.status === 'NEW') ||
             (activeTab === 'Reviewing' && item.status === 'UNDER REVIEW') ||
             (activeTab === 'Interview' && item.status === 'INTERVIEWING') ||
-            (activeTab === 'Accepted' && item.status === 'ACCEPTED');
+            (activeTab === 'Accepted' && item.status === 'ACCEPTED') ||
+            (activeTab === 'Rejected' && item.status === 'REJECTED');
         return matchesSearch && matchesTab;
     });
+
+    const updateApplicantStatus = async (applicantId: string, status: StatusKey) => {
+        try {
+            // Update UI optimistically
+            setApplicants(prev => prev.map(app => 
+                app.id === applicantId ? { ...app, status } : app
+            ));
+            
+            // In a real app, you would call the backend here:
+            // await jobService.updateApplicationStatus(applicantId, status);
+        } catch (error) {
+            console.error('Failed to update status:', error);
+            // Optionally revert the state if the API fails
+        }
+    };
 
     const handleViewDetails = (item: Applicant) => {
         // If parent provides navigation handler, use it; otherwise open internal modal
@@ -314,6 +336,14 @@ const ApplicationsScreen: React.FC = () => {
                     applicant={selectedApplicant}
                     visible={profileVisible}
                     onClose={() => setProfileVisible(false)}
+                    onDecline={() => {
+                        if (selectedApplicant) updateApplicantStatus(selectedApplicant.id, 'REJECTED');
+                        setProfileVisible(false);
+                    }}
+                    onHire={(details) => {
+                        if (selectedApplicant) updateApplicantStatus(selectedApplicant.id, 'ACCEPTED');
+                        setProfileVisible(false);
+                    }}
                 />
             )}
         </View>
