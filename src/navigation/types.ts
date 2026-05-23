@@ -34,6 +34,7 @@ export type AppStackParamList = {
     VerificationSuccess: undefined;
     VerificationFailed: { reason?: string } | undefined;
     EmployerDashboard: undefined;
+    JobApplicants: { jobId: string, jobTitle: string };
 };
 
 export type RootStackParamList = {

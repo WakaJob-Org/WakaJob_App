@@ -96,7 +96,10 @@ const EmployerDashboardScreen: React.FC = () => {
     };
 
     const renderJobItem = ({ item }: { item: Job }) => (
-        <TouchableOpacity style={styles.jobCard}>
+        <TouchableOpacity 
+            style={styles.jobCard} 
+            onPress={() => navigation.navigate('JobApplicants', { jobId: item.id, jobTitle: item.position_vacant })}
+        >
             <View style={styles.jobInfo}>
                 <Text style={styles.jobTitle}>{item.position_vacant}</Text>
                 <Text style={styles.jobLocation}>{item.location}</Text>
