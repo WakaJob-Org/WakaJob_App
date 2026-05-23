@@ -48,7 +48,7 @@ const JobDetailsScreen: React.FC = () => {
                 const details = descParts[1];
                 const perksMatch = details.match(/Perks: (.*)/);
                 if (perksMatch) {
-                    perks = perksMatch[1].split(',').map(p => p.trim()).filter(p => p && p !== 'None');
+                    perks = perksMatch[1].split(',').map((p: string) => p.trim()).filter((p: string) => p && p !== 'None');
                 }
                 const contactMatch = details.match(/Contact Method: (.*)/);
                 if (contactMatch) {

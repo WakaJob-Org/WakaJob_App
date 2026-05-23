@@ -73,8 +73,21 @@ const jobService = {
 
     applyToJob: async (jobId: string, data?: { intro_text?: string; voice_note_uri?: string; application_type?: 'professional' | 'apprentice' }) => {
         try {
+            // Extract UUID from token to satisfy Supabase RLS policies
+            let userId: string | undefined;
+            const token = await SecureStore.getItemAsync('auth_token');
+            if (token) {
+                try {
+                    const decoded: any = jwtDecode(token);
+                    userId = decoded.sub || decoded.id;
+                } catch (e) {}
+            }
+
             const formData = new FormData();
             formData.append('job_id', jobId);
+            if (userId) {
+                formData.append('user_id', userId);
+            }
             
             if (data?.intro_text) formData.append('intro_text', data.intro_text);
             if (data?.application_type) formData.append('application_type', data.application_type);
