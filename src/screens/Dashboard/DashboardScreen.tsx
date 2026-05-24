@@ -219,7 +219,7 @@ const DashboardScreen: React.FC = () => {
                     company: job.employer_name || 'Private Employer',
                     location: job.location || 'Not specified',
                     salary: job.salary || 'Competitive',
-                    type: job.job_type || 'Full-time',
+                    type: job.job_type || undefined,
                     description: job.description,
                     category: job.category,
                     email: job.employer_email || '',

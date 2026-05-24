@@ -27,6 +27,8 @@ const JobDetailsScreen: React.FC = () => {
 
     const [isSaved, setIsSaved] = useState(initialIsSaved || false);
     const [isApplying, setIsApplying] = useState(false);
+    const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+    const [isJobPoster, setIsJobPoster] = useState(false);
     const [parsedData, setParsedData] = useState<any>({
         description: '',
         contactMethod: '',
@@ -34,6 +36,24 @@ const JobDetailsScreen: React.FC = () => {
         requirements: []
     });
     const [showApplyModal, setShowApplyModal] = useState(false);
+
+    useEffect(() => {
+        const getUserId = async () => {
+            try {
+                const user = await authService.getUser();
+                if (user && user.id) {
+                    setCurrentUserId(user.id);
+                    // Check if current user is the job poster
+                    if (job?.employer_id === user.id) {
+                        setIsJobPoster(true);
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching user:', error);
+            }
+        };
+        getUserId();
+    }, [job?.employer_id]);
 
     useEffect(() => {
         if (job) {
@@ -95,6 +115,11 @@ const JobDetailsScreen: React.FC = () => {
     };
 
     const handleApply = async (data: { intro_text: string; application_type: 'professional' | 'apprentice' }) => {
+        if (isJobPoster) {
+            Alert.alert("Cannot Apply", "You cannot apply for a job that you posted. This is your own job posting.");
+            return;
+        }
+        
         try {
             setIsApplying(true);
             await jobService.applyToJob(job.id, data);
@@ -132,12 +157,16 @@ const JobDetailsScreen: React.FC = () => {
                     {/* Job Info Overlay */}
                     <View style={styles.overlayContent}>
                         <View style={styles.badgeRow}>
-                            <View style={[styles.badge, { backgroundColor: '#4ADE80' }]}>
-                                <Text style={styles.badgeText}>{job.job_type?.toUpperCase() || job.type?.toUpperCase() || 'FULL-TIME'}</Text>
-                            </View>
-                            <View style={[styles.badge, { backgroundColor: '#A78BFA' }]}>
-                                <Text style={styles.badgeText}>{job.category?.toUpperCase() || 'GENERAL'}</Text>
-                            </View>
+                            {(job.job_type || job.type) && (
+                                <View style={[styles.badge, { backgroundColor: '#4ADE80' }]}>
+                                    <Text style={styles.badgeText}>{job.job_type?.toUpperCase() || job.type?.toUpperCase()}</Text>
+                                </View>
+                            )}
+                            {job.category && (
+                                <View style={[styles.badge, { backgroundColor: '#A78BFA' }]}>
+                                    <Text style={styles.badgeText}>{job.category?.toUpperCase()}</Text>
+                                </View>
+                            )}
                         </View>
                         <Text style={styles.titleText}>{job.title}</Text>
                         <View style={styles.metaRow}>
@@ -231,40 +260,53 @@ const JobDetailsScreen: React.FC = () => {
                     )}
 
                     {/* Application Requirements */}
-                    <Text style={styles.sectionHeading}>Application Requirements</Text>
-                    <View style={styles.appReqCard}>
-                        <View style={styles.appReqRow}>
-                            <Text style={styles.appReqLabel}>CV / Resume</Text>
-                            <View style={[styles.statusBadge, { backgroundColor: job.requires_cv === 'true' || job.requires_cv === true ? '#059669' : '#94A3B8' }]}>
-                                <Text style={styles.statusText}>{job.requires_cv === 'true' || job.requires_cv === true ? 'YES' : 'NO'}</Text>
+                    {(job.requires_cv === 'true' || job.requires_cv === true) && (
+                        <>
+                            <Text style={styles.sectionHeading}>Application Requirements</Text>
+                            <View style={styles.appReqCard}>
+                                {(job.requires_cv === 'true' || job.requires_cv === true) && (
+                                    <View style={styles.appReqRow}>
+                                        <Text style={styles.appReqLabel}>CV / Resume</Text>
+                                        <View style={[styles.statusBadge, { backgroundColor: '#059669' }]}>
+                                            <Text style={styles.statusText}>REQUIRED</Text>
+                                        </View>
+                                    </View>
+                                )}
+                                {(job.requires_cover_letter === 'true' || job.requires_cover_letter === true) && (
+                                    <View style={[styles.appReqRow, { borderTopWidth: job.requires_cv === 'true' || job.requires_cv === true ? 1 : 0, borderTopColor: '#E2E8F0', paddingTop: (job.requires_cv === 'true' || job.requires_cv === true) ? 12 : 0 }]}>
+                                        <Text style={styles.appReqLabel}>Cover Letter</Text>
+                                        <View style={[styles.statusBadge, { backgroundColor: '#059669' }]}>
+                                            <Text style={styles.statusText}>REQUIRED</Text>
+                                        </View>
+                                    </View>
+                                )}
+                                {!(job.requires_cv === 'true' || job.requires_cv === true) && !(job.requires_cover_letter === 'true' || job.requires_cover_letter === true) && (
+                                    <Text style={styles.appReqLabel}>No specific requirements</Text>
+                                )}
                             </View>
-                        </View>
-                        <View style={[styles.appReqRow, { borderTopWidth: 1, borderTopColor: '#E2E8F0', paddingTop: 12 }]}>
-                            <Text style={styles.appReqLabel}>Cover Letter</Text>
-                            <View style={[styles.statusBadge, { backgroundColor: job.requires_cover_letter === 'true' || job.requires_cover_letter === true ? '#059669' : '#94A3B8' }]}>
-                                <Text style={styles.statusText}>{job.requires_cover_letter === 'true' || job.requires_cover_letter === true ? 'YES' : 'NO'}</Text>
+                        </>
+                    )}
+                    {!(job.requires_cv === 'true' || job.requires_cv === true) && !(job.requires_cover_letter === 'true' || job.requires_cover_letter === true) && (
+                        <>
+                            <Text style={styles.sectionHeading}>Application Requirements</Text>
+                            <View style={styles.appReqCard}>
+                                <Text style={styles.appReqLabel}>No specific requirements for this job</Text>
                             </View>
-                        </View>
-                    </View>
+                        </>
+                    )}
                 </View>
             </ScrollView>
 
             {/* Footer Buttons */}
             <View style={styles.footer}>
-                <TouchableOpacity style={styles.whatsappBtn} onPress={handleWhatsApp}>
-                    <Ionicons name="logo-whatsapp" size={24} color="#FFF" />
-                    <View style={styles.btnTextWrapper}>
-                        <Text style={styles.btnSubText}>Contact on</Text>
-                        <Text style={styles.btnMainText}>WhatsApp</Text>
-                    </View>
-                </TouchableOpacity>
-
                 <TouchableOpacity 
-                    style={[styles.applyBtn, isApplying && { opacity: 0.7 }]} 
+                    style={[styles.applyBtn, { flex: 1 }, isApplying && { opacity: 0.7 }, isJobPoster && { opacity: 0.5 }]} 
                     onPress={() => setShowApplyModal(true)}
-                    disabled={isApplying}
+                    disabled={isApplying || isJobPoster}
                 >
-                    {isApplying ? (
+                    {isJobPoster ? (
+                        <Text style={styles.applyBtnText}>Cannot Apply - Your Job</Text>
+                    ) : isApplying ? (
                         <ActivityIndicator color="#FFF" />
                     ) : (
                         <Text style={styles.applyBtnText}>Apply Now</Text>
@@ -507,31 +549,7 @@ const styles = StyleSheet.create({
         borderTopWidth: 1,
         borderTopColor: '#F1F5F9',
     },
-    whatsappBtn: {
-        flex: 1,
-        backgroundColor: '#064E3B',
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 15,
-        height: 60,
-        borderRadius: 12,
-        gap: 10,
-    },
-    btnTextWrapper: {
-        flex: 1,
-    },
-    btnSubText: {
-        fontSize: 11,
-        color: '#FFF',
-        opacity: 0.8,
-    },
-    btnMainText: {
-        fontSize: 14,
-        color: '#FFF',
-        fontWeight: '700',
-    },
     applyBtn: {
-        flex: 1,
         backgroundColor: '#03045E',
         height: 60,
         borderRadius: 12,
