@@ -61,13 +61,34 @@ const jobService = {
 
     createJob: async (data: any) => {
         try {
-            // Most modern backends handle both JSON and FormData. 
-            // We'll send the data as provided, and api.ts will handle the headers.
-            const response = await api.post<Job>('/jobs', data);
-            return response.data;
+            // Get auth token
+            const token = await SecureStore.getItemAsync('auth_token');
+            if (!token) {
+                throw new Error('No authentication token found');
+            }
+
+            // Get the API base URL from config
+            const CONFIG = require('../config').default;
+            const url = `${CONFIG.API_BASE_URL}/jobs`;
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: data,
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ message: `HTTP ${response.status}` }));
+                throw new Error(errorData.message || `HTTP ${response.status}: Failed to post job`);
+            }
+
+            const result = await response.json();
+            return result;
         } catch (error: any) {
-            console.error('Job creation error:', error.response?.data || error.message);
-            throw error.response?.data?.message || error.message || 'Failed to post job';
+            console.error('Job creation error:', error.message);
+            throw error.message || 'Failed to post job';
         }
     },
 
@@ -81,6 +102,10 @@ const jobService = {
                     const decoded: any = jwtDecode(token);
                     userId = decoded.sub || decoded.id;
                 } catch (e) {}
+            }
+
+            if (!token) {
+                throw new Error('No authentication token found');
             }
 
             const formData = new FormData();
@@ -101,12 +126,27 @@ const jobService = {
                 } as any);
             }
 
-            const response = await api.post(`/applications`, formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
+            // Get the API base URL from config
+            const CONFIG = require('../config').default;
+            const url = `${CONFIG.API_BASE_URL}/applications`;
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: formData,
             });
-            return response.data;
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ message: `HTTP ${response.status}` }));
+                throw new Error(errorData.message || `HTTP ${response.status}: Failed to apply for job`);
+            }
+
+            const result = await response.json();
+            return result;
         } catch (error: any) {
-            throw error.response?.data?.message || 'Failed to apply for job';
+            throw error.message || 'Failed to apply for job';
         }
     },
 
@@ -138,6 +178,28 @@ const jobService = {
             return response.data;
         } catch (error: any) {
             throw error.response?.data?.message || 'Failed to save job';
+        }
+    },
+
+    unsaveJob: async (jobId: string) => {
+        try {
+            // Extract UUID from token to satisfy Supabase RLS policies
+            let userId: string | undefined;
+            const token = await SecureStore.getItemAsync('auth_token');
+            if (token) {
+                try {
+                    const decoded: any = jwtDecode(token);
+                    userId = decoded.sub || decoded.id;
+                } catch (e) {}
+            }
+
+            const response = await api.post(`/jobs/unsave`, { 
+                jobId,
+                user_id: userId // Explicitly providing ID for RLS compliance
+            });
+            return response.data;
+        } catch (error: any) {
+            throw error.response?.data?.message || 'Failed to unsave job';
         }
     },
 

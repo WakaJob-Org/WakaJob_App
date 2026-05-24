@@ -116,7 +116,10 @@ const JobDetailsScreen: React.FC = () => {
 
     const handleApply = async (data: { intro_text: string; application_type: 'professional' | 'apprentice' }) => {
         if (isJobPoster) {
-            Alert.alert("Cannot Apply", "You cannot apply for a job that you posted. This is your own job posting.");
+            Alert.alert(
+                "Cannot Apply",
+                "You cannot apply for this job because you posted it. You are the job poster."
+            );
             return;
         }
         
@@ -260,7 +263,7 @@ const JobDetailsScreen: React.FC = () => {
                     )}
 
                     {/* Application Requirements */}
-                    {(job.requires_cv === 'true' || job.requires_cv === true) && (
+                    {(job.requires_cv === 'true' || job.requires_cv === true || job.requires_cover_letter === 'true' || job.requires_cover_letter === true) && (
                         <>
                             <Text style={styles.sectionHeading}>Application Requirements</Text>
                             <View style={styles.appReqCard}>
@@ -279,9 +282,6 @@ const JobDetailsScreen: React.FC = () => {
                                             <Text style={styles.statusText}>REQUIRED</Text>
                                         </View>
                                     </View>
-                                )}
-                                {!(job.requires_cv === 'true' || job.requires_cv === true) && !(job.requires_cover_letter === 'true' || job.requires_cover_letter === true) && (
-                                    <Text style={styles.appReqLabel}>No specific requirements</Text>
                                 )}
                             </View>
                         </>

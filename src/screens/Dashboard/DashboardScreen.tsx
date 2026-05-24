@@ -60,6 +60,8 @@ interface JobType {
     tags?: string[];
     hasApprentice?: boolean;
     requirements?: string[];
+    requires_cv?: boolean;
+    requires_cover_letter?: boolean;
 }
 
 import DashboardSkeleton from '../../components/DashboardSkeleton';
@@ -208,25 +210,34 @@ const DashboardScreen: React.FC = () => {
             if (locationToUse.trim()) apiParams.location = locationToUse;
 
             const fetchedJobs = await jobService.getJobs(apiParams);
+            console.log('Raw fetched jobs from backend:', JSON.stringify(fetchedJobs[0], null, 2)); // Debug log
 
             const mappedJobs: JobType[] = fetchedJobs.map(job => {
                 const category = (job.category || '').toLowerCase();
                 const title = job.title || job.position_vacant || job.category || 'Professional Trade';
+                // Get job type from available field names
+                const jobType = job.job_type || job.type || undefined;
+                // Get salary from available field names - backend uses payment_range
+                const jobSalary = job.salary || job.payment_range || 'Competitive';
+                
+                console.log(`Job: ${title}, Type: ${jobType}, Salary: ${jobSalary}, RequireCV: ${job.requires_cv}`); // Debug log
                 
                 return {
                     id: job.id,
                     title: title,
-                    company: job.employer_name || 'Private Employer',
+                    company: job.employer_name || job.users?.full_name || 'Private Employer',
                     location: job.location || 'Not specified',
-                    salary: job.salary || 'Competitive',
-                    type: job.job_type || undefined,
+                    salary: jobSalary,
+                    type: jobType,
                     description: job.description,
                     category: job.category,
-                    email: job.employer_email || '',
-                    phone: job.employer_phone || '',
+                    email: job.employer_email || job.users?.email || '',
+                    phone: job.employer_phone || job.users?.profiles?.phone_number || '',
                     postedAt: job.created_at,
                     imageUrl: job.image_url || job.job_image,
-                    requirements: job.qualifications ? job.qualifications.split(',') : []
+                    requirements: job.qualifications ? job.qualifications.split(',').map((r: string) => r.trim()).filter((r: string) => r) : [],
+                    requires_cv: job.requires_cv,
+                    requires_cover_letter: job.requires_cover_letter
                 };
             });
 
@@ -286,15 +297,31 @@ const DashboardScreen: React.FC = () => {
     const handleSaveJob = async (jobId: string) => {
         try {
             if (savedJobsList.includes(jobId)) {
+                // Remove from saved
                 setSavedJobsList(prev => prev.filter(id => id !== jobId));
                 showToast("Job removed from saved");
+                // Call backend to unsave
+                try {
+                    await jobService.unsaveJob(jobId);
+                } catch (error) {
+                    console.error('Error removing saved job from backend:', error);
+                }
             } else {
+                // Add to saved
                 setSavedJobsList(prev => [...prev, jobId]);
                 showToast("Job saved successfully");
-                await jobService.saveJob(jobId);
+                // Call backend to save
+                try {
+                    await jobService.saveJob(jobId);
+                } catch (error) {
+                    console.error('Error saving job to backend:', error);
+                    // Revert the local state if backend fails
+                    setSavedJobsList(prev => prev.filter(id => id !== jobId));
+                    showToast("Failed to save job");
+                }
             }
         } catch (error) {
-            console.error('Error saving job:', error);
+            console.error('Error handling save job:', error);
         }
     };
 

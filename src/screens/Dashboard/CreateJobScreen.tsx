@@ -194,7 +194,8 @@ Perks: ${Object.entries(perks).filter(([_, v]) => v).map(([k]) => k).join(', ') 
             formData.append('description', fullDescription);
             formData.append('location', location);
             formData.append('category', category);
-            formData.append('salary', salary || 'Competitive');
+            const finalSalary = salary && salary.trim() ? salary : 'Competitive';
+            formData.append('salary', finalSalary);
             formData.append('job_type', jobType);
             
             const allQuals = customReqs.join(', ');
@@ -202,6 +203,15 @@ Perks: ${Object.entries(perks).filter(([_, v]) => v).map(([k]) => k).join(', ') 
             formData.append('requires_cv', String(reqUploadCv));
             formData.append('requires_cover_letter', String(reqCoverLetter));
             formData.append('employer_id', user.id);
+            
+            console.log('Posting job with:', {
+                title: jobTitle,
+                salary: finalSalary,
+                job_type: jobType,
+                qualifications: allQuals,
+                requires_cv: reqUploadCv,
+                requires_cover_letter: reqCoverLetter
+            });
             
             if (jobPhoto && !jobPhoto.startsWith('http')) {
                 const filename = jobPhoto.split('/').pop() || 'job_photo.jpg';
@@ -307,28 +317,6 @@ Perks: ${Object.entries(perks).filter(([_, v]) => v).map(([k]) => k).join(', ') 
                                         onPress={() => setContactMethod(method)}
                                     >
                                         <Text style={[styles.chipText, contactMethod === method && styles.chipTextActive]}>{method}</Text>
-                                    </TouchableOpacity>
-                                ))}
-                            </View>
-                        </View>
-
-                        <View style={styles.inputWrapper}>
-                            <Text style={styles.label}>Perks & Benefits</Text>
-                            <View style={styles.perksGrid}>
-                                {(Object.keys(perks) as Array<keyof typeof perks>).map((key) => (
-                                    <TouchableOpacity 
-                                        key={key}
-                                        style={[styles.perkCard, perks[key] && styles.perkCardActive]}
-                                        onPress={() => togglePerk(key)}
-                                    >
-                                        <Ionicons 
-                                            name={key === 'meals' ? 'fast-food-outline' : key === 'transport' ? 'bus-outline' : key === 'tools' ? 'construct-outline' : 'home-outline'} 
-                                            size={24} 
-                                            color={perks[key] ? "#FFF" : "#1972ca"} 
-                                        />
-                                        <Text style={[styles.perkLabel, perks[key] && styles.perkLabelActive]}>
-                                            {key.charAt(0).toUpperCase() + key.slice(1)}
-                                        </Text>
                                     </TouchableOpacity>
                                 ))}
                             </View>
