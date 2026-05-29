@@ -7,6 +7,8 @@ import SignupScreen from '../screens/Auth/Signup/SignupScreen';
 import LoginScreen from '../screens/Auth/Login/LoginScreen';
 import OTPScreen from '../screens/Auth/OTP/OTPScreen';
 import ForgotPasswordScreen from '../screens/Auth/ForgotPassword/ForgotPasswordScreen';
+import GuestBrowseScreen from '../screens/Guest/GuestBrowseScreen';
+import GuestJobDetailsScreen from '../screens/Guest/GuestJobDetailsScreen';
 
 const { height } = Dimensions.get('window');
 const Stack = createStackNavigator<AuthStackParamList>();
@@ -43,6 +45,17 @@ const AuthStack = () => {
                 <Stack.Screen name="Signup" component={SignupScreen} />
                 <Stack.Screen name="OTP" component={OTPScreen} />
                 <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+            </Stack.Group>
+
+            {/* Guest browsing screens — full-screen, slide from right */}
+            <Stack.Group
+                screenOptions={{
+                    presentation: 'card',
+                    cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+                }}
+            >
+                <Stack.Screen name="GuestBrowse" component={GuestBrowseScreen} />
+                <Stack.Screen name="GuestJobDetails" component={GuestJobDetailsScreen} />
             </Stack.Group>
 
             {/*Employer screens*/}
