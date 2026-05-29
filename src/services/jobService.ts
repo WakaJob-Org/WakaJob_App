@@ -140,7 +140,8 @@ const jobService = {
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({ message: `HTTP ${response.status}` }));
-                throw new Error(errorData.message || `HTTP ${response.status}: Failed to apply for job`);
+                const backendMsg = errorData.message || errorData.error || `HTTP ${response.status}: Failed to apply for job`;
+                throw new Error(backendMsg);
             }
 
             const result = await response.json();

@@ -122,9 +122,21 @@ const JobDetailsScreen: React.FC = () => {
         try {
             setIsApplying(true);
             await jobService.applyToJob(job.id, data);
-            Alert.alert("Success", "Application sent successfully!");
+            setShowApplyModal(false);
+            Alert.alert("Success", "Your application has been sent successfully!");
         } catch (error: any) {
-            Alert.alert("Error", error || "Failed to apply.");
+            let errorMessage = typeof error === 'string' ? error : (error?.message || "Failed to apply.");
+            
+            // Format raw backend errors to be user-friendly
+            if (errorMessage.toLowerCase().includes('duplicate') || errorMessage.toLowerCase().includes('already')) {
+                errorMessage = "You have already submitted an application for this position.";
+            } else if (errorMessage.toLowerCase().includes('network') || errorMessage.toLowerCase().includes('fetch')) {
+                errorMessage = "Please check your internet connection and try again.";
+            } else if (errorMessage.includes('HTTP')) {
+                errorMessage = "We couldn't process your application at this time. Please try again later.";
+            }
+            
+            Alert.alert("Application Notice", errorMessage);
         } finally {
             setIsApplying(false);
         }
