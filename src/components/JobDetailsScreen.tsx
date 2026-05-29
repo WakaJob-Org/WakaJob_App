@@ -17,12 +17,14 @@ import { useRoute, useNavigation } from '@react-navigation/native';
 import jobService from '../services/jobService';
 import authService from '../services/authService';
 import ApplyModal from './ApplyModal';
+import { useAuth } from '../context/AuthContext';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const JobDetailsScreen: React.FC = () => {
     const route = useRoute<any>();
     const navigation = useNavigation<any>();
+    const { user } = useAuth();
     const { job, isSaved: initialIsSaved } = route.params || {};
 
     const [isSaved, setIsSaved] = useState(initialIsSaved || false);
@@ -100,18 +102,12 @@ const JobDetailsScreen: React.FC = () => {
         }
     };
 
-    const handleWhatsApp = () => {
-        const phone = job.phone || '';
-        const message = `Hello, I'm interested in the "${job.title}" job posted on WakaJob.`;
-        const url = `whatsapp://send?phone=${phone}&text=${encodeURIComponent(message)}`;
-        
-        Linking.canOpenURL(url).then(supported => {
-            if (supported) {
-                Linking.openURL(url);
-            } else {
-                Alert.alert("Error", "WhatsApp is not installed on this device.");
-            }
-        });
+    const handleApplyPress = () => {
+        if (user?.id === job.employer_id) {
+            Alert.alert("Action Not Allowed", "You cannot apply for a job that you posted.");
+            return;
+        }
+        setShowApplyModal(true);
     };
 
     const handleApply = async (data: { intro_text: string; application_type: 'professional' | 'apprentice' }) => {
@@ -173,14 +169,18 @@ const JobDetailsScreen: React.FC = () => {
                         </View>
                         <Text style={styles.titleText}>{job.title}</Text>
                         <View style={styles.metaRow}>
-                            <View style={styles.metaItem}>
-                                <Ionicons name="location" size={16} color="#FFF" opacity={0.8} />
-                                <Text style={styles.metaText}>{job.location}</Text>
-                            </View>
-                            <View style={styles.metaItem}>
-                                <Ionicons name="wallet" size={16} color="#FFF" opacity={0.8} />
-                                <Text style={styles.metaText}>{job.salary} / month</Text>
-                            </View>
+                            {job.location && (
+                                <View style={styles.metaItem}>
+                                    <Ionicons name="location" size={16} color="#FFF" opacity={0.8} />
+                                    <Text style={styles.metaText}>{job.location}</Text>
+                                </View>
+                            )}
+                            {job.salary && (
+                                <View style={styles.metaItem}>
+                                    <Ionicons name="wallet" size={16} color="#FFF" opacity={0.8} />
+                                    <Text style={styles.metaText}>{job.salary}</Text>
+                                </View>
+                            )}
                         </View>
                     </View>
                 </View>

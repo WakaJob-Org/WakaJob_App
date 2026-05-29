@@ -224,20 +224,21 @@ const DashboardScreen: React.FC = () => {
                 
                 return {
                     id: job.id,
+                    employer_id: job.employer_id,
                     title: title,
-                    company: job.employer_name || job.users?.full_name || 'Private Employer',
-                    location: job.location || 'Not specified',
-                    salary: jobSalary,
-                    type: jobType,
+                    company: job.employer_name || job.users?.full_name,
+                    location: job.location,
+                    salary: job.salary || job.payment_range,
+                    type: job.job_type || job.type,
                     description: job.description,
                     category: job.category,
                     email: job.employer_email || job.users?.email || '',
                     phone: job.employer_phone || job.users?.profiles?.phone_number || '',
                     postedAt: job.created_at,
                     imageUrl: job.image_url || job.job_image,
-                    requirements: job.qualifications ? job.qualifications.split(',').map((r: string) => r.trim()).filter((r: string) => r) : [],
-                    requires_cv: job.requires_cv,
-                    requires_cover_letter: job.requires_cover_letter
+                    requires_cv: job.requires_cv === true || job.requires_cv === 'true',
+                    requires_cover_letter: job.requires_cover_letter === true || job.requires_cover_letter === 'true',
+                    requirements: job.qualifications ? job.qualifications.split(',').map((r: string) => r.trim()).filter((r: string) => r) : []
                 };
             });
 

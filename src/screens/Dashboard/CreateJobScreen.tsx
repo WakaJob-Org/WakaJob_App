@@ -44,15 +44,6 @@ const CreateJobScreen: React.FC<CreateJobScreenProps> = ({ isVisible, onClose, o
     const [description, setDescription] = useState('');
     const [salary, setSalary] = useState('');
     const [jobType, setJobType] = useState('Full-time');
-    const [contactMethod, setContactMethod] = useState('In-App');
-
-    // Perks State
-    const [perks, setPerks] = useState({
-        meals: false,
-        transport: false,
-        tools: false,
-        housing: false
-    });
 
     // Custom Requirements
     const [customReqs, setCustomReqs] = useState<string[]>([]);
@@ -71,7 +62,6 @@ const CreateJobScreen: React.FC<CreateJobScreenProps> = ({ isVisible, onClose, o
     ];
 
     const JOB_TYPES = ['Full-time', 'Part-time', 'Contract', 'Task-based'];
-    const CONTACT_METHODS = ['In-App', 'Phone Call', 'WhatsApp'];
 
     useEffect(() => {
         if (jobToEdit) {
@@ -96,20 +86,6 @@ const CreateJobScreen: React.FC<CreateJobScreenProps> = ({ isVisible, onClose, o
             if (jobToEdit.description) {
                 const parts = jobToEdit.description.split('--- Additional Details ---');
                 setDescription(parts[0].trim());
-                if (parts.length > 1) {
-                    const details = parts[1];
-                    if (details.includes('Contact Method: Phone Call')) setContactMethod('Phone Call');
-                    else if (details.includes('Contact Method: WhatsApp')) setContactMethod('WhatsApp');
-                    
-                    setPerks({
-                        meals: details.includes('meals'),
-                        transport: details.includes('transport'),
-                        tools: details.includes('tools'),
-                        housing: details.includes('housing'),
-                    });
-                } else {
-                    setDescription(jobToEdit.description);
-                }
             }
         }
     }, [jobToEdit]);
@@ -141,10 +117,6 @@ const CreateJobScreen: React.FC<CreateJobScreenProps> = ({ isVisible, onClose, o
 
     const removeRequirement = (index: number) => {
         setCustomReqs(customReqs.filter((_, i) => i !== index));
-    };
-
-    const togglePerk = (key: keyof typeof perks) => {
-        setPerks(prev => ({ ...prev, [key]: !prev[key] }));
     };
 
     const handleClose = () => {
@@ -182,16 +154,7 @@ const CreateJobScreen: React.FC<CreateJobScreenProps> = ({ isVisible, onClose, o
 
             const formData = new FormData();
             formData.append('title', jobTitle);
-            
-            const fullDescription = `
-${description}
-
---- Additional Details ---
-Contact Method: ${contactMethod}
-Perks: ${Object.entries(perks).filter(([_, v]) => v).map(([k]) => k).join(', ') || 'None'}
-            `.trim();
-
-            formData.append('description', fullDescription);
+            formData.append('description', description);
             formData.append('location', location);
             formData.append('category', category);
             const finalSalary = salary && salary.trim() ? salary : 'Competitive';
@@ -307,20 +270,7 @@ Perks: ${Object.entries(perks).filter(([_, v]) => v).map(([k]) => k).join(', ') 
                             </View>
                         </View>
 
-                        <View style={styles.inputWrapper}>
-                            <Text style={styles.label}>Preferred Contact Method</Text>
-                            <View style={styles.chipRow}>
-                                {CONTACT_METHODS.map(method => (
-                                    <TouchableOpacity 
-                                        key={method} 
-                                        style={[styles.chip, contactMethod === method && styles.chipActive]}
-                                        onPress={() => setContactMethod(method)}
-                                    >
-                                        <Text style={[styles.chipText, contactMethod === method && styles.chipTextActive]}>{method}</Text>
-                                    </TouchableOpacity>
-                                ))}
-                            </View>
-                        </View>
+
 
                         <View style={styles.inputWrapper}>
                             <Text style={styles.label}>Site Photo (Shows on Job Card)</Text>
