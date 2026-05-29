@@ -28,16 +28,15 @@ const Header: React.FC<HeaderProps> = ({
         <View style={[styles.headerContainer, { paddingTop: insets.top }]}>
             <View style={styles.headerContent}>
                 <View style={styles.leftSection}>
-                    {showBackButton ? (
-                        <TouchableOpacity onPress={onBackPress} style={styles.iconButton}>
+                    {showBackButton && (
+                        <TouchableOpacity onPress={onBackPress} style={[styles.iconButton, { marginRight: 10 }]}>
                             <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
                         </TouchableOpacity>
-                    ) : (
-                        <View style={styles.greetingContainer}>
-                            <Text style={styles.headerTitle}>{title}</Text>
-                            {userName && <Text style={styles.userName}>Welcome, {userName}</Text>}
-                        </View>
                     )}
+                    <View style={styles.greetingContainer}>
+                        <Text style={styles.headerTitle}>{title}</Text>
+                        {userName && <Text style={styles.userName}>Welcome, {userName}</Text>}
+                    </View>
                 </View>
 
                 <View style={styles.rightSection}>
@@ -78,6 +77,8 @@ const styles = StyleSheet.create({
     },
     leftSection: {
         flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
     },
     greetingContainer: {
         justifyContent: 'center',

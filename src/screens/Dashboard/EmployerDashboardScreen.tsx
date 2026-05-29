@@ -106,9 +106,17 @@ const EmployerDashboardScreen: React.FC<EmployerDashboardScreenProps> = ({
             {/* Header */}
             <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
                 <View style={styles.headerTop}>
-                    <View>
-                        <Text style={styles.welcomeText}>Employer Dashboard</Text>
-                        <Text style={styles.nameText}>{profile?.full_name || 'Business Partner'}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <TouchableOpacity 
+                            onPress={() => require('@react-navigation/native').useNavigation().goBack()} 
+                            style={{ marginRight: 15 }}
+                        >
+                            <Ionicons name="chevron-back" size={24} color="#111827" />
+                        </TouchableOpacity>
+                        <View>
+                            <Text style={styles.welcomeText}>Employer Dashboard</Text>
+                            <Text style={styles.nameText}>{profile?.full_name || 'Business Partner'}</Text>
+                        </View>
                     </View>
                     <View style={styles.headerActions}>
                         <TouchableOpacity style={styles.iconBtn} onPress={onNotificationPress}>
