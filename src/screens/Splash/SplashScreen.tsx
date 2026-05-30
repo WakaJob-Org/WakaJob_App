@@ -67,29 +67,17 @@ const SplashScreen = ({
                 </Animated.Text>
             </Animated.View>
 
-            <Animated.View style={[styles.footer, buttonStyle]}>
-                <TouchableOpacity
-                    style={styles.button}
-                    activeOpacity={0.7}
-                    onPress={() => navigation.navigate('Signup')}
-                >
-                    <Text style={styles.buttonText}>Get started</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={styles.ghostButton}
-                    activeOpacity={0.7}
-                    onPress={() => navigation.navigate('GuestBrowse')}
-                >
-                    <Text style={styles.ghostButtonText}>Browse Jobs</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={{ marginTop: 12 }}
-                    activeOpacity={0.7}
-                    onPress={() => navigation.navigate('Login')}
-                >
-                    <Text style={styles.loginText}>Already have an account? <Text style={{ fontWeight: '700' }}>Log in</Text></Text>
-                </TouchableOpacity>
-            </Animated.View>
+            {true && (
+                <Animated.View style={[styles.footer, buttonStyle]}>
+                    <TouchableOpacity
+                        style={styles.button}
+                        activeOpacity={0.7}
+                        onPress={() => navigation.navigate('Signup')}
+                    >
+                        <Text style={styles.buttonText}>Get started</Text>
+                    </TouchableOpacity>
+                </Animated.View>
+            )}
         </LinearGradient>
     );
 };
@@ -143,28 +131,6 @@ const styles = StyleSheet.create({
         color: '#1972ca',
         fontWeight: '600',
         letterSpacing: 0.5,
-    },
-    ghostButton: {
-        width: '55%',
-        height: 48,
-        alignSelf: 'center',
-        borderRadius: 24,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginTop: 12,
-        borderWidth: 1.5,
-        borderColor: 'rgba(255,255,255,0.6)',
-    },
-    ghostButtonText: {
-        fontSize: 16,
-        color: '#FFFFFF',
-        fontWeight: '600',
-        letterSpacing: 0.5,
-    },
-    loginText: {
-        fontSize: 13,
-        color: 'rgba(255,255,255,0.75)',
-        textAlign: 'center',
     },
 });
 

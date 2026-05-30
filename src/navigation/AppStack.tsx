@@ -13,7 +13,6 @@ import VerificationPendingScreen from '../screens/Verification/VerificationPendi
 import VerificationSuccessScreen from '../screens/Verification/VerificationSuccessScreen';
 import VerificationFailedScreen from '../screens/Verification/VerificationFailedScreen';
 import EmployerDashboardScreen from '../screens/Profile/EmployerDashboardScreen';
-import JobApplicantsScreen from '../screens/Applications/JobApplicantsScreen';
 
 const Stack = createStackNavigator<AppStackParamList>();
 
@@ -35,7 +34,6 @@ const AppStack = () => {
             <Stack.Screen name="VerificationSuccess" component={VerificationSuccessScreen} />
             <Stack.Screen name="VerificationFailed" component={VerificationFailedScreen} />
             <Stack.Screen name="EmployerDashboard" component={EmployerDashboardScreen} />
-            <Stack.Screen name="JobApplicants" component={JobApplicantsScreen} />
         </Stack.Navigator>
     );
 };
