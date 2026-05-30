@@ -123,11 +123,7 @@ const AVATAR_COLORS: Record<string, string> = {
     EM: '#93C5FD',
 };
 
-interface ApplicationsScreenProps {
-    onViewApplicant?: (id: string) => void;
-}
-
-const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ onViewApplicant }) => {
+const ApplicationsScreen: React.FC = () => {
     const navigation = useNavigation();
     const { user } = useAuth();
     const isEmployer = user?.role === 'employer';

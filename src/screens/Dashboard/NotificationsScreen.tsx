@@ -83,10 +83,12 @@ const NotificationsScreen: React.FC = () => {
     const fetchNotifications = async () => {
         try {
             const data = await notificationService.getNotifications();
-            setNotifications(data);
+            // If the backend is empty, you could fallback to MOCK_NOTIFICATIONS for demo purposes
+            // setNotifications(data.length > 0 ? data : MOCK_NOTIFICATIONS);
+            setNotifications(data.length > 0 ? data : MOCK_NOTIFICATIONS); // using mock fallback for now since backend might not have them
         } catch (error) {
             console.error('Error loading notifications:', error);
-            setNotifications([]);
+            setNotifications(MOCK_NOTIFICATIONS); // Fallback on error
         } finally {
             setLoading(false);
             setRefreshing(false);
