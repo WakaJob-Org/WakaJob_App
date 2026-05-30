@@ -4,6 +4,8 @@ export type AuthStackParamList = {
     Signup: undefined;
     OTP: { email: string; isNewUser?: boolean };
     ForgotPassword: { email?: string };
+    GuestBrowse: undefined;
+    GuestJobDetails: { job: any };
 };
 
 export type EmployerVerificationParamList = {
@@ -34,10 +36,16 @@ export type AppStackParamList = {
     VerificationSuccess: undefined;
     VerificationFailed: { reason?: string } | undefined;
     EmployerDashboard: undefined;
+    JobApplicants: { jobId: string, jobTitle: string };
 };
 
 export type RootStackParamList = {
     Auth: undefined;
     VerificationStack: undefined;
     App: undefined;
+};
+
+export type GuestStackParamList = {
+    GuestBrowse: undefined;
+    GuestJobDetails: { job: any };
 };

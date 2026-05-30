@@ -61,20 +61,58 @@ const jobService = {
 
     createJob: async (data: any) => {
         try {
-            // Most modern backends handle both JSON and FormData. 
-            // We'll send the data as provided, and api.ts will handle the headers.
-            const response = await api.post<Job>('/jobs', data);
-            return response.data;
+            // Get auth token
+            const token = await SecureStore.getItemAsync('auth_token');
+            if (!token) {
+                throw new Error('No authentication token found');
+            }
+
+            // Get the API base URL from config
+            const CONFIG = require('../config').default;
+            const url = `${CONFIG.API_BASE_URL}/jobs`;
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: data,
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ message: `HTTP ${response.status}` }));
+                throw new Error(errorData.message || `HTTP ${response.status}: Failed to post job`);
+            }
+
+            const result = await response.json();
+            return result;
         } catch (error: any) {
-            console.error('Job creation error:', error.response?.data || error.message);
-            throw error.response?.data?.message || error.message || 'Failed to post job';
+            console.error('Job creation error:', error.message);
+            throw error.message || 'Failed to post job';
         }
     },
 
     applyToJob: async (jobId: string, data?: { intro_text?: string; voice_note_uri?: string; application_type?: 'professional' | 'apprentice' }) => {
         try {
+            // Extract UUID from token to satisfy Supabase RLS policies
+            let userId: string | undefined;
+            const token = await SecureStore.getItemAsync('auth_token');
+            if (token) {
+                try {
+                    const decoded: any = jwtDecode(token);
+                    userId = decoded.sub || decoded.id;
+                } catch (e) {}
+            }
+
+            if (!token) {
+                throw new Error('No authentication token found');
+            }
+
             const formData = new FormData();
             formData.append('job_id', jobId);
+            if (userId) {
+                formData.append('user_id', userId);
+            }
             
             if (data?.intro_text) formData.append('intro_text', data.intro_text);
             if (data?.application_type) formData.append('application_type', data.application_type);
@@ -88,12 +126,28 @@ const jobService = {
                 } as any);
             }
 
-            const response = await api.post(`/applications`, formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
+            // Get the API base URL from config
+            const CONFIG = require('../config').default;
+            const url = `${CONFIG.API_BASE_URL}/applications`;
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: formData,
             });
-            return response.data;
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ message: `HTTP ${response.status}` }));
+                const backendMsg = errorData.message || errorData.error || `HTTP ${response.status}: Failed to apply for job`;
+                throw new Error(backendMsg);
+            }
+
+            const result = await response.json();
+            return result;
         } catch (error: any) {
-            throw error.response?.data?.message || 'Failed to apply for job';
+            throw error.message || 'Failed to apply for job';
         }
     },
 
@@ -128,6 +182,28 @@ const jobService = {
         }
     },
 
+    unsaveJob: async (jobId: string) => {
+        try {
+            // Extract UUID from token to satisfy Supabase RLS policies
+            let userId: string | undefined;
+            const token = await SecureStore.getItemAsync('auth_token');
+            if (token) {
+                try {
+                    const decoded: any = jwtDecode(token);
+                    userId = decoded.sub || decoded.id;
+                } catch (e) {}
+            }
+
+            const response = await api.post(`/jobs/unsave`, { 
+                jobId,
+                user_id: userId // Explicitly providing ID for RLS compliance
+            });
+            return response.data;
+        } catch (error: any) {
+            throw error.response?.data?.message || 'Failed to unsave job';
+        }
+    },
+
     updateJob: async (id: string, data: Partial<CreateJobData>) => {
         try {
             const response = await api.put(`/jobs/${id}`, data);
@@ -159,6 +235,22 @@ const jobService = {
             return [];
         } catch (error: any) {
             console.error('Failed to fetch applications:', error.response?.data?.message || error?.message);
+            return [];
+        }
+    },
+
+    getJobApplicants: async (jobId: string) => {
+        try {
+            const response = await api.get(`/jobs/${jobId}/applications`);
+            const raw = response.data;
+            if (Array.isArray(raw)) return raw;
+            if (Array.isArray(raw?.applications)) return raw.applications;
+            if (Array.isArray(raw?.data)) return raw.data;
+            if (Array.isArray(raw?.results)) return raw.results;
+            console.warn(`Unexpected /jobs/${jobId}/applications response shape:`, typeof raw, raw);
+            return [];
+        } catch (error: any) {
+            console.error(`Failed to fetch applicants for job ${jobId}:`, error.response?.data?.message || error?.message);
             return [];
         }
     },

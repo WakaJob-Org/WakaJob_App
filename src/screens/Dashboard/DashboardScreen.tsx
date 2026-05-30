@@ -15,12 +15,24 @@ import {
     Image,
     ImageSourcePropType,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { CompositeNavigationProp, useNavigation, useFocusEffect } from '@react-navigation/native';
-import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSequence, withDelay, FadeInUp, FadeOutUp } from 'react-native-reanimated';
+import Animated, { 
+    useSharedValue, 
+    useAnimatedStyle, 
+    withTiming, 
+    withSequence, 
+    withDelay, 
+    FadeInUp, 
+    FadeOutUp,
+    useAnimatedScrollHandler,
+    interpolate,
+    Extrapolate
+} from 'react-native-reanimated';
 import jobService, { Job } from '../../services/jobService';
 import authService from '../../services/authService';
 import { useAuth } from '../../context/AuthContext';
@@ -48,6 +60,8 @@ interface JobType {
     tags?: string[];
     hasApprentice?: boolean;
     requirements?: string[];
+    requires_cv?: boolean;
+    requires_cover_letter?: boolean;
 }
 
 import DashboardSkeleton from '../../components/DashboardSkeleton';
@@ -132,6 +146,34 @@ const DashboardScreen: React.FC = () => {
         transform: [{ translateY: toastTranslateY.value }],
     }));
 
+    // Scroll Animation State
+    const scrollY = useSharedValue(0);
+    const scrollHandler = useAnimatedScrollHandler({
+        onScroll: (event) => {
+            scrollY.value = event.contentOffset.y;
+        },
+    });
+
+    const animatedTipsStyle = useAnimatedStyle(() => {
+        const height = interpolate(
+            scrollY.value,
+            [0, 150],
+            [225, 0], // Total height of tips + recommended approx 225
+            Extrapolate.CLAMP
+        );
+        const opacity = interpolate(
+            scrollY.value,
+            [0, 100],
+            [1, 0],
+            Extrapolate.CLAMP
+        );
+        return {
+            height,
+            opacity,
+            overflow: 'hidden',
+        };
+    });
+
     useEffect(() => {
         const loadProfile = async () => {
             try {
@@ -168,25 +210,35 @@ const DashboardScreen: React.FC = () => {
             if (locationToUse.trim()) apiParams.location = locationToUse;
 
             const fetchedJobs = await jobService.getJobs(apiParams);
+            console.log('Raw fetched jobs from backend:', JSON.stringify(fetchedJobs[0], null, 2)); // Debug log
 
             const mappedJobs: JobType[] = fetchedJobs.map(job => {
                 const category = (job.category || '').toLowerCase();
                 const title = job.title || job.position_vacant || job.category || 'Professional Trade';
+                // Get job type from available field names
+                const jobType = job.job_type || job.type || undefined;
+                // Get salary from available field names - backend uses payment_range
+                const jobSalary = job.salary || job.payment_range || 'Competitive';
+                
+                console.log(`Job: ${title}, Type: ${jobType}, Salary: ${jobSalary}, RequireCV: ${job.requires_cv}`); // Debug log
                 
                 return {
                     id: job.id,
+                    employer_id: job.employer_id,
                     title: title,
-                    company: job.employer_name || 'Private Employer',
-                    location: job.location || 'Not specified',
-                    salary: job.salary || 'Competitive',
-                    type: job.job_type || 'Full-time',
+                    company: job.employer_name || job.users?.full_name,
+                    location: job.location,
+                    salary: job.salary || job.payment_range,
+                    type: job.job_type || job.type,
                     description: job.description,
                     category: job.category,
-                    email: job.employer_email || '',
-                    phone: job.employer_phone || '',
+                    email: job.employer_email || job.users?.email || '',
+                    phone: job.employer_phone || job.users?.profiles?.phone_number || '',
                     postedAt: job.created_at,
                     imageUrl: job.image_url || job.job_image,
-                    requirements: job.qualifications ? job.qualifications.split(',') : []
+                    requires_cv: job.requires_cv === true || job.requires_cv === 'true',
+                    requires_cover_letter: job.requires_cover_letter === true || job.requires_cover_letter === 'true',
+                    requirements: job.qualifications ? job.qualifications.split(',').map((r: string) => r.trim()).filter((r: string) => r) : []
                 };
             });
 
@@ -246,15 +298,31 @@ const DashboardScreen: React.FC = () => {
     const handleSaveJob = async (jobId: string) => {
         try {
             if (savedJobsList.includes(jobId)) {
+                // Remove from saved
                 setSavedJobsList(prev => prev.filter(id => id !== jobId));
                 showToast("Job removed from saved");
+                // Call backend to unsave
+                try {
+                    await jobService.unsaveJob(jobId);
+                } catch (error) {
+                    console.error('Error removing saved job from backend:', error);
+                }
             } else {
+                // Add to saved
                 setSavedJobsList(prev => [...prev, jobId]);
                 showToast("Job saved successfully");
-                await jobService.saveJob(jobId);
+                // Call backend to save
+                try {
+                    await jobService.saveJob(jobId);
+                } catch (error) {
+                    console.error('Error saving job to backend:', error);
+                    // Revert the local state if backend fails
+                    setSavedJobsList(prev => prev.filter(id => id !== jobId));
+                    showToast("Failed to save job");
+                }
             }
         } catch (error) {
-            console.error('Error saving job:', error);
+            console.error('Error handling save job:', error);
         }
     };
 
@@ -368,55 +436,48 @@ const DashboardScreen: React.FC = () => {
         <View style={styles.container}>
             <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
                 <View style={styles.headerTop}>
-                    <View style={styles.logoRow}>
-                        <Text style={styles.logoText}>WakaJob</Text>
-                        <View style={styles.pinkDot} />
+                    <View style={styles.headerLeft}>
+                        <View style={styles.squareLogo}>
+                            <Text style={{ color: '#FFF', fontWeight: 'bold', fontSize: 18 }}>WJ</Text>
+                        </View>
+                        <Text style={styles.greetingText}>Hello, {displayName.split(' ')[0]} !</Text>
                     </View>
                     <View style={styles.headerActions}>
-                        <TouchableOpacity style={styles.iconButton} onPress={() => navigation.navigate('Notifications')}>
-                            <Ionicons name="notifications-outline" size={24} color="#1972ca" />
+                        <TouchableOpacity style={styles.iconButtonSquare} onPress={() => navigation.navigate('Notifications')}>
+                            <Ionicons name="notifications" size={20} color="#1972ca" />
                             <View style={styles.notifDot} />
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.avatar} onPress={() => navigation.navigate('Profile')}>
+                        <TouchableOpacity style={styles.avatarMini} onPress={() => navigation.navigate('Profile')}>
                             {profile?.profile_image_url ? (
                                 <Image source={{ uri: profile.profile_image_url }} style={styles.avatarImage} />
                             ) : (
                                 <View style={styles.avatarInner}>
-                                    <Text style={styles.avatarChar}>{avatarInitials}</Text>
+                                    <Text style={styles.avatarCharMini}>{avatarInitials}</Text>
                                 </View>
                             )}
                         </TouchableOpacity>
                     </View>
                 </View>
 
-                {/* Welcome Message - Before Search Bar */}
-                <View style={styles.headerWelcome}>
-                    <Text style={styles.welcomeSub}>Welcome, {displayName}</Text>
-                    <View style={styles.welcomeHeaderRow}>
-                        <View style={{ flex: 1 }}>
-                            <Text style={styles.welcomeTitle}>Available Jobs</Text>
-                            <Text style={styles.welcomeDesc}>Based on your location and preferences</Text>
+                <View style={[styles.searchContainer, { zIndex: 10 }]}>
+                    <View style={styles.searchRow}>
+                        <View style={styles.searchInputWrapperFull}>
+                            <TextInput
+                                style={styles.inputFull}
+                                placeholder="Search"
+                                placeholderTextColor="#9BA4B1"
+                                value={searchQuery}
+                                onChangeText={setSearchQuery}
+                            />
+                            <Ionicons name="search-outline" size={20} color="#9BA4B1" style={styles.searchIconRight} />
                         </View>
+                        <TouchableOpacity 
+                            style={styles.filterBtnSquare} 
+                            onPress={() => setShowFilterDropdown(!showFilterDropdown)}
+                        >
+                            <Ionicons name="filter" size={20} color="#1972ca" />
+                        </TouchableOpacity>
                     </View>
-                </View>
-
-                <View style={styles.searchRow}>
-                    <View style={styles.searchInputWrapper}>
-                        <Ionicons name="search-outline" size={20} color="#9BA4B1" />
-                        <TextInput
-                            style={[styles.input, { flex: 1, marginLeft: 10 }]}
-                            placeholder="Search jobs..."
-                            placeholderTextColor="#9BA4B1"
-                            value={searchQuery}
-                            onChangeText={setSearchQuery}
-                        />
-                    </View>
-                    <TouchableOpacity 
-                        style={[styles.filterBtn, (selectedLocation || customLocation) ? styles.filterBtnActive : null]} 
-                        onPress={() => setShowFilterDropdown(!showFilterDropdown)}
-                    >
-                        <Ionicons name="options-outline" size={24} color="#FFFFFF" />
-                    </TouchableOpacity>
                 </View>
 
                 {/* Inline Filter Dropdown */}
@@ -425,7 +486,7 @@ const DashboardScreen: React.FC = () => {
                         <View style={styles.filterRow}>
                              <Text style={styles.filterDropdownTitle}>Filter by Location</Text>
                              <TouchableOpacity onPress={() => setShowFilterDropdown(false)}>
-                                 <Ionicons name="close" size={20} color="#9BA4B1" />
+                                  <Ionicons name="close" size={20} color="#9BA4B1" />
                              </TouchableOpacity>
                         </View>
 
@@ -471,21 +532,67 @@ const DashboardScreen: React.FC = () => {
                 )}
             </View>
 
-            <FlatList
+            <Animated.FlatList
                 data={filteredJobs}
                 renderItem={renderJobItem}
                 keyExtractor={(item) => item.id}
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.listContent}
+                onScroll={scrollHandler}
+                scrollEventThrottle={16}
                 refreshControl={
                     <RefreshControl
                         refreshing={refreshing}
                         onRefresh={onRefresh}
                         colors={['#1972ca']}
                         tintColor="#1972ca"
+                        progressViewOffset={0}
                     />
                 }
-                ListHeaderComponent={<View style={{ height: 10 }} />}
+                ListHeaderComponent={
+                    <View style={styles.listHeaderInner}>
+                        {!showFilterDropdown && (
+                            <Animated.View style={animatedTipsStyle}>
+                                {/* Tips Section */}
+                                <View style={styles.tipsSection}>
+                                    <View style={styles.tipsHeader}>
+                                        <Text style={styles.tipsTitle}>Tips for you</Text>
+                                        <TouchableOpacity onPress={() => {}}>
+                                            <Text style={styles.seeAllText}>See all</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                    <TouchableOpacity style={styles.tipsCard} activeOpacity={0.9}>
+                                        <View style={styles.tipsCardContent}>
+                                            <Text style={styles.tipsCardTitle}>How to find a{"\n"}perfect job for you</Text>
+                                            <View style={styles.readMoreBtn}>
+                                                <Text style={styles.readMoreText}>Read more</Text>
+                                            </View>
+                                        </View>
+                                        <View style={styles.tipsImageContainer}>
+                                            <Image 
+                                                source={{ uri: 'https://www.pngall.com/wp-content/uploads/2016/04/Black-Man-PNG-HD.png' }} 
+                                                style={styles.tipsImage} 
+                                            />
+                                            <LinearGradient
+                                                colors={['transparent', '#4C6FFF']}
+                                                start={{ x: 0, y: 0.5 }}
+                                                end={{ x: 1, y: 0.5 }}
+                                                style={styles.tipsGradient}
+                                            />
+                                        </View>
+                                    </TouchableOpacity>
+                                </View>
+                            </Animated.View>
+                        )}
+
+                        {!showFilterDropdown && !searchQuery && (
+                            <View style={styles.recommendedHeaderMini}>
+                                <Text style={styles.recommendedTitleMini}>Recommended jobs for you</Text>
+                            </View>
+                        )}
+                        <View style={{ height: 10 }} />
+                    </View>
+                }
                 ListEmptyComponent={
                     <View style={styles.empty}>
                         <Ionicons 
@@ -545,17 +652,43 @@ const styles = StyleSheet.create({
     safeArea: { backgroundColor: '#FFFFFF' },
     header: { paddingHorizontal: 20, paddingBottom: 15, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
     headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 },
+    headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    squareLogo: { width: 44, height: 44, backgroundColor: '#4C6FFF', borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+    greetingText: { fontSize: 18, fontWeight: '700', color: '#111827' },
+    headerActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    iconButtonSquare: { width: 44, height: 44, backgroundColor: '#F0F4FF', borderRadius: 12, justifyContent: 'center', alignItems: 'center', position: 'relative' },
+    avatarMini: { width: 44, height: 44, borderRadius: 22, overflow: 'hidden', backgroundColor: '#F3F4F6' },
+    avatarCharMini: { color: '#FFFFFF', fontWeight: '600', fontSize: 14 },
+    notifDot: { position: 'absolute', top: 12, right: 12, width: 6, height: 6, borderRadius: 3, backgroundColor: '#FF4D4F' },
+    searchContainer: { marginTop: 15 },
+    listHeaderInner: { paddingBottom: 10 },
+    searchInputWrapperFull: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFF', borderRadius: 20, paddingHorizontal: 20, height: 56, borderWidth: 1, borderColor: '#F0F4FF' },
+    inputFull: { flex: 1, fontSize: 15, color: '#1F2937' },
+    searchIconRight: { marginLeft: 10 },
+    filterBtnSquare: { width: 56, height: 56, backgroundColor: '#F0F4FF', borderRadius: 15, justifyContent: 'center', alignItems: 'center' },
+    tipsSection: { marginTop: 25 },
+    tipsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
+    tipsTitle: { fontSize: 18, fontWeight: '700', color: '#111827' },
+    seeAllText: { fontSize: 14, color: '#4C6FFF', fontWeight: '600' },
+    tipsCard: { backgroundColor: '#4C6FFF', borderRadius: 24, height: 135, flexDirection: 'row', padding: 18, overflow: 'hidden', position: 'relative' },
+    tipsCardContent: { flex: 1, justifyContent: 'center', zIndex: 1 },
+    tipsCardTitle: { fontSize: 16, fontWeight: '700', color: '#FFFFFF', lineHeight: 22, marginBottom: 12 },
+    readMoreBtn: { backgroundColor: '#FFB800', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, alignSelf: 'flex-start' },
+    readMoreText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
+    tipsImageContainer: { position: 'absolute', right: -10, bottom: -10, width: 160, height: 150 },
+    tipsImage: { width: '100%', height: '100%', resizeMode: 'contain' },
+    tipsGradient: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 40 },
+    recommendedHeaderMini: { marginTop: 25, marginBottom: 10, paddingHorizontal: 5 },
+    recommendedTitleMini: { fontSize: 15, fontWeight: '600', color: '#64748B' },
     logoRow: { flexDirection: 'row', alignItems: 'flex-start' },
     logoText: { fontSize: 24, fontWeight: 'bold', color: '#1972ca' },
     pinkDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: '#E91E63', marginTop: 6, marginLeft: 2 },
-    headerActions: { flexDirection: 'row', alignItems: 'center', gap: 15 },
     iconButton: { position: 'relative' },
-    notifDot: { position: 'absolute', top: 0, right: 0, width: 8, height: 8, borderRadius: 4, backgroundColor: '#FF4D4F', borderWidth: 2, borderColor: '#FFFFFF' },
     avatar: { width: 40, height: 40, borderRadius: 20, overflow: 'hidden', backgroundColor: '#F3F4F6' },
     avatarImage: { width: '100%', height: '100%' },
     avatarInner: { width: '100%', height: '100%', backgroundColor: '#1972ca', justifyContent: 'center', alignItems: 'center' },
     avatarChar: { color: '#FFFFFF', fontWeight: '600', fontSize: 16 },
-    searchRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 15 },
+    searchRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     searchInputWrapper: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', borderRadius: 12, paddingHorizontal: 15, height: 48 },
     input: { fontSize: 15, color: '#1F2937' },
     filterBtn: { width: 48, height: 48, backgroundColor: '#1972ca', borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
