@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import jobService from '../../services/jobService';
 
 interface SavedJob {
@@ -42,6 +42,7 @@ const getCategoryStyle = (category = '') => {
 
 const SavedScreen: React.FC = () => {
     const insets = useSafeAreaInsets();
+    const navigation = useNavigation<any>();
     const [savedJobs, setSavedJobs] = useState<SavedJob[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -50,9 +51,27 @@ const SavedScreen: React.FC = () => {
         try {
             if (!isRefreshing) setLoading(true);
             const data = await jobService.getSavedJobs();
-            setSavedJobs(data);
+            
+            const mapped: SavedJob[] = (data || []).map((item: any) => {
+                const job = item.job || item;
+                return {
+                    id: job.id || job._id || item.id || item._id,
+                    title: job.title || job.position_vacant || 'Untitled Position',
+                    position_vacant: job.position_vacant || job.title || 'Untitled Position',
+                    company: job.company || job.company_name || 'WakaJob Partner',
+                    location: job.location || 'Remote',
+                    salary: job.salary || job.payment_rate || '',
+                    type: job.type || job.job_type || 'Full-time',
+                    job_type: job.job_type || job.type || 'Full-time',
+                    category: job.category || 'default',
+                    description: job.description || '',
+                    created_at: job.created_at || item.created_at || '',
+                };
+            });
+            setSavedJobs(mapped);
         } catch (error) {
             console.error('Error fetching saved jobs:', error);
+            setSavedJobs([]);
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -100,7 +119,25 @@ const SavedScreen: React.FC = () => {
         const { bg, icon } = getCategoryStyle(item.category);
 
         return (
-            <View style={styles.card}>
+            <TouchableOpacity
+                style={styles.card}
+                activeOpacity={0.8}
+                onPress={() => {
+                    navigation.navigate('JobDetails', {
+                        job: {
+                            id: item.id,
+                            position_vacant: title,
+                            company: item.company,
+                            location: item.location,
+                            salary: item.salary,
+                            job_type: jobType,
+                            category: item.category,
+                            description: item.description,
+                        },
+                        isSaved: true
+                    });
+                }}
+            >
                 <View style={styles.cardLeft}>
                     <View style={[styles.iconBox, { backgroundColor: bg }]}>
                         <Ionicons
@@ -144,7 +181,7 @@ const SavedScreen: React.FC = () => {
                         <Text style={styles.salary}>{item.salary}</Text>
                     ) : null}
                 </View>
-            </View>
+            </TouchableOpacity>
         );
     };
 
