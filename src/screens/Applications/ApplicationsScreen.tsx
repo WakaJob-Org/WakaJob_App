@@ -133,8 +133,8 @@ const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ onViewApplicant
     const isEmployer = user?.role === 'employer';
     const [activeTab, setActiveTab] = useState('All');
     const [searchQuery, setSearchQuery] = useState('');
-    const [applicants, setApplicants] = useState<Applicant[]>(MOCK_APPLICANTS);
-    const [loading, setLoading] = useState(false);
+    const [applicants, setApplicants] = useState<Applicant[]>([]);
+    const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [selectedApplicant, setSelectedApplicant] = useState<Applicant | null>(null);
     const [profileVisible, setProfileVisible] = useState(false);
@@ -143,11 +143,90 @@ const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ onViewApplicant
         try {
             if (!isRefreshing) setLoading(true);
             const fetched = await jobService.getUserApplications();
+
             if (fetched && fetched.length > 0) {
-                // map fetched data if available
+                // Map backend fields → Applicant interface
+                // Worker view: each item = a job they applied to
+                // Employer view: each item = a person who applied to their job
+                const mapped: Applicant[] = fetched.map((item: any) => {
+                    const fullName =
+                        item.applicant_name ||
+                        item.full_name ||
+                        item.user?.full_name ||
+                        item.user?.name ||
+                        item.name ||
+                        'Unknown Applicant';
+
+                    const jobTitle =
+                        item.job_title ||
+                        item.job?.title ||
+                        item.job?.position_vacant ||
+                        item.position ||
+                        item.role ||
+                        'Unknown Position';
+
+                    const company =
+                        item.company ||
+                        item.company_name ||
+                        item.job?.company ||
+                        item.job?.company_name ||
+                        '';
+
+                    const initials = fullName
+                        .trim()
+                        .split(' ')
+                        .filter(Boolean)
+                        .map((w: string) => w[0])
+                        .slice(0, 2)
+                        .join('')
+                        .toUpperCase();
+
+                    // Normalise status to one of our StatusKey values
+                    const rawStatus = (item.status || 'NEW').toUpperCase().trim();
+                    const statusMap: Record<string, StatusKey> = {
+                        'NEW': 'NEW',
+                        'PENDING': 'NEW',
+                        'SUBMITTED': 'NEW',
+                        'UNDER REVIEW': 'UNDER REVIEW',
+                        'REVIEWING': 'UNDER REVIEW',
+                        'REVIEW': 'UNDER REVIEW',
+                        'INTERVIEWING': 'INTERVIEWING',
+                        'INTERVIEW': 'INTERVIEWING',
+                        'ACCEPTED': 'ACCEPTED',
+                        'HIRED': 'ACCEPTED',
+                        'APPROVED': 'ACCEPTED',
+                        'REJECTED': 'REJECTED',
+                        'DECLINED': 'REJECTED',
+                    };
+                    const status: StatusKey = statusMap[rawStatus] ?? 'NEW';
+
+                    return {
+                        id: item.id || item._id || String(Math.random()),
+                        // For workers: display the job they applied to
+                        // For employers: display the person who applied
+                        name: isEmployer ? fullName : jobTitle,
+                        role: isEmployer ? jobTitle : company || jobTitle,
+                        location: item.location || item.job?.location || item.user?.location || '',
+                        status,
+                        photo: item.profile_image_url || item.photo || item.avatar || item.user?.profile_image_url || null,
+                        initials,
+                        isVerified: item.is_verified || item.user?.is_verified || false,
+                        bio: item.bio || item.intro_text || item.user?.bio || '',
+                        skills: item.skills || item.user?.skills || [],
+                        // Keep raw data for detail view
+                        jobTitle,
+                        company,
+                        appliedAt: item.created_at || item.applied_at || '',
+                        applicationId: item.id || item._id,
+                    } as any;
+                });
+                setApplicants(mapped);
+            } else {
+                setApplicants([]);
             }
         } catch (error) {
             console.error('Error fetching applications:', error);
+            setApplicants([]);
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -183,17 +262,16 @@ const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ onViewApplicant
     });
 
     const updateApplicantStatus = async (applicantId: string, status: StatusKey) => {
+        // Optimistic UI update
+        setApplicants(prev => prev.map(app =>
+            app.id === applicantId ? { ...app, status } : app
+        ));
         try {
-            // Update UI optimistically
-            setApplicants(prev => prev.map(app => 
-                app.id === applicantId ? { ...app, status } : app
-            ));
-            
-            // In a real app, you would call the backend here:
-            // await jobService.updateApplicationStatus(applicantId, status);
+            await jobService.updateApplicationStatus(applicantId, status);
         } catch (error) {
             console.error('Failed to update status:', error);
-            // Optionally revert the state if the API fails
+            // Revert on failure
+            fetchApplications(true);
         }
     };
 
@@ -209,24 +287,41 @@ const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ onViewApplicant
 
     const renderApplicantCard = ({ item }: { item: Applicant }) => {
         const statusCfg = STATUS_CONFIG[item.status as StatusKey] ?? STATUS_CONFIG['NEW'];
+        const anyItem = item as any;
 
         return (
-            <View style={styles.card}>
+            <TouchableOpacity
+                style={styles.card}
+                activeOpacity={0.85}
+                onPress={() => handleViewDetails(item)}
+            >
                 {/* Top row: photo, name, role, badge */}
                 <View style={styles.cardTop}>
                     {/* Avatar */}
                     {item.photo ? (
                         <Image source={{ uri: item.photo }} style={styles.avatar} />
                     ) : (
-                        <View style={[styles.avatar, styles.avatarFallback, { backgroundColor: AVATAR_COLORS[item.initials ?? ''] ?? '#9CA3AF' }]}>
+                        <View style={[styles.avatar, styles.avatarFallback, { backgroundColor: AVATAR_COLORS[item.initials ?? ''] ?? '#1972ca' }]}>
                             <Text style={styles.avatarInitials}>{item.initials ?? item.name.charAt(0)}</Text>
                         </View>
                     )}
 
                     {/* Name & Role */}
                     <View style={styles.nameBlock}>
-                        <Text style={styles.applicantName}>{item.name}</Text>
-                        <Text style={styles.applicantRole}>{item.role}</Text>
+                        <Text style={styles.applicantName} numberOfLines={1}>{item.name}</Text>
+                        <Text style={styles.applicantRole} numberOfLines={1}>{item.role}</Text>
+                        {/* Show company for worker view */}
+                        {!isEmployer && anyItem.company ? (
+                            <Text style={styles.companyText} numberOfLines={1}>
+                                📍 {anyItem.company}
+                            </Text>
+                        ) : null}
+                        {/* Show applied date */}
+                        {anyItem.appliedAt ? (
+                            <Text style={styles.dateText}>
+                                Applied {new Date(anyItem.appliedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                            </Text>
+                        ) : null}
                     </View>
 
                     {/* Status badge */}
@@ -244,13 +339,15 @@ const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ onViewApplicant
                 <View style={styles.cardBottom}>
                     <View style={styles.locationRow}>
                         <Ionicons name="location-outline" size={14} color="#9CA3AF" />
-                        <Text style={styles.locationText}>{item.location}</Text>
+                        <Text style={styles.locationText} numberOfLines={1}>
+                            {item.location || 'Location not specified'}
+                        </Text>
                     </View>
                     <TouchableOpacity activeOpacity={0.7} onPress={() => handleViewDetails(item)}>
                         <Text style={styles.viewDetails}>View Details</Text>
                     </TouchableOpacity>
                 </View>
-            </View>
+            </TouchableOpacity>
         );
     };
 
@@ -496,6 +593,16 @@ const styles = StyleSheet.create({
     applicantRole: {
         fontSize: 13,
         color: '#6B7280',
+    },
+    companyText: {
+        fontSize: 12,
+        color: '#4B5563',
+        marginTop: 2,
+    },
+    dateText: {
+        fontSize: 11,
+        color: '#9CA3AF',
+        marginTop: 2,
     },
     statusBadge: {
         paddingHorizontal: 10,
