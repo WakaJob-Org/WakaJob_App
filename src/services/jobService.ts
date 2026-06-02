@@ -257,18 +257,7 @@ const jobService = {
 
     getSavedJobs: async (workerId?: string) => {
         try {
-            let resolvedId = workerId;
-            if (!resolvedId) {
-                const token = await SecureStore.getItemAsync('auth_token');
-                if (token) {
-                    try {
-                        const decoded: any = jwtDecode(token);
-                        resolvedId = decoded.sub || decoded.id;
-                    } catch (e) {}
-                }
-            }
-            const endpoint = resolvedId ? `/jobs/saved/${resolvedId}` : '/jobs/saved';
-            const response = await api.get(endpoint);
+            const response = await api.get('/jobs/saved');
             const raw = response.data;
             if (Array.isArray(raw)) return raw;
             if (Array.isArray(raw?.saved)) return raw.saved;
@@ -276,6 +265,10 @@ const jobService = {
             if (Array.isArray(raw?.results)) return raw.results;
             return [];
         } catch (error: any) {
+            // Silently swallow 404 errors as they indicate an empty saved list on the backend
+            if (error.response?.status === 404) {
+                return [];
+            }
             console.error('Failed to fetch saved jobs:', error.response?.data?.message || error?.message);
             return [];
         }
