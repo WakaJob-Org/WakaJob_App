@@ -257,7 +257,17 @@ const jobService = {
 
     getSavedJobs: async (workerId?: string) => {
         try {
-            const endpoint = workerId ? `/jobs/saved/${workerId}` : '/jobs/saved';
+            let resolvedId = workerId;
+            if (!resolvedId) {
+                const token = await SecureStore.getItemAsync('auth_token');
+                if (token) {
+                    try {
+                        const decoded: any = jwtDecode(token);
+                        resolvedId = decoded.sub || decoded.id;
+                    } catch (e) {}
+                }
+            }
+            const endpoint = resolvedId ? `/jobs/saved/${resolvedId}` : '/jobs/saved';
             const response = await api.get(endpoint);
             const raw = response.data;
             if (Array.isArray(raw)) return raw;

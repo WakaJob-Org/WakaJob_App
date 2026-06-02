@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import jobService from '../../services/jobService';
+import { useAuth } from '../../context/AuthContext';
 
 interface SavedJob {
     id: string;
@@ -43,6 +44,7 @@ const getCategoryStyle = (category = '') => {
 const SavedScreen: React.FC = () => {
     const insets = useSafeAreaInsets();
     const navigation = useNavigation<any>();
+    const { user } = useAuth();
     const [savedJobs, setSavedJobs] = useState<SavedJob[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -50,7 +52,7 @@ const SavedScreen: React.FC = () => {
     const fetchSaved = async (isRefreshing = false) => {
         try {
             if (!isRefreshing) setLoading(true);
-            const data = await jobService.getSavedJobs();
+            const data = await jobService.getSavedJobs(user?.id);
             
             const mapped: SavedJob[] = (data || []).map((item: any) => {
                 const job = item.job || item;
