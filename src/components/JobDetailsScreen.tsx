@@ -330,7 +330,8 @@ const JobDetailsScreen: React.FC = () => {
                 visible={showApplyModal}
                 onClose={() => setShowApplyModal(false)}
                 onApply={handleApply}
-                jobTitle={job.title}
+                jobTitle={job.title || job.position_vacant || 'Position'}
+                requiresCv={job.requires_cv === 'true' || job.requires_cv === true}
             />
         </View>
     );

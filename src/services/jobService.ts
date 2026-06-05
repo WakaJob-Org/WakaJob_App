@@ -92,7 +92,7 @@ const jobService = {
         }
     },
 
-    applyToJob: async (jobId: string, data?: { intro_text?: string; voice_note_uri?: string; application_type?: 'professional' | 'apprentice' }) => {
+    applyToJob: async (jobId: string, data?: { intro_text?: string; voice_note_uri?: string; application_type?: 'professional' | 'apprentice'; cv_file?: { uri: string; name: string; size: number } }) => {
         try {
             // Extract UUID from token to satisfy Supabase RLS policies
             let userId: string | undefined;
@@ -123,6 +123,22 @@ const jobService = {
                     uri: Platform.OS === 'ios' ? data.voice_note_uri.replace('file://', '') : data.voice_note_uri,
                     name: filename,
                     type: 'audio/m4a',
+                } as any);
+            }
+
+            if (data?.cv_file) {
+                const filename = data.cv_file.name || 'cv.pdf';
+                const match = /\.(\w+)$/.exec(filename);
+                const type = match ? `application/${match[1]}` : `application/pdf`;
+                formData.append('cv', {
+                    uri: Platform.OS === 'ios' ? data.cv_file.uri.replace('file://', '') : data.cv_file.uri,
+                    name: filename,
+                    type: type,
+                } as any);
+                formData.append('cv_file', {
+                    uri: Platform.OS === 'ios' ? data.cv_file.uri.replace('file://', '') : data.cv_file.uri,
+                    name: filename,
+                    type: type,
                 } as any);
             }
 
@@ -234,6 +250,10 @@ const jobService = {
             console.warn('Unexpected /applications response shape:', typeof raw, raw);
             return [];
         } catch (error: any) {
+            // Silently swallow 404 errors as they indicate no applications or unimplemented endpoints
+            if (error.response?.status === 404) {
+                return [];
+            }
             console.error('Failed to fetch applications:', error.response?.data?.message || error?.message);
             return [];
         }
