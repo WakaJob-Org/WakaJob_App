@@ -2,6 +2,7 @@ import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 import CONFIG from '../config';
+import authService from './authService';
 
 const api = axios.create({
     baseURL: CONFIG.API_BASE_URL,
@@ -63,7 +64,19 @@ api.interceptors.response.use(
             console.warn(`--- 401 UNAUTHORIZED at ${url} ---`);
             originalRequest._retry = true;
             try {
+                // Attempt to refresh the token
+                const refreshed = await authService.refreshToken();
+                if (refreshed) {
+                    const newToken = authService.getToken();
+                    if (newToken && originalRequest.headers) {
+                        originalRequest.headers.Authorization = `Bearer ${newToken}`;
+                    }
+                    return api(originalRequest);
+                }
+                
+                // If refresh fails, log out
                 await SecureStore.deleteItemAsync('auth_token');
+                await SecureStore.deleteItemAsync('refresh_token');
                 return Promise.reject(error);
             } catch (err) {
                 return Promise.reject(err);
@@ -92,11 +105,16 @@ api.interceptors.response.use(
                 });
             }
         } else {
-            console.error(`[API ERROR ${error.response.status}]:`, {
-                url: url,
-                method: method,
-                data: error.response.data
-            });
+            // Suppress console.error for expected 404s on empty lists
+            const isExpected404 = error.response?.status === 404 && (url.includes('/applications') || url.includes('/jobs/saved'));
+            
+            if (!isExpected404) {
+                console.error(`[API ERROR ${error.response?.status}]:`, {
+                    url: url,
+                    method: method,
+                    data: error.response?.data
+                });
+            }
         }
 
         return Promise.reject(error);
