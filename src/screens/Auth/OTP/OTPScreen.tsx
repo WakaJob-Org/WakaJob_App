@@ -27,12 +27,12 @@ import otpService from '../../../services/otpServices';
 const { width, height } = Dimensions.get('window');
 
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
-import { AuthStackParamList } from '../../../navigation/types';
+import { AppStackParamList } from '../../../navigation/types';
 import { useAuth } from '../../../context/AuthContext';
 
 const OTPScreen: React.FC = () => {
     const navigation = useNavigation<any>();
-    const route = useRoute<RouteProp<AuthStackParamList, 'OTP'>>();
+    const route = useRoute<RouteProp<AppStackParamList, 'OTP'>>();
     const { email } = route.params;
 
     const [otp, setOtp] = useState(['', '', '', '', '', '']);
@@ -147,6 +147,13 @@ const OTPScreen: React.FC = () => {
             await verifyOTP({ email, otp: code });
 
             console.log('OTP Verified successfully and session persisted.');
+            
+            const redirectJob = route.params?.redirectJob;
+            if (redirectJob) {
+                navigation.navigate('JobDetails', { job: redirectJob, autoOpenApply: true });
+            } else {
+                navigation.navigate('MainTabs');
+            }
         } catch (error: any) {
             // Check for common error messages
             const msg = error.message || error.toString();

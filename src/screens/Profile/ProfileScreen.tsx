@@ -26,7 +26,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 
 const ProfileScreen: React.FC = () => {
-    const { logout, refreshUser } = useAuth();
+    const { logout, refreshUser, isAuthenticated } = useAuth();
     const navigation = useNavigation<any>();
     const [username, setUsername] = useState('');
     const [dob, setDob] = useState('March 15, 1992');
@@ -53,6 +53,10 @@ const ProfileScreen: React.FC = () => {
 
     useFocusEffect(
         React.useCallback(() => {
+            if (!isAuthenticated) {
+                setLoading(false);
+                return;
+            }
             const fetchProfile = async (isManualRefresh = false) => {
                 // If we've already loaded once and this isn't a manual pull-to-refresh, skip the fetch
                 if (hasLoadedOnce && !isManualRefresh) {
@@ -294,6 +298,34 @@ const ProfileScreen: React.FC = () => {
             setDob(selectedDate.toISOString().split('T')[0]);
         }
     };
+
+    if (!isAuthenticated) {
+        return (
+            <View style={styles.unauthenticatedContainer}>
+                <View style={styles.unauthenticatedContent}>
+                    <View style={styles.unauthenticatedIconWrap}>
+                        <Ionicons name="person-outline" size={64} color="#1972ca" />
+                    </View>
+                    <Text style={styles.unauthenticatedTitle}>Your Profile</Text>
+                    <Text style={styles.unauthenticatedDesc}>
+                        Sign in to set up your profile, manage your skills, post jobs, and access verification tools.
+                    </Text>
+                    <TouchableOpacity
+                        style={styles.authButtonPrimary}
+                        onPress={() => navigation.navigate('Signup')}
+                    >
+                        <Text style={styles.authButtonTextPrimary}>Create Account</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={styles.authButtonSecondary}
+                        onPress={() => navigation.navigate('Login')}
+                    >
+                        <Text style={styles.authButtonTextSecondary}>Log In</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        );
+    }
 
     if (loading) return <ProfileSkeleton />;
 
@@ -1238,6 +1270,72 @@ const styles = StyleSheet.create({
         color: '#EF4444',
         fontSize: 16,
         fontWeight: 'bold',
+    },
+    unauthenticatedContainer: {
+        flex: 1,
+        backgroundColor: '#FFFFFF',
+        justifyContent: 'center',
+        paddingHorizontal: 24,
+    },
+    unauthenticatedContent: {
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    unauthenticatedIconWrap: {
+        width: 120,
+        height: 120,
+        borderRadius: 60,
+        backgroundColor: '#F0F7FF',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 24,
+    },
+    unauthenticatedTitle: {
+        fontSize: 24,
+        fontWeight: '800',
+        color: '#111827',
+        marginBottom: 12,
+    },
+    unauthenticatedDesc: {
+        fontSize: 15,
+        color: '#6B7280',
+        textAlign: 'center',
+        lineHeight: 22,
+        marginBottom: 32,
+    },
+    authButtonPrimary: {
+        backgroundColor: '#1972ca',
+        width: '100%',
+        height: 56,
+        borderRadius: 14,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 14,
+        shadowColor: '#1972ca',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+        elevation: 3,
+    },
+    authButtonTextPrimary: {
+        color: '#FFFFFF',
+        fontSize: 16,
+        fontWeight: '700',
+    },
+    authButtonSecondary: {
+        backgroundColor: '#FFFFFF',
+        width: '100%',
+        height: 56,
+        borderRadius: 14,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1.5,
+        borderColor: '#E5E7EB',
+    },
+    authButtonTextSecondary: {
+        color: '#4B5563',
+        fontSize: 16,
+        fontWeight: '700',
     },
 });
 

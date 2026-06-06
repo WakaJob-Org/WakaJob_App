@@ -72,7 +72,7 @@ const ForgotPasswordScreen: React.FC = () => {
             setErrors({ otp: 'Please enter a valid 6-digit OTP' });
             return;
         }
-        
+
         // We skip the intermediate /auth/verify-otp call because most backends
         // verify the reset code during the final /auth/reset-password step.
         // This avoids "Token Expired" errors caused by using the wrong verification endpoint.
@@ -133,7 +133,7 @@ const ForgotPasswordScreen: React.FC = () => {
             }
             Alert.alert('Reset Failed', friendlyMsg, [
                 rawMsg.toLowerCase().includes('expired') || rawMsg.toLowerCase().includes('invalid')
-                    ? { text: 'Request New Code', onPress: () => { setStep('request'); setOtp(['','','','','','']); } }
+                    ? { text: 'Request New Code', onPress: () => { setStep('request'); setOtp(['', '', '', '', '', '']); } }
                     : { text: 'Try Again' }
             ]);
         } finally {
@@ -165,7 +165,7 @@ const ForgotPasswordScreen: React.FC = () => {
         if (value && index < 5) {
             otpRefs.current[index + 1]?.focus();
         }
-        
+
         if (errors.otp) setErrors({ ...errors, otp: '' });
     };
 
@@ -176,7 +176,7 @@ const ForgotPasswordScreen: React.FC = () => {
     };
 
     const renderHeaderTitle = () => {
-        switch(step) {
+        switch (step) {
             case 'request': return 'Forgot Password';
             case 'verify': return 'Verify Code';
             case 'reset': return 'Create New Password';
@@ -195,17 +195,17 @@ const ForgotPasswordScreen: React.FC = () => {
                 style={{ flex: 1 }}
             >
                 <View style={styles.headerTitleRow}>
-                    <TouchableOpacity 
-                        onPress={() => step === 'request' ? navigation.goBack() : setStep(step === 'verify' ? 'request' : 'verify')} 
+                    <TouchableOpacity
+                        onPress={() => step === 'request' ? navigation.goBack() : setStep(step === 'verify' ? 'request' : 'verify')}
                         style={styles.backButton}
                     >
                         <Ionicons name={step === 'request' ? "close" : "arrow-back"} size={24} color="#333" />
                     </TouchableOpacity>
-                    <Text style={styles.topTitle}>{renderHeaderTitle()}</Text>
                     <View style={{ width: 40 }} />
                 </View>
 
                 <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                    <Text style={styles.topTitle}>{renderHeaderTitle()}</Text>
                     {step === 'request' && (
                         <View style={styles.form}>
                             <Text style={styles.description}>
@@ -282,13 +282,13 @@ const ForgotPasswordScreen: React.FC = () => {
                             >
                                 {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.actionButtonText}>Verify Code</Text>}
                             </TouchableOpacity>
-                            
-                            <TouchableOpacity 
-                                style={{marginTop: 15, alignItems: 'center'}}
+
+                            <TouchableOpacity
+                                style={{ marginTop: 15, alignItems: 'center' }}
                                 onPress={handleSendCode}
                                 disabled={loading}
                             >
-                                <Text style={{color: '#666', fontSize: 14}}>Didn't receive a code? <Text style={{color: '#007AFF', fontWeight: 'bold'}}>Resend</Text></Text>
+                                <Text style={{ color: '#666', fontSize: 14 }}>Didn't receive a code? <Text style={{ color: '#007AFF', fontWeight: 'bold' }}>Resend</Text></Text>
                             </TouchableOpacity>
                         </View>
                     )}
@@ -388,8 +388,12 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: 'bold',
         color: '#333',
+        alignSelf: 'center',
+        marginBottom: 10,
     },
     scrollContent: {
+        flexGrow: 1,
+        justifyContent: 'center',
         paddingHorizontal: 24,
         paddingBottom: 40,
     },

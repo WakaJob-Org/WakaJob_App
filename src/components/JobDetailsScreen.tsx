@@ -24,7 +24,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const JobDetailsScreen: React.FC = () => {
     const route = useRoute<any>();
     const navigation = useNavigation<any>();
-    const { user } = useAuth();
+    const { user, isAuthenticated } = useAuth();
     const { job, isSaved: initialIsSaved } = route.params || {};
 
     const [isSaved, setIsSaved] = useState(initialIsSaved || false);
@@ -38,6 +38,15 @@ const JobDetailsScreen: React.FC = () => {
         requirements: []
     });
     const [showApplyModal, setShowApplyModal] = useState(false);
+
+    // Auto open apply modal if redirected back after auth creation
+    useEffect(() => {
+        if (route.params?.autoOpenApply && isAuthenticated) {
+            // Clear parameter so it doesn't pop up again
+            navigation.setParams({ autoOpenApply: undefined });
+            setShowApplyModal(true);
+        }
+    }, [route.params?.autoOpenApply, isAuthenticated]);
 
     useEffect(() => {
         const getUserId = async () => {
@@ -103,6 +112,24 @@ const JobDetailsScreen: React.FC = () => {
     };
 
     const handleApplyPress = () => {
+        if (!isAuthenticated) {
+            Alert.alert(
+                "Authentication Required",
+                "Please sign up or log in to apply for jobs.",
+                [
+                    { text: "Cancel", style: "cancel" },
+                    { 
+                        text: "Sign Up", 
+                        onPress: () => navigation.navigate('Signup', { redirectJob: job }) 
+                    },
+                    { 
+                        text: "Log In", 
+                        onPress: () => navigation.navigate('Login', { redirectJob: job }) 
+                    }
+                ]
+            );
+            return;
+        }
         if (user?.id === job.employer_id) {
             Alert.alert("Action Not Allowed", "You cannot apply for a job that you posted.");
             return;
@@ -313,7 +340,7 @@ const JobDetailsScreen: React.FC = () => {
             <View style={styles.footer}>
                 <TouchableOpacity 
                     style={[styles.applyBtn, { flex: 1 }, isApplying && { opacity: 0.7 }, isJobPoster && { opacity: 0.5 }]} 
-                    onPress={() => setShowApplyModal(true)}
+                    onPress={handleApplyPress}
                     disabled={isApplying || isJobPoster}
                 >
                     {isJobPoster ? (

@@ -128,8 +128,8 @@ interface ApplicationsScreenProps {
 }
 
 const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ onViewApplicant }) => {
-    const navigation = useNavigation();
-    const { user } = useAuth();
+    const navigation = useNavigation<any>();
+    const { user, isAuthenticated } = useAuth();
     const isEmployer = user?.role === 'employer';
     const [activeTab, setActiveTab] = useState('All');
     const [searchQuery, setSearchQuery] = useState('');
@@ -234,8 +234,12 @@ const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ onViewApplicant
     };
 
     React.useEffect(() => {
+        if (!isAuthenticated) {
+            setLoading(false);
+            return;
+        }
         fetchApplications();
-    }, []);
+    }, [isAuthenticated]);
 
     const onRefresh = React.useCallback(() => {
         setRefreshing(true);
@@ -267,7 +271,7 @@ const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ onViewApplicant
             app.id === applicantId ? { ...app, status } : app
         ));
         try {
-            await jobService.updateApplicationStatus(applicantId, status);
+            await jobService.updateApplicationStatus(applicantId, status as any);
         } catch (error) {
             console.error('Failed to update status:', error);
             // Revert on failure
@@ -350,6 +354,34 @@ const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ onViewApplicant
             </TouchableOpacity>
         );
     };
+
+    if (!isAuthenticated) {
+        return (
+            <View style={styles.unauthenticatedContainer}>
+                <View style={styles.unauthenticatedContent}>
+                    <View style={styles.unauthenticatedIconWrap}>
+                        <Ionicons name="briefcase-outline" size={64} color="#1972ca" />
+                    </View>
+                    <Text style={styles.unauthenticatedTitle}>My Applications</Text>
+                    <Text style={styles.unauthenticatedDesc}>
+                        Sign in to apply for jobs, track your application progress, and communicate with employers.
+                    </Text>
+                    <TouchableOpacity
+                        style={styles.authButtonPrimary}
+                        onPress={() => navigation.navigate('Signup')}
+                    >
+                        <Text style={styles.authButtonTextPrimary}>Create Account</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={styles.authButtonSecondary}
+                        onPress={() => navigation.navigate('Login')}
+                    >
+                        <Text style={styles.authButtonTextSecondary}>Log In</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        );
+    }
 
     return (
         <View style={styles.container}>
@@ -504,12 +536,14 @@ const styles = StyleSheet.create({
 
     // ── Tabs ──
     tabsContainer: {
+        flexGrow: 0,
         marginBottom: 10,
     },
     tabsScroll: {
         paddingHorizontal: 18,
         gap: 10,
         paddingBottom: 2,
+        alignItems: 'center',
     },
     tabChip: {
         paddingHorizontal: 20,
@@ -518,6 +552,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#FFFFFF',
         borderWidth: 1,
         borderColor: '#E5E7EB',
+        // height: 40
     },
     activeTabChip: {
         backgroundColor: '#1972ca',
@@ -651,6 +686,72 @@ const styles = StyleSheet.create({
         marginTop: 14,
         fontSize: 15,
         color: '#9CA3AF',
+    },
+    unauthenticatedContainer: {
+        flex: 1,
+        backgroundColor: '#FFFFFF',
+        justifyContent: 'center',
+        paddingHorizontal: 24,
+    },
+    unauthenticatedContent: {
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    unauthenticatedIconWrap: {
+        width: 120,
+        height: 120,
+        borderRadius: 60,
+        backgroundColor: '#F0F7FF',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 24,
+    },
+    unauthenticatedTitle: {
+        fontSize: 24,
+        fontWeight: '800',
+        color: '#111827',
+        marginBottom: 12,
+    },
+    unauthenticatedDesc: {
+        fontSize: 15,
+        color: '#6B7280',
+        textAlign: 'center',
+        lineHeight: 22,
+        marginBottom: 32,
+    },
+    authButtonPrimary: {
+        backgroundColor: '#1972ca',
+        width: '100%',
+        height: 56,
+        borderRadius: 14,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 14,
+        shadowColor: '#1972ca',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+        elevation: 3,
+    },
+    authButtonTextPrimary: {
+        color: '#FFFFFF',
+        fontSize: 16,
+        fontWeight: '700',
+    },
+    authButtonSecondary: {
+        backgroundColor: '#FFFFFF',
+        width: '100%',
+        height: 56,
+        borderRadius: 14,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1.5,
+        borderColor: '#E5E7EB',
+    },
+    authButtonTextSecondary: {
+        color: '#4B5563',
+        fontSize: 16,
+        fontWeight: '700',
     },
 });
 
