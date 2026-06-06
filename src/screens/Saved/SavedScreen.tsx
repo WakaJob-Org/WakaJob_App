@@ -102,18 +102,8 @@ const SavedScreen: React.FC = () => {
             {
                 text: 'Remove',
                 style: 'destructive',
-                onPress: async () => {
-                    try {
-                        setSavedJobs(prev => prev.filter(j => j.id !== jobId));
-                        // Call backend to unsave the job
-                        try {
-                            await jobService.unsaveJob(jobId);
-                        } catch (error) {
-                            console.error('Error removing saved job from backend:', error);
-                        }
-                    } catch (error) {
-                        console.error('Error removing saved job:', error);
-                    }
+                onPress: () => {
+                    setSavedJobs(prev => prev.filter(j => j.id !== jobId));
                 },
             },
         ]);

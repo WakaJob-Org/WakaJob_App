@@ -14,7 +14,6 @@ import VerificationPendingScreen from '../screens/Verification/VerificationPendi
 import VerificationSuccessScreen from '../screens/Verification/VerificationSuccessScreen';
 import VerificationFailedScreen from '../screens/Verification/VerificationFailedScreen';
 import EmployerDashboardScreen from '../screens/Profile/EmployerDashboardScreen';
-import JobApplicantsScreen from '../screens/Applications/JobApplicantsScreen';
 
 // Auth screens
 import SignupScreen from '../screens/Auth/Signup/SignupScreen';
