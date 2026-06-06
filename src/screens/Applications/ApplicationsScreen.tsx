@@ -123,14 +123,18 @@ const AVATAR_COLORS: Record<string, string> = {
     EM: '#93C5FD',
 };
 
-const ApplicationsScreen: React.FC = () => {
-    const navigation = useNavigation();
-    const { user } = useAuth();
+interface ApplicationsScreenProps {
+    onViewApplicant?: (id: string) => void;
+}
+
+const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ onViewApplicant }) => {
+    const navigation = useNavigation<any>();
+    const { user, isAuthenticated } = useAuth();
     const isEmployer = user?.role === 'employer';
     const [activeTab, setActiveTab] = useState('All');
     const [searchQuery, setSearchQuery] = useState('');
-    const [applicants, setApplicants] = useState<Applicant[]>(MOCK_APPLICANTS);
-    const [loading, setLoading] = useState(false);
+    const [applicants, setApplicants] = useState<Applicant[]>([]);
+    const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [selectedApplicant, setSelectedApplicant] = useState<Applicant | null>(null);
     const [profileVisible, setProfileVisible] = useState(false);
@@ -139,11 +143,90 @@ const ApplicationsScreen: React.FC = () => {
         try {
             if (!isRefreshing) setLoading(true);
             const fetched = await jobService.getUserApplications();
+
             if (fetched && fetched.length > 0) {
-                // map fetched data if available
+                // Map backend fields → Applicant interface
+                // Worker view: each item = a job they applied to
+                // Employer view: each item = a person who applied to their job
+                const mapped: Applicant[] = fetched.map((item: any) => {
+                    const fullName =
+                        item.applicant_name ||
+                        item.full_name ||
+                        item.user?.full_name ||
+                        item.user?.name ||
+                        item.name ||
+                        'Unknown Applicant';
+
+                    const jobTitle =
+                        item.job_title ||
+                        item.job?.title ||
+                        item.job?.position_vacant ||
+                        item.position ||
+                        item.role ||
+                        'Unknown Position';
+
+                    const company =
+                        item.company ||
+                        item.company_name ||
+                        item.job?.company ||
+                        item.job?.company_name ||
+                        '';
+
+                    const initials = fullName
+                        .trim()
+                        .split(' ')
+                        .filter(Boolean)
+                        .map((w: string) => w[0])
+                        .slice(0, 2)
+                        .join('')
+                        .toUpperCase();
+
+                    // Normalise status to one of our StatusKey values
+                    const rawStatus = (item.status || 'NEW').toUpperCase().trim();
+                    const statusMap: Record<string, StatusKey> = {
+                        'NEW': 'NEW',
+                        'PENDING': 'NEW',
+                        'SUBMITTED': 'NEW',
+                        'UNDER REVIEW': 'UNDER REVIEW',
+                        'REVIEWING': 'UNDER REVIEW',
+                        'REVIEW': 'UNDER REVIEW',
+                        'INTERVIEWING': 'INTERVIEWING',
+                        'INTERVIEW': 'INTERVIEWING',
+                        'ACCEPTED': 'ACCEPTED',
+                        'HIRED': 'ACCEPTED',
+                        'APPROVED': 'ACCEPTED',
+                        'REJECTED': 'REJECTED',
+                        'DECLINED': 'REJECTED',
+                    };
+                    const status: StatusKey = statusMap[rawStatus] ?? 'NEW';
+
+                    return {
+                        id: item.id || item._id || String(Math.random()),
+                        // For workers: display the job they applied to
+                        // For employers: display the person who applied
+                        name: isEmployer ? fullName : jobTitle,
+                        role: isEmployer ? jobTitle : company || jobTitle,
+                        location: item.location || item.job?.location || item.user?.location || '',
+                        status,
+                        photo: item.profile_image_url || item.photo || item.avatar || item.user?.profile_image_url || null,
+                        initials,
+                        isVerified: item.is_verified || item.user?.is_verified || false,
+                        bio: item.bio || item.intro_text || item.user?.bio || '',
+                        skills: item.skills || item.user?.skills || [],
+                        // Keep raw data for detail view
+                        jobTitle,
+                        company,
+                        appliedAt: item.created_at || item.applied_at || '',
+                        applicationId: item.id || item._id,
+                    } as any;
+                });
+                setApplicants(mapped);
+            } else {
+                setApplicants([]);
             }
         } catch (error) {
             console.error('Error fetching applications:', error);
+            setApplicants([]);
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -151,8 +234,12 @@ const ApplicationsScreen: React.FC = () => {
     };
 
     React.useEffect(() => {
+        if (!isAuthenticated) {
+            setLoading(false);
+            return;
+        }
         fetchApplications();
-    }, []);
+    }, [isAuthenticated]);
 
     const onRefresh = React.useCallback(() => {
         setRefreshing(true);
@@ -179,17 +266,16 @@ const ApplicationsScreen: React.FC = () => {
     });
 
     const updateApplicantStatus = async (applicantId: string, status: StatusKey) => {
+        // Optimistic UI update
+        setApplicants(prev => prev.map(app =>
+            app.id === applicantId ? { ...app, status } : app
+        ));
         try {
-            // Update UI optimistically
-            setApplicants(prev => prev.map(app => 
-                app.id === applicantId ? { ...app, status } : app
-            ));
-            
-            // In a real app, you would call the backend here:
-            // await jobService.updateApplicationStatus(applicantId, status);
+            await jobService.updateApplicationStatus(applicantId, status as any);
         } catch (error) {
             console.error('Failed to update status:', error);
-            // Optionally revert the state if the API fails
+            // Revert on failure
+            fetchApplications(true);
         }
     };
 
@@ -205,24 +291,41 @@ const ApplicationsScreen: React.FC = () => {
 
     const renderApplicantCard = ({ item }: { item: Applicant }) => {
         const statusCfg = STATUS_CONFIG[item.status as StatusKey] ?? STATUS_CONFIG['NEW'];
+        const anyItem = item as any;
 
         return (
-            <View style={styles.card}>
+            <TouchableOpacity
+                style={styles.card}
+                activeOpacity={0.85}
+                onPress={() => handleViewDetails(item)}
+            >
                 {/* Top row: photo, name, role, badge */}
                 <View style={styles.cardTop}>
                     {/* Avatar */}
                     {item.photo ? (
                         <Image source={{ uri: item.photo }} style={styles.avatar} />
                     ) : (
-                        <View style={[styles.avatar, styles.avatarFallback, { backgroundColor: AVATAR_COLORS[item.initials ?? ''] ?? '#9CA3AF' }]}>
+                        <View style={[styles.avatar, styles.avatarFallback, { backgroundColor: AVATAR_COLORS[item.initials ?? ''] ?? '#1972ca' }]}>
                             <Text style={styles.avatarInitials}>{item.initials ?? item.name.charAt(0)}</Text>
                         </View>
                     )}
 
                     {/* Name & Role */}
                     <View style={styles.nameBlock}>
-                        <Text style={styles.applicantName}>{item.name}</Text>
-                        <Text style={styles.applicantRole}>{item.role}</Text>
+                        <Text style={styles.applicantName} numberOfLines={1}>{item.name}</Text>
+                        <Text style={styles.applicantRole} numberOfLines={1}>{item.role}</Text>
+                        {/* Show company for worker view */}
+                        {!isEmployer && anyItem.company ? (
+                            <Text style={styles.companyText} numberOfLines={1}>
+                                📍 {anyItem.company}
+                            </Text>
+                        ) : null}
+                        {/* Show applied date */}
+                        {anyItem.appliedAt ? (
+                            <Text style={styles.dateText}>
+                                Applied {new Date(anyItem.appliedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                            </Text>
+                        ) : null}
                     </View>
 
                     {/* Status badge */}
@@ -240,15 +343,45 @@ const ApplicationsScreen: React.FC = () => {
                 <View style={styles.cardBottom}>
                     <View style={styles.locationRow}>
                         <Ionicons name="location-outline" size={14} color="#9CA3AF" />
-                        <Text style={styles.locationText}>{item.location}</Text>
+                        <Text style={styles.locationText} numberOfLines={1}>
+                            {item.location || 'Location not specified'}
+                        </Text>
                     </View>
                     <TouchableOpacity activeOpacity={0.7} onPress={() => handleViewDetails(item)}>
                         <Text style={styles.viewDetails}>View Details</Text>
                     </TouchableOpacity>
                 </View>
-            </View>
+            </TouchableOpacity>
         );
     };
+
+    if (!isAuthenticated) {
+        return (
+            <View style={styles.unauthenticatedContainer}>
+                <View style={styles.unauthenticatedContent}>
+                    <View style={styles.unauthenticatedIconWrap}>
+                        <Ionicons name="briefcase-outline" size={64} color="#1972ca" />
+                    </View>
+                    <Text style={styles.unauthenticatedTitle}>My Applications</Text>
+                    <Text style={styles.unauthenticatedDesc}>
+                        Sign in to apply for jobs, track your application progress, and communicate with employers.
+                    </Text>
+                    <TouchableOpacity
+                        style={styles.authButtonPrimary}
+                        onPress={() => navigation.navigate('Signup')}
+                    >
+                        <Text style={styles.authButtonTextPrimary}>Create Account</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={styles.authButtonSecondary}
+                        onPress={() => navigation.navigate('Login')}
+                    >
+                        <Text style={styles.authButtonTextSecondary}>Log In</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        );
+    }
 
     return (
         <View style={styles.container}>
@@ -403,12 +536,14 @@ const styles = StyleSheet.create({
 
     // ── Tabs ──
     tabsContainer: {
+        flexGrow: 0,
         marginBottom: 10,
     },
     tabsScroll: {
         paddingHorizontal: 18,
         gap: 10,
         paddingBottom: 2,
+        alignItems: 'center',
     },
     tabChip: {
         paddingHorizontal: 20,
@@ -417,6 +552,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#FFFFFF',
         borderWidth: 1,
         borderColor: '#E5E7EB',
+        // height: 40
     },
     activeTabChip: {
         backgroundColor: '#1972ca',
@@ -493,6 +629,16 @@ const styles = StyleSheet.create({
         fontSize: 13,
         color: '#6B7280',
     },
+    companyText: {
+        fontSize: 12,
+        color: '#4B5563',
+        marginTop: 2,
+    },
+    dateText: {
+        fontSize: 11,
+        color: '#9CA3AF',
+        marginTop: 2,
+    },
     statusBadge: {
         paddingHorizontal: 10,
         paddingVertical: 5,
@@ -540,6 +686,72 @@ const styles = StyleSheet.create({
         marginTop: 14,
         fontSize: 15,
         color: '#9CA3AF',
+    },
+    unauthenticatedContainer: {
+        flex: 1,
+        backgroundColor: '#FFFFFF',
+        justifyContent: 'center',
+        paddingHorizontal: 24,
+    },
+    unauthenticatedContent: {
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    unauthenticatedIconWrap: {
+        width: 120,
+        height: 120,
+        borderRadius: 60,
+        backgroundColor: '#F0F7FF',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 24,
+    },
+    unauthenticatedTitle: {
+        fontSize: 24,
+        fontWeight: '800',
+        color: '#111827',
+        marginBottom: 12,
+    },
+    unauthenticatedDesc: {
+        fontSize: 15,
+        color: '#6B7280',
+        textAlign: 'center',
+        lineHeight: 22,
+        marginBottom: 32,
+    },
+    authButtonPrimary: {
+        backgroundColor: '#1972ca',
+        width: '100%',
+        height: 56,
+        borderRadius: 14,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 14,
+        shadowColor: '#1972ca',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+        elevation: 3,
+    },
+    authButtonTextPrimary: {
+        color: '#FFFFFF',
+        fontSize: 16,
+        fontWeight: '700',
+    },
+    authButtonSecondary: {
+        backgroundColor: '#FFFFFF',
+        width: '100%',
+        height: 56,
+        borderRadius: 14,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1.5,
+        borderColor: '#E5E7EB',
+    },
+    authButtonTextSecondary: {
+        color: '#4B5563',
+        fontSize: 16,
+        fontWeight: '700',
     },
 });
 

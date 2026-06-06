@@ -82,10 +82,18 @@ const authService = {
         response.data.data?.token ||
         response.data.data?.access_token ||
         response.data.access_token;
+        
+      const refreshToken = response.data.refresh_token ||
+        response.data.data?.session?.refresh_token ||
+        response.data.data?.refresh_token ||
+        response.data.refresh;
 
       if (token) {
         console.log('--- TOKEN EXTRACTED FROM SIGNUP ---');
         await this.setToken(token);
+        if (refreshToken) {
+          await SecureStore.setItemAsync('refresh_token', refreshToken);
+        }
       } else {
         console.log('--- Signup successful, waiting for OTP verification ---');
       }
@@ -115,10 +123,18 @@ const authService = {
         response.data.data?.token ||
         response.data.data?.access_token ||
         response.data.access_token;
+        
+      const refreshToken = response.data.refresh_token ||
+        response.data.data?.session?.refresh_token ||
+        response.data.data?.refresh_token ||
+        response.data.refresh;
 
       if (token) {
         console.log('--- TOKEN EXTRACTED FROM SIGNIN ---');
         await this.setToken(token);
+        if (refreshToken) {
+          await SecureStore.setItemAsync('refresh_token', refreshToken);
+        }
       } else {
         console.error('FAILED to extract token from Signin structure:', JSON.stringify(response.data));
       }
@@ -144,9 +160,17 @@ const authService = {
         response.data.data?.access_token ||
         response.data.access_token;
 
+      const refreshToken = response.data.refresh_token ||
+        response.data.data?.session?.refresh_token ||
+        response.data.data?.refresh_token ||
+        response.data.refresh;
+
       if (token) {
         console.log('--- TOKEN EXTRACTED FROM OTP ---');
         await this.setToken(token);
+        if (refreshToken) {
+          await SecureStore.setItemAsync('refresh_token', refreshToken);
+        }
       }
 
       return response.data;
@@ -223,7 +247,10 @@ const authService = {
             currentToken = token;
             return true;
           }
-          console.log('--- Storage token expired ---');
+          console.log('--- Storage token expired, attempting refresh ---');
+          const refreshed = await this.refreshToken();
+          if (refreshed) return true;
+          
           await SecureStore.deleteItemAsync('auth_token');
         } catch (e) {
           // If decode fails, assume it's just a non-JWT string or corrupt and use as is (backward compat)
@@ -234,6 +261,38 @@ const authService = {
       }
     } catch (e) {
       console.error('--- SecureStore Read Error ---:', e);
+    }
+    return false;
+  },
+
+  async refreshToken(): Promise<boolean> {
+    try {
+      const refresh = await SecureStore.getItemAsync('refresh_token');
+      if (!refresh) return false;
+      
+      console.log('--- ATTEMPTING TOKEN REFRESH ---');
+      const response = await authApi.post('/auth/refresh-token', { refresh_token: refresh });
+      
+      const newToken = response.data.token ||
+        response.data.data?.session?.access_token ||
+        response.data.data?.token ||
+        response.data.data?.access_token ||
+        response.data.access_token;
+        
+      const newRefreshToken = response.data.refresh_token ||
+        response.data.data?.session?.refresh_token ||
+        response.data.data?.refresh_token ||
+        response.data.refresh;
+
+      if (newToken) {
+        await this.setToken(newToken);
+        if (newRefreshToken) {
+           await SecureStore.setItemAsync('refresh_token', newRefreshToken);
+        }
+        return true;
+      }
+    } catch (e) {
+      console.error('--- Token Refresh Failed ---');
     }
     return false;
   },
@@ -256,6 +315,7 @@ const authService = {
     console.log('--- LOGOUT INITIATED ---');
     this.clearMemoryToken();
     await SecureStore.deleteItemAsync('auth_token');
+    await SecureStore.deleteItemAsync('refresh_token');
     await SecureStore.deleteItemAsync('cached_user_name');
   },
 

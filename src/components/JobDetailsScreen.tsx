@@ -22,11 +22,72 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const JobDetailsScreen: React.FC = () => {
     const route = useRoute<any>();
     const navigation = useNavigation<any>();
+    const { user, isAuthenticated } = useAuth();
     const { job, isSaved: initialIsSaved } = route.params || {};
 
     const [isSaved, setIsSaved] = useState(initialIsSaved || false);
     const [isApplying, setIsApplying] = useState(false);
     const [showApplyModal, setShowApplyModal] = useState(false);
+
+    // Auto open apply modal if redirected back after auth creation
+    useEffect(() => {
+        if (route.params?.autoOpenApply && isAuthenticated) {
+            // Clear parameter so it doesn't pop up again
+            navigation.setParams({ autoOpenApply: undefined });
+            setShowApplyModal(true);
+        }
+    }, [route.params?.autoOpenApply, isAuthenticated]);
+
+    useEffect(() => {
+        const getUserId = async () => {
+            try {
+                const user = await authService.getUser();
+                if (user && user.id) {
+                    setCurrentUserId(user.id);
+                    // Check if current user is the job poster
+                    if (job?.employer_id === user.id) {
+                        setIsJobPoster(true);
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching user:', error);
+            }
+        };
+        getUserId();
+    }, [job?.employer_id]);
+
+    useEffect(() => {
+        if (job) {
+            // Parse description and perks
+            const descParts = job.description?.split('--- Additional Details ---') || [job.description];
+            const cleanDesc = descParts[0]?.trim();
+            
+            let perks: string[] = [];
+            let contactMethod = '';
+            
+            if (descParts.length > 1) {
+                const details = descParts[1];
+                const perksMatch = details.match(/Perks: (.*)/);
+                if (perksMatch) {
+                    perks = perksMatch[1].split(',').map((p: string) => p.trim()).filter((p: string) => p && p !== 'None');
+                }
+                const contactMatch = details.match(/Contact Method: (.*)/);
+                if (contactMatch) {
+                    contactMethod = contactMatch[1].split('\n')[0].trim();
+                }
+            }
+
+            // Parse requirements
+            const reqs = job.qualifications?.split(',').map((r: string) => r.trim()).filter((r: string) => r) || [];
+
+            setParsedData({
+                description: cleanDesc,
+                contactMethod,
+                perks,
+                requirements: reqs
+            });
+        }
+    }, [job]);
 
     if (!job) return null;
 
@@ -35,8 +96,33 @@ const JobDetailsScreen: React.FC = () => {
             setIsSaved(!isSaved); // Optimistic UI
             await jobService.saveJob(job.id);
         } catch (error) {
-            setIsSaved(isSaved); // Revert on failure
-            Alert.alert("Error", "Failed to save job.");
+            setIsSaved(!isSaved);
+            Alert.alert("Error", "Failed to update saved jobs.");
+        }
+    };
+
+    const handleApplyPress = () => {
+        if (!isAuthenticated) {
+            Alert.alert(
+                "Authentication Required",
+                "Please sign up or log in to apply for jobs.",
+                [
+                    { text: "Cancel", style: "cancel" },
+                    { 
+                        text: "Sign Up", 
+                        onPress: () => navigation.navigate('Signup', { redirectJob: job }) 
+                    },
+                    { 
+                        text: "Log In", 
+                        onPress: () => navigation.navigate('Login', { redirectJob: job }) 
+                    }
+                ]
+            );
+            return;
+        }
+        if (user?.id === job.employer_id) {
+            Alert.alert("Action Not Allowed", "You cannot apply for a job that you posted.");
+            return;
         }
     };
 
@@ -130,27 +216,31 @@ const JobDetailsScreen: React.FC = () => {
                     </View>
                 </ScrollView>
 
-                <View style={styles.footer}>
-                    <TouchableOpacity 
-                        style={[styles.applyButton, isApplying && styles.applyButtonDisabled]} 
-                        onPress={() => setShowApplyModal(true)}
-                        disabled={isApplying}
-                    >
-                        {isApplying ? (
-                            <ActivityIndicator color="#FFF" />
-                        ) : (
-                            <Text style={styles.applyButtonText}>Apply Now</Text>
-                        )}
-                    </TouchableOpacity>
-                </View>
+            {/* Footer Buttons */}
+            <View style={styles.footer}>
+                <TouchableOpacity 
+                    style={[styles.applyBtn, { flex: 1 }, isApplying && { opacity: 0.7 }, isJobPoster && { opacity: 0.5 }]} 
+                    onPress={handleApplyPress}
+                    disabled={isApplying || isJobPoster}
+                >
+                    {isJobPoster ? (
+                        <Text style={styles.applyBtnText}>Cannot Apply - Your Job</Text>
+                    ) : isApplying ? (
+                        <ActivityIndicator color="#FFF" />
+                    ) : (
+                        <Text style={styles.applyBtnText}>Apply Now</Text>
+                    )}
+                </TouchableOpacity>
+            </View>
 
-                <ApplyModal 
-                    visible={showApplyModal}
-                    onClose={() => setShowApplyModal(false)}
-                    onApply={handleApply}
-                    jobTitle={job.title}
-                />
-        </SafeAreaView>
+            <ApplyModal 
+                visible={showApplyModal}
+                onClose={() => setShowApplyModal(false)}
+                onApply={handleApply}
+                jobTitle={job.title || job.position_vacant || 'Position'}
+                requiresCv={job.requires_cv === 'true' || job.requires_cv === true}
+            />
+        </View>
     );
 };
 

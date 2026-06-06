@@ -29,8 +29,9 @@ const ForgotPasswordScreen: React.FC = () => {
     const [step, setStep] = useState<'request' | 'verify' | 'reset'>('request');
     const [loading, setLoading] = useState(false);
 
-    // Request State
     const [email, setEmail] = useState('');
+    // Keep a stable ref so email is never lost when navigating between steps
+    const emailRef = useRef<string>('');
 
     // Reset State
     const [otp, setOtp] = useState(['', '', '', '', '', '']);
@@ -53,8 +54,9 @@ const ForgotPasswordScreen: React.FC = () => {
 
         try {
             await authService.forgotPassword({ email: cleanEmail });
+            emailRef.current = cleanEmail; // persist reliably in ref
             setEmail(cleanEmail);
-            Alert.alert('Success', 'A reset code has been sent to your email.');
+            Alert.alert('Code Sent! 📧', `A 6-digit reset code has been sent to ${cleanEmail}. Check your inbox (and spam folder).`);
             setStep('verify');
         } catch (error: any) {
             const errorMessage = error instanceof Error ? error.message : String(error);
@@ -70,7 +72,7 @@ const ForgotPasswordScreen: React.FC = () => {
             setErrors({ otp: 'Please enter a valid 6-digit OTP' });
             return;
         }
-        
+
         // We skip the intermediate /auth/verify-otp call because most backends
         // verify the reset code during the final /auth/reset-password step.
         // This avoids "Token Expired" errors caused by using the wrong verification endpoint.
@@ -79,7 +81,11 @@ const ForgotPasswordScreen: React.FC = () => {
 
     const handleResetPassword = async () => {
         const newErrors: any = {};
-        if (!newPassword || newPassword.length < 6) newErrors.newPassword = 'Password must be at least 6 characters';
+        if (!newPassword || newPassword.length < 8) {
+            newErrors.newPassword = 'Password must be at least 8 characters';
+        } else if (!/\d/.test(newPassword)) {
+            newErrors.newPassword = 'Password must contain at least one number';
+        }
         if (newPassword !== confirmPassword) newErrors.confirmPassword = 'Passwords do not match';
 
         if (Object.keys(newErrors).length > 0) {
@@ -91,13 +97,45 @@ const ForgotPasswordScreen: React.FC = () => {
         setLoading(true);
 
         const otpString = otp.join('');
+        // Use the ref as primary source — guaranteed to be the email from step 1
+        const resolvedEmail = emailRef.current || email;
+
+        if (!resolvedEmail) {
+            Alert.alert('Session Expired', 'We lost track of your email. Please start the reset process again.');
+            setStep('request');
+            setLoading(false);
+            return;
+        }
+
         try {
-            await authService.resetPassword({ email, otp: otpString, new_password: newPassword, confirm_password: confirmPassword });
-            Alert.alert('Success', 'Your password has been successfully reset. You can now login.');
-            navigation.navigate('Login');
+            await authService.resetPassword({
+                email: resolvedEmail,
+                otp: otpString,
+                token: otpString,           // send both in case backend expects either key
+                new_password: newPassword,
+                confirm_password: confirmPassword,
+            });
+            Alert.alert(
+                'Password Updated! 🎉',
+                'Your password has been successfully reset. You can now log in with your new password.',
+                [{ text: 'Log In Now', onPress: () => navigation.navigate('Login') }]
+            );
         } catch (error: any) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            Alert.alert('Reset Failed', errorMessage);
+            const rawMsg = error instanceof Error ? error.message : String(error);
+            // Translate common backend error messages to friendly text
+            let friendlyMsg = rawMsg;
+            if (rawMsg.toLowerCase().includes('invalid') || rawMsg.toLowerCase().includes('expired')) {
+                friendlyMsg = 'Your reset code is invalid or has expired. Please request a new one.';
+            } else if (rawMsg.toLowerCase().includes('password')) {
+                friendlyMsg = rawMsg; // already a password-related message, keep it
+            } else if (rawMsg.toLowerCase().includes('not found') || rawMsg.toLowerCase().includes('no user')) {
+                friendlyMsg = 'We could not find an account with that email address.';
+            }
+            Alert.alert('Reset Failed', friendlyMsg, [
+                rawMsg.toLowerCase().includes('expired') || rawMsg.toLowerCase().includes('invalid')
+                    ? { text: 'Request New Code', onPress: () => { setStep('request'); setOtp(['', '', '', '', '', '']); } }
+                    : { text: 'Try Again' }
+            ]);
         } finally {
             setLoading(false);
         }
@@ -127,7 +165,7 @@ const ForgotPasswordScreen: React.FC = () => {
         if (value && index < 5) {
             otpRefs.current[index + 1]?.focus();
         }
-        
+
         if (errors.otp) setErrors({ ...errors, otp: '' });
     };
 
@@ -138,7 +176,7 @@ const ForgotPasswordScreen: React.FC = () => {
     };
 
     const renderHeaderTitle = () => {
-        switch(step) {
+        switch (step) {
             case 'request': return 'Forgot Password';
             case 'verify': return 'Verify Code';
             case 'reset': return 'Create New Password';
@@ -157,17 +195,17 @@ const ForgotPasswordScreen: React.FC = () => {
                 style={{ flex: 1 }}
             >
                 <View style={styles.headerTitleRow}>
-                    <TouchableOpacity 
-                        onPress={() => step === 'request' ? navigation.goBack() : setStep(step === 'verify' ? 'request' : 'verify')} 
+                    <TouchableOpacity
+                        onPress={() => step === 'request' ? navigation.goBack() : setStep(step === 'verify' ? 'request' : 'verify')}
                         style={styles.backButton}
                     >
                         <Ionicons name={step === 'request' ? "close" : "arrow-back"} size={24} color="#333" />
                     </TouchableOpacity>
-                    <Text style={styles.topTitle}>{renderHeaderTitle()}</Text>
                     <View style={{ width: 40 }} />
                 </View>
 
                 <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                    <Text style={styles.topTitle}>{renderHeaderTitle()}</Text>
                     {step === 'request' && (
                         <View style={styles.form}>
                             <Text style={styles.description}>
@@ -244,13 +282,13 @@ const ForgotPasswordScreen: React.FC = () => {
                             >
                                 {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.actionButtonText}>Verify Code</Text>}
                             </TouchableOpacity>
-                            
-                            <TouchableOpacity 
-                                style={{marginTop: 15, alignItems: 'center'}}
+
+                            <TouchableOpacity
+                                style={{ marginTop: 15, alignItems: 'center' }}
                                 onPress={handleSendCode}
                                 disabled={loading}
                             >
-                                <Text style={{color: '#666', fontSize: 14}}>Didn't receive a code? <Text style={{color: '#007AFF', fontWeight: 'bold'}}>Resend</Text></Text>
+                                <Text style={{ color: '#666', fontSize: 14 }}>Didn't receive a code? <Text style={{ color: '#007AFF', fontWeight: 'bold' }}>Resend</Text></Text>
                             </TouchableOpacity>
                         </View>
                     )}
@@ -267,7 +305,7 @@ const ForgotPasswordScreen: React.FC = () => {
                                     <Ionicons name="lock-closed-outline" size={20} color={errors.newPassword ? "#FF3B30" : "#666"} style={styles.inputIcon} />
                                     <TextInput
                                         style={styles.input}
-                                        placeholder="Enter new password"
+                                        placeholder="Min 8 chars, include a number"
                                         secureTextEntry={!showPassword}
                                         placeholderTextColor="#999"
                                         value={newPassword}
@@ -350,8 +388,12 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: 'bold',
         color: '#333',
+        alignSelf: 'center',
+        marginBottom: 10,
     },
     scrollContent: {
+        flexGrow: 1,
+        justifyContent: 'center',
         paddingHorizontal: 24,
         paddingBottom: 40,
     },

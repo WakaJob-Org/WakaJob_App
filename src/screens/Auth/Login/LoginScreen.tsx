@@ -16,19 +16,24 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ScreenCapture from 'expo-screen-capture';
 import Animated from 'react-native-reanimated';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { AuthStackParamList } from '../../../navigation/types';
+import { AppStackParamList } from '../../../navigation/types';
 import { useAuth } from '../../../context/AuthContext';
+
+import { useRoute } from '@react-navigation/native';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-type LoginScreenNavigationProp = StackNavigationProp<AuthStackParamList, 'Login'>;
+type LoginScreenNavigationProp = StackNavigationProp<AppStackParamList, 'Login'>;
 
 interface LoginScreenProps {
     navigation: LoginScreenNavigationProp;
 }
 
 const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
+    const route = useRoute<any>();
     const { login } = useAuth();
+    const redirectJob = route.params?.redirectJob;
+
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
 
@@ -72,7 +77,11 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
         setLoading(true);
         try {
             await login({ email, password });
-            // RootNavigator handles redirection
+            if (redirectJob) {
+                navigation.navigate('JobDetails', { job: redirectJob, autoOpenApply: true });
+            } else {
+                navigation.navigate('MainTabs');
+            }
         } catch (error: any) {
             console.error('Login error detail:', error);
             // Ignore the backend error details and show the exact requested string for credential failures
@@ -151,7 +160,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                                 </TouchableOpacity>
                             </View>
                             {errors.password ? <Text style={styles.errorText}>{errors.password}</Text> : null}
-                            <TouchableOpacity style={styles.forgotPassword} onPress={() => navigation.navigate('ForgotPassword', { email })}>
+                             <TouchableOpacity style={styles.forgotPassword} onPress={() => navigation.navigate('ForgotPassword', { email, redirectJob })}>
                                 <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
                             </TouchableOpacity>
                         </View>
@@ -171,7 +180,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
 
                         <View style={styles.signupContainer}>
                             <Text style={styles.signupText}>Don't have an account? </Text>
-                            <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
+                            <TouchableOpacity onPress={() => navigation.navigate('Signup', { redirectJob })}>
                                 <Text style={styles.signupLink}>Sign Up</Text>
                             </TouchableOpacity>
                         </View>

@@ -11,8 +11,9 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import jobService from '../../services/jobService';
+import { useAuth } from '../../context/AuthContext';
 
 interface SavedJob {
     id: string;
@@ -42,6 +43,8 @@ const getCategoryStyle = (category = '') => {
 
 const SavedScreen: React.FC = () => {
     const insets = useSafeAreaInsets();
+    const navigation = useNavigation<any>();
+    const { user, isAuthenticated } = useAuth();
     const [savedJobs, setSavedJobs] = useState<SavedJob[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -49,10 +52,28 @@ const SavedScreen: React.FC = () => {
     const fetchSaved = async (isRefreshing = false) => {
         try {
             if (!isRefreshing) setLoading(true);
-            const data = await jobService.getSavedJobs();
-            setSavedJobs(data);
+            const data = await jobService.getSavedJobs(user?.id);
+            
+            const mapped: SavedJob[] = (data || []).map((item: any) => {
+                const job = item.job || item;
+                return {
+                    id: job.id || job._id || item.id || item._id,
+                    title: job.title || job.position_vacant || 'Untitled Position',
+                    position_vacant: job.position_vacant || job.title || 'Untitled Position',
+                    company: job.company || job.company_name || 'WakaJob Partner',
+                    location: job.location || 'Remote',
+                    salary: job.salary || job.payment_rate || '',
+                    type: job.type || job.job_type || 'Full-time',
+                    job_type: job.job_type || job.type || 'Full-time',
+                    category: job.category || 'default',
+                    description: job.description || '',
+                    created_at: job.created_at || item.created_at || '',
+                };
+            });
+            setSavedJobs(mapped);
         } catch (error) {
             console.error('Error fetching saved jobs:', error);
+            setSavedJobs([]);
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -62,8 +83,12 @@ const SavedScreen: React.FC = () => {
     // Refresh whenever the tab comes into focus
     useFocusEffect(
         useCallback(() => {
+            if (!isAuthenticated) {
+                setLoading(false);
+                return;
+            }
             fetchSaved();
-        }, [])
+        }, [isAuthenticated])
     );
 
     const onRefresh = useCallback(() => {
@@ -90,7 +115,25 @@ const SavedScreen: React.FC = () => {
         const { bg, icon } = getCategoryStyle(item.category);
 
         return (
-            <View style={styles.card}>
+            <TouchableOpacity
+                style={styles.card}
+                activeOpacity={0.8}
+                onPress={() => {
+                    navigation.navigate('JobDetails', {
+                        job: {
+                            id: item.id,
+                            position_vacant: title,
+                            company: item.company,
+                            location: item.location,
+                            salary: item.salary,
+                            job_type: jobType,
+                            category: item.category,
+                            description: item.description,
+                        },
+                        isSaved: true
+                    });
+                }}
+            >
                 <View style={styles.cardLeft}>
                     <View style={[styles.iconBox, { backgroundColor: bg }]}>
                         <Ionicons
@@ -134,9 +177,37 @@ const SavedScreen: React.FC = () => {
                         <Text style={styles.salary}>{item.salary}</Text>
                     ) : null}
                 </View>
-            </View>
+            </TouchableOpacity>
         );
     };
+
+    if (!isAuthenticated) {
+        return (
+            <View style={styles.unauthenticatedContainer}>
+                <View style={styles.unauthenticatedContent}>
+                    <View style={styles.unauthenticatedIconWrap}>
+                        <Ionicons name="bookmark-outline" size={64} color="#1972ca" />
+                    </View>
+                    <Text style={styles.unauthenticatedTitle}>Saved Jobs</Text>
+                    <Text style={styles.unauthenticatedDesc}>
+                        Sign in to save jobs, keep track of opportunities, and view them later from any device.
+                    </Text>
+                    <TouchableOpacity
+                        style={styles.authButtonPrimary}
+                        onPress={() => navigation.navigate('Signup')}
+                    >
+                        <Text style={styles.authButtonTextPrimary}>Create Account</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={styles.authButtonSecondary}
+                        onPress={() => navigation.navigate('Login')}
+                    >
+                        <Text style={styles.authButtonTextSecondary}>Log In</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        );
+    }
 
     return (
         <View style={styles.container}>
@@ -361,6 +432,72 @@ const styles = StyleSheet.create({
         width: '40%',
         backgroundColor: '#F1F5F9',
         borderRadius: 6,
+    },
+    unauthenticatedContainer: {
+        flex: 1,
+        backgroundColor: '#FFFFFF',
+        justifyContent: 'center',
+        paddingHorizontal: 24,
+    },
+    unauthenticatedContent: {
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    unauthenticatedIconWrap: {
+        width: 120,
+        height: 120,
+        borderRadius: 60,
+        backgroundColor: '#F0F7FF',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 24,
+    },
+    unauthenticatedTitle: {
+        fontSize: 24,
+        fontWeight: '800',
+        color: '#111827',
+        marginBottom: 12,
+    },
+    unauthenticatedDesc: {
+        fontSize: 15,
+        color: '#6B7280',
+        textAlign: 'center',
+        lineHeight: 22,
+        marginBottom: 32,
+    },
+    authButtonPrimary: {
+        backgroundColor: '#1972ca',
+        width: '100%',
+        height: 56,
+        borderRadius: 14,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 14,
+        shadowColor: '#1972ca',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+        elevation: 3,
+    },
+    authButtonTextPrimary: {
+        color: '#FFFFFF',
+        fontSize: 16,
+        fontWeight: '700',
+    },
+    authButtonSecondary: {
+        backgroundColor: '#FFFFFF',
+        width: '100%',
+        height: 56,
+        borderRadius: 14,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1.5,
+        borderColor: '#E5E7EB',
+    },
+    authButtonTextSecondary: {
+        color: '#4B5563',
+        fontSize: 16,
+        fontWeight: '700',
     },
 });
 

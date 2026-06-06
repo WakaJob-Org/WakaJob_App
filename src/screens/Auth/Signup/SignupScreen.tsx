@@ -5,12 +5,14 @@ import Animated from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import * as ScreenCapture from 'expo-screen-capture';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { AuthStackParamList } from '../../../navigation/types';
+import { AppStackParamList } from '../../../navigation/types';
 import { useAuth } from '../../../context/AuthContext';
+
+import { useRoute } from '@react-navigation/native';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-type SignupScreenNavigationProp = StackNavigationProp<AuthStackParamList, 'Signup'>;
+type SignupScreenNavigationProp = StackNavigationProp<AppStackParamList, 'Signup'>;
 
 interface SignupScreenProps {
     navigation: SignupScreenNavigationProp;
@@ -18,6 +20,9 @@ interface SignupScreenProps {
 
 const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
     const { signup } = useAuth();
+    const route = useRoute<any>();
+    const redirectJob = route.params?.redirectJob;
+
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -93,7 +98,8 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
             // Use navigate instead of push to avoid stacking issues in modals
             navigation.navigate('OTP', { 
                 email: cleanEmail,
-                isNewUser: true 
+                isNewUser: true,
+                redirectJob: redirectJob
             });
 
         } catch (error: any) {
@@ -238,7 +244,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
 
                         <View style={styles.loginContainer}>
                             <Text style={styles.loginText}>Already have an account? </Text>
-                            <TouchableOpacity onPress={() => navigation.navigate('Login')}>
+                            <TouchableOpacity onPress={() => navigation.navigate('Login', { redirectJob })}>
                                 <Text style={styles.loginLink}>Log In</Text>
                             </TouchableOpacity>
                         </View>

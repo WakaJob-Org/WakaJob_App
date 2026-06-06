@@ -1,9 +1,9 @@
 export type AuthStackParamList = {
     Splash: undefined;
-    Login: undefined;
-    Signup: undefined;
-    OTP: { email: string; isNewUser?: boolean };
-    ForgotPassword: { email?: string };
+    Login: { redirectJob?: any } | undefined;
+    Signup: { redirectJob?: any } | undefined;
+    OTP: { email: string; isNewUser?: boolean; redirectJob?: any };
+    ForgotPassword: { email?: string; redirectJob?: any };
 };
 
 export type EmployerVerificationParamList = {
@@ -25,9 +25,15 @@ export type AppStackParamList = {
     Notifications: undefined;
     Settings: undefined;
     CreateJob: undefined;
-    JobDetails: { job: any };
+    JobDetails: { job: any; autoOpenApply?: boolean };
     ProfileSetup: undefined;
-    
+
+    // Auth screens accessible from within the app (for apply gate)
+    Login: { redirectJob?: any } | undefined;
+    Signup: { redirectJob?: any } | undefined;
+    OTP: { email: string; isNewUser?: boolean; redirectJob?: any };
+    ForgotPassword: { email?: string; redirectJob?: any } | undefined;
+
     // Employer flow screens in AppStack
     EmployerVerification: undefined;
     VerificationPending: undefined;

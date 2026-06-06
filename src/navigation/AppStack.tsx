@@ -1,5 +1,6 @@
 import React from 'react';
-import { createStackNavigator } from '@react-navigation/stack';
+
+import { createStackNavigator, CardStyleInterpolators } from '@react-navigation/stack';
 import { AppStackParamList } from './types';
 import MainTabs from './MainTabs';
 import NotificationsScreen from '../screens/Dashboard/NotificationsScreen';
@@ -13,6 +14,13 @@ import VerificationPendingScreen from '../screens/Verification/VerificationPendi
 import VerificationSuccessScreen from '../screens/Verification/VerificationSuccessScreen';
 import VerificationFailedScreen from '../screens/Verification/VerificationFailedScreen';
 import EmployerDashboardScreen from '../screens/Profile/EmployerDashboardScreen';
+
+// Auth screens
+import SignupScreen from '../screens/Auth/Signup/SignupScreen';
+import LoginScreen from '../screens/Auth/Login/LoginScreen';
+import OTPScreen from '../screens/Auth/OTP/OTPScreen';
+import ForgotPasswordScreen from '../screens/Auth/ForgotPassword/ForgotPasswordScreen';
+
 
 const Stack = createStackNavigator<AppStackParamList>();
 
@@ -34,6 +42,31 @@ const AppStack = () => {
             <Stack.Screen name="VerificationSuccess" component={VerificationSuccessScreen} />
             <Stack.Screen name="VerificationFailed" component={VerificationFailedScreen} />
             <Stack.Screen name="EmployerDashboard" component={EmployerDashboardScreen} />
+            <Stack.Screen name="JobApplicants" component={JobApplicantsScreen} />
+
+            {/* Auth screens presented as slide-up modals */}
+            <Stack.Group
+                screenOptions={{
+                    presentation: 'modal',
+                    cardStyleInterpolator: CardStyleInterpolators.forVerticalIOS,
+                    cardStyle: {
+                        borderTopLeftRadius: 24,
+                        borderTopRightRadius: 24,
+                        overflow: 'hidden',
+                    },
+                    transitionSpec: {
+                        open: { animation: 'timing', config: { duration: 350 } },
+                        close: { animation: 'timing', config: { duration: 350 } },
+                    },
+                    gestureEnabled: true,
+                    gestureDirection: 'vertical',
+                }}
+            >
+                <Stack.Screen name="Login" component={LoginScreen} />
+                <Stack.Screen name="Signup" component={SignupScreen} />
+                <Stack.Screen name="OTP" component={OTPScreen} />
+                <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+            </Stack.Group>
         </Stack.Navigator>
     );
 };

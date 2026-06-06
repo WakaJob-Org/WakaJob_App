@@ -10,37 +10,87 @@ import {
     KeyboardAvoidingView,
     Platform,
     ActivityIndicator,
+    Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import Animated, { FadeInUp, FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeInUp } from 'react-native-reanimated';
+import * as DocumentPicker from 'expo-document-picker';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface ApplyModalProps {
     visible: boolean;
     onClose: () => void;
-    onApply: (data: { intro_text: string; application_type: 'professional' | 'apprentice' }) => Promise<void>;
+    onApply: (data: { intro_text: string; application_type: 'professional' | 'apprentice'; cv_file?: { uri: string; name: string; size: number } }) => Promise<void>;
     jobTitle: string;
     initialApplicationType?: 'professional' | 'apprentice';
+    requiresCv?: boolean;
 }
 
-const ApplyModal: React.FC<ApplyModalProps> = ({ visible, onClose, onApply, jobTitle, initialApplicationType = 'professional' }) => {
+const ApplyModal: React.FC<ApplyModalProps> = ({ 
+    visible, 
+    onClose, 
+    onApply, 
+    jobTitle, 
+    initialApplicationType = 'professional',
+    requiresCv = false
+}) => {
     const [introText, setIntroText] = useState('');
     const [appType, setAppType] = useState<'professional' | 'apprentice'>(initialApplicationType);
     const [loading, setLoading] = useState(false);
+    const [cvFile, setCvFile] = useState<{ uri: string; name: string; size: number } | null>(null);
 
     React.useEffect(() => {
         if (visible) {
             setAppType(initialApplicationType);
             setIntroText('');
+            setCvFile(null);
         }
     }, [visible, initialApplicationType]);
 
+    const pickCvDocument = async () => {
+        try {
+            const result = await DocumentPicker.getDocumentAsync({
+                type: [
+                    'application/pdf', 
+                    'application/msword', 
+                    'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                ],
+                copyToCacheDirectory: true,
+            });
+
+            if (!result.canceled && result.assets && result.assets.length > 0) {
+                const asset = result.assets[0];
+                setCvFile({
+                    uri: asset.uri,
+                    name: asset.name,
+                    size: asset.size || 0,
+                });
+            }
+        } catch (err) {
+            console.error('Error picking document:', err);
+        }
+    };
+
+    const clearCvFile = () => {
+        setCvFile(null);
+    };
+
     const handleSubmit = async () => {
+        if (requiresCv && !cvFile) {
+            Alert.alert("CV Required", "This position requires a CV/Resume. Please upload a document to proceed.");
+            return;
+        }
+        
         setLoading(true);
         try {
-            await onApply({ intro_text: introText, application_type: appType });
+            await onApply({ 
+                intro_text: introText, 
+                application_type: appType, 
+                cv_file: cvFile || undefined 
+            });
             setIntroText('');
+            setCvFile(null);
             onClose();
         } catch (error) {
             // Error handling is managed by the parent
@@ -106,6 +156,46 @@ const ApplyModal: React.FC<ApplyModalProps> = ({ visible, onClose, onApply, jobT
                                 <Text style={[styles.toggleText, appType === 'apprentice' && styles.toggleTextActive]}>Apprentice</Text>
                             </TouchableOpacity>
                         </View>
+
+                        {/* CV/Resume Upload Section */}
+                        {requiresCv && (
+                            <View style={styles.uploadSection}>
+                                <View style={styles.labelRow}>
+                                    <Text style={styles.label}>Upload CV/Resume</Text>
+                                    <Text style={styles.requiredStar}>*</Text>
+                                </View>
+                                <TouchableOpacity 
+                                    style={[styles.uploadCard, cvFile && styles.uploadCardActive]}
+                                    onPress={pickCvDocument}
+                                    activeOpacity={0.7}
+                                >
+                                    <View style={[styles.uploadIconCircle, cvFile && styles.uploadIconCircleActive]}>
+                                        <Ionicons 
+                                            name={cvFile ? "document-text" : "cloud-upload-outline"} 
+                                            size={24} 
+                                            color={cvFile ? "#10B981" : "#1972ca"} 
+                                        />
+                                    </View>
+                                    <View style={styles.uploadTextContainer}>
+                                        <Text style={[styles.uploadText, cvFile && styles.uploadTextActive]} numberOfLines={1}>
+                                            {cvFile ? cvFile.name : "Select your CV / Resume"}
+                                        </Text>
+                                        <Text style={styles.uploadSubtext}>
+                                            {cvFile ? `${(cvFile.size / 1024 / 1024).toFixed(2)} MB • Tap to change` : "Supported formats: PDF, DOC, DOCX"}
+                                        </Text>
+                                    </View>
+                                    {cvFile && (
+                                        <TouchableOpacity 
+                                            style={styles.clearBtn} 
+                                            onPress={clearCvFile}
+                                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                        >
+                                            <Ionicons name="close-circle" size={20} color="#EF4444" />
+                                        </TouchableOpacity>
+                                    )}
+                                </TouchableOpacity>
+                            </View>
+                        )}
 
                         <Text style={styles.label}>Quick Note (Optional)</Text>
                         <TextInput
@@ -223,13 +313,74 @@ const styles = StyleSheet.create({
     toggleTextActive: {
         color: '#FFFFFF',
     },
+    // Upload Styles
+    uploadSection: {
+        marginBottom: 20,
+    },
+    labelRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    requiredStar: {
+        color: '#EF4444',
+        fontSize: 14,
+        fontWeight: 'bold',
+        marginLeft: 4,
+    },
+    uploadCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#F8FAFC',
+        borderWidth: 1,
+        borderStyle: 'dashed',
+        borderColor: '#CBD5E1',
+        borderRadius: 12,
+        padding: 12,
+    },
+    uploadCardActive: {
+        backgroundColor: '#ECFDF5',
+        borderColor: '#10B981',
+        borderStyle: 'solid',
+    },
+    uploadIconCircle: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: '#E0F2FE',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
+    },
+    uploadIconCircleActive: {
+        backgroundColor: '#D1FAE5',
+    },
+    uploadTextContainer: {
+        flex: 1,
+    },
+    uploadText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#1E293B',
+    },
+    uploadTextActive: {
+        color: '#065F46',
+    },
+    uploadSubtext: {
+        fontSize: 11,
+        color: '#64748B',
+        marginTop: 2,
+    },
+    clearBtn: {
+        padding: 4,
+    },
     input: {
         backgroundColor: '#F8FAFC',
         borderRadius: 12,
         borderWidth: 1,
         borderColor: '#E2E8F0',
         padding: 15,
-        height: 100,
+        height: 80,
         textAlignVertical: 'top',
         fontSize: 14,
         color: '#1E293B',

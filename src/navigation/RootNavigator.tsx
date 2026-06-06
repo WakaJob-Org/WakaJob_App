@@ -16,23 +16,16 @@ const RootStack = createStackNavigator<RootStackParamList>();
 const VerificationStack = createStackNavigator<EmployerVerificationParamList>();
 
 const RootNavigator = () => {
-    const { isAuthenticated, user, isLoading } = useAuth();
+    const { isLoading } = useAuth();
 
     if (isLoading) {
         return null; // Should show a splash/loader
     }
 
-    let content;
-    if (!isAuthenticated) {
-        content = <RootStack.Screen name="Auth" component={AuthStack} />;
-    } else {
-        content = <RootStack.Screen name="App" component={AppStack} />;
-    }
-
     return (
         <NavigationContainer>
             <RootStack.Navigator screenOptions={{ headerShown: false }}>
-                {content}
+                <RootStack.Screen name="App" component={AppStack} />
             </RootStack.Navigator>
         </NavigationContainer>
     );
