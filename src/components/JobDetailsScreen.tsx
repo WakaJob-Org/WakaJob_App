@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     StyleSheet,
     View,
@@ -15,6 +15,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import jobService from '../services/jobService';
+import authService from '../services/authService';
+import { useAuth } from '../context/AuthContext';
 import ApplyModal from './ApplyModal';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -28,6 +30,14 @@ const JobDetailsScreen: React.FC = () => {
     const [isSaved, setIsSaved] = useState(initialIsSaved || false);
     const [isApplying, setIsApplying] = useState(false);
     const [showApplyModal, setShowApplyModal] = useState(false);
+    const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+    const [isJobPoster, setIsJobPoster] = useState(false);
+    const [parsedData, setParsedData] = useState<{
+        description: string;
+        contactMethod: string;
+        perks: string[];
+        requirements: string[];
+    }>({ description: '', contactMethod: '', perks: [], requirements: [] });
 
     // Auto open apply modal if redirected back after auth creation
     useEffect(() => {
@@ -240,7 +250,7 @@ const JobDetailsScreen: React.FC = () => {
                 jobTitle={job.title || job.position_vacant || 'Position'}
                 requiresCv={job.requires_cv === 'true' || job.requires_cv === true}
             />
-        </View>
+        </SafeAreaView>
     );
 };
 

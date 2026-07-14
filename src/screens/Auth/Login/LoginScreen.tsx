@@ -7,13 +7,11 @@ import {
     TouchableOpacity,
     Dimensions,
     ScrollView,
-    Alert,
     ActivityIndicator,
     KeyboardAvoidingView,
     Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as ScreenCapture from 'expo-screen-capture';
 import Animated from 'react-native-reanimated';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { AppStackParamList } from '../../../navigation/types';
@@ -22,6 +20,26 @@ import { useAuth } from '../../../context/AuthContext';
 import { useRoute } from '@react-navigation/native';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+// Maps raw backend/network error text to a friendly, plain-language message.
+// The backend intentionally returns one generic message for bad email/password
+// (so it doesn't reveal which one was wrong), which is exactly what we show here.
+const getFriendlyLoginError = (rawMessage?: string): string => {
+    const msg = (rawMessage || '').toLowerCase();
+    if (msg.includes('invalid login credentials') || msg.includes('invalid credentials')) {
+        return "The email or password you entered is incorrect. Please try again.";
+    }
+    if (msg.includes('network')) {
+        return "No internet connection. Please check your connection and try again.";
+    }
+    if (msg.includes('timeout') || msg.includes('timed out')) {
+        return "This is taking longer than expected. Please try again.";
+    }
+    if (msg.includes('server error')) {
+        return "Something went wrong on our end. Please try again in a moment.";
+    }
+    return rawMessage || "Something went wrong. Please try again.";
+};
 
 type LoginScreenNavigationProp = StackNavigationProp<AppStackParamList, 'Login'>;
 
@@ -37,8 +55,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
 
-    ScreenCapture.usePreventScreenCapture();
-
     // Form state
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -48,6 +64,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
         email: '',
         password: '',
     });
+    const [formError, setFormError] = useState('');
 
     const handleLogin = async () => {
         // Reset and check errors
@@ -70,22 +87,32 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
 
         // Check if any error exists
         if (Object.values(newErrors).some(err => err !== '')) {
-            Alert.alert('Validation Error', 'Please fix the errors in the form before submitting.');
             return;
         }
 
+        setFormError('');
         setLoading(true);
         try {
             await login({ email, password });
+            // Reset (not navigate) so the whole auth stack (Login/Signup/OTP/etc.) is
+            // wiped - leaves exactly one screen post-login, nothing left to swipe back into.
             if (redirectJob) {
-                navigation.navigate('JobDetails', { job: redirectJob, autoOpenApply: true });
+                navigation.reset({
+                    index: 1,
+                    routes: [
+                        { name: 'MainTabs' },
+                        { name: 'JobDetails', params: { job: redirectJob, autoOpenApply: true } },
+                    ],
+                });
             } else {
-                navigation.navigate('MainTabs');
+                navigation.reset({
+                    index: 0,
+                    routes: [{ name: 'MainTabs' }],
+                });
             }
         } catch (error: any) {
             console.error('Login error detail:', error);
-            // Ignore the backend error details and show the exact requested string for credential failures
-            Alert.alert('Login Failed', 'wrong credentials check email or password');
+            setFormError(getFriendlyLoginError(error?.message));
         } finally {
             setLoading(false);
         }
@@ -122,8 +149,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                     <View style={styles.form}>
                         <View style={styles.inputWrapper}>
                             <Text style={styles.label}>Email Address</Text>
-                            <View style={[styles.inputContainer, errors.email ? styles.inputError : null]}>
-                                <Ionicons name="mail-outline" size={20} color={errors.email ? "#FF3B30" : "#666"} style={styles.inputIcon} />
+                            <View style={[styles.inputContainer, (errors.email || formError) ? styles.inputError : null]}>
+                                <Ionicons name="mail-outline" size={20} color={(errors.email || formError) ? "#FF3B30" : "#666"} style={styles.inputIcon} />
                                 <TextInput
                                     style={styles.input}
                                     placeholder="Enter your email"
@@ -134,6 +161,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                                     onChangeText={(text) => {
                                         setEmail(text);
                                         if (errors.email) setErrors({ ...errors, email: '' });
+                                        if (formError) setFormError('');
                                     }}
                                 />
                             </View>
@@ -142,8 +170,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
 
                         <View style={styles.inputWrapper}>
                             <Text style={styles.label}>Password</Text>
-                            <View style={[styles.inputContainer, errors.password ? styles.inputError : null]}>
-                                <Ionicons name="lock-closed-outline" size={20} color={errors.password ? "#FF3B30" : "#666"} style={styles.inputIcon} />
+                            <View style={[styles.inputContainer, (errors.password || formError) ? styles.inputError : null]}>
+                                <Ionicons name="lock-closed-outline" size={20} color={(errors.password || formError) ? "#FF3B30" : "#666"} style={styles.inputIcon} />
                                 <TextInput
                                     style={styles.input}
                                     placeholder="Enter your password"
@@ -153,6 +181,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                                     onChangeText={(text) => {
                                         setPassword(text);
                                         if (errors.password) setErrors({ ...errors, password: '' });
+                                        if (formError) setFormError('');
                                     }}
                                 />
                                 <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
@@ -160,7 +189,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                                 </TouchableOpacity>
                             </View>
                             {errors.password ? <Text style={styles.errorText}>{errors.password}</Text> : null}
-                             <TouchableOpacity style={styles.forgotPassword} onPress={() => navigation.navigate('ForgotPassword', { email, redirectJob })}>
+                            {formError ? <Text style={styles.errorText}>{formError}</Text> : null}
+                             <TouchableOpacity style={styles.forgotPassword} onPress={() => navigation.replace('ForgotPassword', { email, redirectJob })}>
                                 <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
                             </TouchableOpacity>
                         </View>
@@ -180,7 +210,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
 
                         <View style={styles.signupContainer}>
                             <Text style={styles.signupText}>Don't have an account? </Text>
-                            <TouchableOpacity onPress={() => navigation.navigate('Signup', { redirectJob })}>
+                            <TouchableOpacity onPress={() => navigation.replace('Signup', { redirectJob })}>
                                 <Text style={styles.signupLink}>Sign Up</Text>
                             </TouchableOpacity>
                         </View>
@@ -195,6 +225,9 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#FFFFFF',
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        overflow: 'hidden',
     },
     handleContainer: {
         alignItems: 'center',
