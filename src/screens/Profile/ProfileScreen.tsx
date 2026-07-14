@@ -14,6 +14,7 @@ import {
     RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -21,12 +22,13 @@ import authService from '../../services/authService';
 import ProfileSkeleton from '../../components/ProfileSkeleton';
 import * as ImageManipulator from 'expo-image-manipulator';
 
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 
 const ProfileScreen: React.FC = () => {
     const { logout, refreshUser, isAuthenticated } = useAuth();
     const navigation = useNavigation<any>();
+    const isFocused = useIsFocused();
     const [username, setUsername] = useState('');
     const [dob, setDob] = useState('March 15, 1992');
     const [bio, setBio] = useState('Passionate UX designer with 5+ years of experience');
@@ -319,6 +321,7 @@ const ProfileScreen: React.FC = () => {
 
     return (
         <View style={styles.container}>
+            {isFocused && <StatusBar style="light" />}
             {/* Custom Header */}
             <View style={[styles.header, { paddingTop: insets.top }]}>
                 <View style={styles.headerContent}>

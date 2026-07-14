@@ -40,7 +40,7 @@ const MainApp = () => {
 
   return (
     <View style={styles.container || styles.appContainer} onLayout={onLayoutRootView}>
-      <StatusBar style="light" hidden={false} translucent={true} />
+      <StatusBar style="dark" hidden={false} translucent={true} />
       <RootNavigator />
     </View>
   );
