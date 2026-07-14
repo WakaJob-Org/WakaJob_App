@@ -15,7 +15,6 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import * as ScreenCapture from 'expo-screen-capture';
 import * as ImagePicker from 'expo-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import authService from '../../services/authService';
@@ -47,8 +46,6 @@ const ProfileScreen: React.FC = () => {
     const [rejectionReason, setRejectionReason] = useState<string | null>(null);
     const [refreshing, setRefreshing] = useState(false);
     const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
-
-    ScreenCapture.usePreventScreenCapture();
 
     useFocusEffect(
         React.useCallback(() => {

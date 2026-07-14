@@ -55,7 +55,7 @@ import DashboardSkeleton from '../../components/DashboardSkeleton';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const DashboardScreen: React.FC = () => {
-    const { user, logout, refreshUser } = useAuth();
+    const { user, logout, refreshUser, isAuthenticated } = useAuth();
     
     useFocusEffect(
         React.useCallback(() => {
@@ -373,29 +373,39 @@ const DashboardScreen: React.FC = () => {
                         <View style={styles.pinkDot} />
                     </View>
                     <View style={styles.headerActions}>
-                        <TouchableOpacity style={styles.iconButton} onPress={() => navigation.navigate('Notifications')}>
-                            <Ionicons name="notifications-outline" size={24} color="#1972ca" />
-                            <View style={styles.notifDot} />
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.avatar} onPress={() => navigation.navigate('Profile')}>
-                            {profile?.profile_image_url ? (
-                                <Image source={{ uri: profile.profile_image_url }} style={styles.avatarImage} />
-                            ) : (
-                                <View style={styles.avatarInner}>
-                                    <Text style={styles.avatarChar}>{avatarInitials}</Text>
-                                </View>
-                            )}
-                        </TouchableOpacity>
+                        {isAuthenticated && (
+                            <TouchableOpacity style={styles.iconButton} onPress={() => navigation.navigate('Notifications')}>
+                                <Ionicons name="notifications-outline" size={24} color="#1972ca" />
+                                <View style={styles.notifDot} />
+                            </TouchableOpacity>
+                        )}
+                        {isAuthenticated ? (
+                            <TouchableOpacity style={styles.avatar} onPress={() => navigation.navigate('Profile')}>
+                                {profile?.profile_image_url ? (
+                                    <Image source={{ uri: profile.profile_image_url }} style={styles.avatarImage} />
+                                ) : (
+                                    <View style={styles.avatarInner}>
+                                        <Text style={styles.avatarChar}>{avatarInitials}</Text>
+                                    </View>
+                                )}
+                            </TouchableOpacity>
+                        ) : (
+                            <TouchableOpacity style={styles.loginButton} onPress={() => navigation.navigate('Login')}>
+                                <Text style={styles.loginButtonText}>Login</Text>
+                            </TouchableOpacity>
+                        )}
                     </View>
                 </View>
 
                 {/* Welcome Message - Before Search Bar */}
                 <View style={styles.headerWelcome}>
-                    <Text style={styles.welcomeSub}>Welcome, {displayName}</Text>
+                    <Text style={styles.welcomeSub}>{isAuthenticated ? `Welcome, ${displayName}` : 'Welcome'}</Text>
                     <View style={styles.welcomeHeaderRow}>
                         <View style={{ flex: 1 }}>
                             <Text style={styles.welcomeTitle}>Available Jobs</Text>
-                            <Text style={styles.welcomeDesc}>Based on your location and preferences</Text>
+                            {isAuthenticated && (
+                                <Text style={styles.welcomeDesc}>Based on your location and preferences</Text>
+                            )}
                         </View>
                     </View>
                 </View>
@@ -555,6 +565,8 @@ const styles = StyleSheet.create({
     avatarImage: { width: '100%', height: '100%' },
     avatarInner: { width: '100%', height: '100%', backgroundColor: '#1972ca', justifyContent: 'center', alignItems: 'center' },
     avatarChar: { color: '#FFFFFF', fontWeight: '600', fontSize: 16 },
+    loginButton: { height: 40, paddingHorizontal: 18, borderRadius: 20, backgroundColor: '#1972ca', justifyContent: 'center', alignItems: 'center' },
+    loginButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
     searchRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 15 },
     searchInputWrapper: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', borderRadius: 12, paddingHorizontal: 15, height: 48 },
     input: { fontSize: 15, color: '#1F2937' },

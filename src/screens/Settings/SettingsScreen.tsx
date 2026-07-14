@@ -9,7 +9,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import * as ScreenCapture from 'expo-screen-capture';
 import Header from '../../components/Header';
 
 import { useNavigation } from '@react-navigation/native';
@@ -20,8 +19,6 @@ const SettingsScreen: React.FC = () => {
     const navigation = useNavigation();
     const [pushEnabled, setPushEnabled] = React.useState(true);
     const [emailEnabled, setEmailEnabled] = React.useState(true);
-
-    ScreenCapture.usePreventScreenCapture();
 
     const renderSettingItem = (icon: any, title: string, subtitle?: string, onPress?: () => void, isDestructive?: boolean) => (
         <TouchableOpacity

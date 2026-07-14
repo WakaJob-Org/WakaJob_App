@@ -3,7 +3,6 @@ import { Alert, ActivityIndicator, View, Text, TextInput, TouchableOpacity, Dime
 import GoogleIcon from '../../../components/GoogleIcon';
 import Animated from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
-import * as ScreenCapture from 'expo-screen-capture';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { AppStackParamList } from '../../../navigation/types';
 import { useAuth } from '../../../context/AuthContext';
@@ -26,8 +25,6 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [loading, setLoading] = useState(false);
-
-    ScreenCapture.usePreventScreenCapture();
 
     // Form state
     const [fullName, setFullName] = useState('');
@@ -95,8 +92,9 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
             console.log('--- SIGNUP SUCCESSFUL, navigating to OTP... ---');
             
             // Critical: Ensure we navigate to the OTP screen with the clean email
-            // Use navigate instead of push to avoid stacking issues in modals
-            navigation.navigate('OTP', { 
+            // Use replace so OTP swaps Signup in the stack instead of stacking on top of it -
+            // keeps the auth flow single-level so swipe-down always lands back on the dashboard
+            navigation.replace('OTP', {
                 email: cleanEmail,
                 isNewUser: true,
                 redirectJob: redirectJob
@@ -244,7 +242,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
 
                         <View style={styles.loginContainer}>
                             <Text style={styles.loginText}>Already have an account? </Text>
-                            <TouchableOpacity onPress={() => navigation.navigate('Login', { redirectJob })}>
+                            <TouchableOpacity onPress={() => navigation.replace('Login', { redirectJob })}>
                                 <Text style={styles.loginLink}>Log In</Text>
                             </TouchableOpacity>
                         </View>
@@ -259,6 +257,9 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#FFFFFF',
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        overflow: 'hidden',
     },
     handleContainer: {
         alignItems: 'center',
