@@ -136,6 +136,7 @@ const JobDetailsScreen: React.FC = () => {
             Alert.alert("Action Not Allowed", "You cannot apply for a job that you posted.");
             return;
         }
+        setShowApplyModal(true);
     };
 
     const handleApply = async (data: { intro_text: string; application_type: 'professional' | 'apprentice' }) => {
@@ -248,17 +249,17 @@ const JobDetailsScreen: React.FC = () => {
 
             {/* Footer Buttons */}
             <View style={[styles.footer, { paddingBottom: 40 + insets.bottom }]}>
-                <TouchableOpacity 
-                    style={[styles.applyBtn, { flex: 1 }, isApplying && { opacity: 0.7 }, isJobPoster && { opacity: 0.5 }]} 
+                <TouchableOpacity
+                    style={[styles.applyButton, { flex: 1 }, (isApplying || isJobPoster) && styles.applyButtonDisabled]}
                     onPress={handleApplyPress}
                     disabled={isApplying || isJobPoster}
                 >
                     {isJobPoster ? (
-                        <Text style={styles.applyBtnText}>Cannot Apply - Your Job</Text>
+                        <Text style={styles.applyButtonText}>Cannot Apply - Your Job</Text>
                     ) : isApplying ? (
                         <ActivityIndicator color="#FFF" />
                     ) : (
-                        <Text style={styles.applyBtnText}>Apply Now</Text>
+                        <Text style={styles.applyButtonText}>Apply Now</Text>
                     )}
                 </TouchableOpacity>
             </View>
