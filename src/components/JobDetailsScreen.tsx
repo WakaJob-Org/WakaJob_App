@@ -9,9 +9,10 @@ import {
     Dimensions,
     Image,
     ActivityIndicator,
-    SafeAreaView,
     Alert,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import jobService from '../services/jobService';
@@ -24,6 +25,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const JobDetailsScreen: React.FC = () => {
     const route = useRoute<any>();
     const navigation = useNavigation<any>();
+    const insets = useSafeAreaInsets();
     const { user, isAuthenticated } = useAuth();
     const { job, isSaved: initialIsSaved } = route.params || {};
 
@@ -149,45 +151,63 @@ const JobDetailsScreen: React.FC = () => {
     };
 
     return (
-        <SafeAreaView style={styles.container}>
-                <View style={styles.header}>
+        <View style={styles.container}>
+                <StatusBar style="light" />
+                <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
                     <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                        <Ionicons name="chevron-back" size={24} color="#333" />
+                        <Ionicons name="chevron-back" size={22} color="#FFFFFF" />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>Job Details</Text>
                     <TouchableOpacity style={styles.bookmarkButton} onPress={handleSave}>
-                        <Ionicons 
-                            name={isSaved ? "bookmark" : "bookmark-outline"} 
-                            size={24} 
-                            color={isSaved ? "#1972ca" : "#333"} 
+                        <Ionicons
+                            name={isSaved ? "bookmark" : "bookmark-outline"}
+                            size={22}
+                            color={isSaved ? "#FBBF24" : "#FFFFFF"}
                         />
                     </TouchableOpacity>
                 </View>
 
                 <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-                    <View style={styles.companySection}>
-                        <View style={styles.logoContainer}>
-                            {job.imageUrl || job.image_url ? (
-                                <Image 
-                                    source={{ uri: job.imageUrl || job.image_url }} 
-                                    style={styles.logoImage} 
-                                />
-                            ) : (
-                                <Ionicons name="briefcase" size={40} color="#1972ca" />
-                            )}
+                    {(job.imageUrl || job.image_url) ? (
+                        <View style={styles.bannerContainer}>
+                            <Image
+                                source={{ uri: job.imageUrl || job.image_url }}
+                                style={styles.bannerImage}
+                            />
+                            <View style={styles.bannerOverlay} />
+                            <View style={styles.bannerInfoContainer}>
+                                <Text style={styles.bannerTitleText}>{job.title}</Text>
+                                <Text style={styles.bannerCompanyText}>{job.company}</Text>
+                                <View style={styles.bannerTagsContainer}>
+                                    <View style={[styles.tag, styles.bannerTagOrange]}>
+                                        <Text style={styles.bannerTagText}>{job.type}</Text>
+                                    </View>
+                                    <View style={[styles.tag, styles.bannerTagGreen]}>
+                                        <Text style={styles.bannerTagText}>{job.category}</Text>
+                                    </View>
+                                </View>
+                            </View>
                         </View>
-                        <Text style={styles.jobTitleText}>{job.title}</Text>
-                        <Text style={styles.companyNameText}>{job.company}</Text>
+                    ) : null}
 
-                        <View style={styles.tagsContainer}>
-                            <View style={styles.tag}>
-                                <Text style={styles.tagText}>{job.type}</Text>
+                    {!(job.imageUrl || job.image_url) && (
+                        <View style={styles.companySection}>
+                            <View style={styles.logoContainer}>
+                                <Ionicons name="briefcase" size={40} color="#1972ca" />
                             </View>
-                            <View style={[styles.tag, { backgroundColor: '#E8F2FB' }]}>
-                                <Text style={[styles.tagText, { color: '#1972ca' }]}>{job.category}</Text>
+                            <Text style={styles.jobTitleText}>{job.title}</Text>
+                            <Text style={styles.companyNameText}>{job.company}</Text>
+
+                            <View style={styles.tagsContainer}>
+                                <View style={styles.tag}>
+                                    <Text style={styles.tagText}>{job.type}</Text>
+                                </View>
+                                <View style={[styles.tag, { backgroundColor: '#E8F2FB' }]}>
+                                    <Text style={[styles.tagText, { color: '#1972ca' }]}>{job.category}</Text>
+                                </View>
                             </View>
                         </View>
-                    </View>
+                    )}
 
                     <View style={styles.detailsGrid}>
                         <View style={styles.detailItem}>
@@ -227,7 +247,7 @@ const JobDetailsScreen: React.FC = () => {
                 </ScrollView>
 
             {/* Footer Buttons */}
-            <View style={styles.footer}>
+            <View style={[styles.footer, { paddingBottom: 40 + insets.bottom }]}>
                 <TouchableOpacity 
                     style={[styles.applyBtn, { flex: 1 }, isApplying && { opacity: 0.7 }, isJobPoster && { opacity: 0.5 }]} 
                     onPress={handleApplyPress}
@@ -250,7 +270,7 @@ const JobDetailsScreen: React.FC = () => {
                 jobTitle={job.title || job.position_vacant || 'Position'}
                 requiresCv={job.requires_cv === 'true' || job.requires_cv === true}
             />
-        </SafeAreaView>
+        </View>
     );
 };
 
@@ -264,29 +284,28 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 20,
-        paddingTop: 60,
-        paddingBottom: 20,
-        borderBottomWidth: 1,
-        borderBottomColor: '#F1F5F9',
+        paddingTop: 14,
+        paddingBottom: 14,
+        backgroundColor: '#1972ca',
     },
     backButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: '#F8FAFC',
+        width: 34,
+        height: 34,
+        borderRadius: 17,
+        backgroundColor: 'rgba(255, 255, 255, 0.15)',
         justifyContent: 'center',
         alignItems: 'center',
     },
     headerTitle: {
-        fontSize: 18,
+        fontSize: 16,
         fontWeight: 'bold',
-        color: '#333',
+        color: '#FFFFFF',
     },
     bookmarkButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: '#F8FAFC',
+        width: 34,
+        height: 34,
+        borderRadius: 17,
+        backgroundColor: 'rgba(255, 255, 255, 0.15)',
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -308,10 +327,51 @@ const styles = StyleSheet.create({
         marginBottom: 20,
         overflow: 'hidden',
     },
-    logoImage: {
+    bannerContainer: {
         width: '100%',
-        height: '100%',
+        position: 'relative',
+    },
+    bannerImage: {
+        width: '100%',
+        height: 220,
         resizeMode: 'cover',
+    },
+    bannerOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    },
+    bannerInfoContainer: {
+        position: 'absolute',
+        bottom: 16,
+        left: 16,
+        right: 16,
+    },
+    bannerTitleText: {
+        fontSize: 26,
+        fontWeight: 'bold',
+        color: '#FFFFFF',
+        textAlign: 'left',
+    },
+    bannerCompanyText: {
+        fontSize: 16,
+        color: '#FFFFFF',
+        marginTop: 4,
+        marginBottom: 10,
+    },
+    bannerTagsContainer: {
+        flexDirection: 'row',
+        gap: 10,
+    },
+    bannerTagOrange: {
+        backgroundColor: '#F97316',
+    },
+    bannerTagGreen: {
+        backgroundColor: '#16A34A',
+    },
+    bannerTagText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#FFFFFF',
     },
     jobTitleText: {
         fontSize: 22,
