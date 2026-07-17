@@ -1,7 +1,6 @@
 import api from './api';
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
-import { jwtDecode } from 'jwt-decode';
 
 export interface Job {
     id: string;
@@ -132,23 +131,28 @@ const jobService = {
 
     saveJob: async (jobId: string) => {
         try {
-            // Extract UUID from token to satisfy Supabase RLS policies
-            let userId: string | undefined;
-            const token = await SecureStore.getItemAsync('auth_token');
-            if (token) {
-                try {
-                    const decoded: any = jwtDecode(token);
-                    userId = decoded.sub || decoded.id;
-                } catch (e) {}
-            }
-
-            const response = await api.post(`/jobs/save`, { 
-                jobId,
-                user_id: userId // Explicitly providing ID for RLS compliance
-            });
+            const response = await api.post(`/jobs/save`, { jobId });
             return response.data;
         } catch (error: any) {
             throw error.response?.data?.message || 'Failed to save job';
+        }
+    },
+
+    unsaveJob: async (jobId: string) => {
+        try {
+            const response = await api.delete(`/jobs/saved/${jobId}`);
+            return response.data;
+        } catch (error: any) {
+            // Fallback in case the backend implemented it as POST /jobs/unsave
+            if (error.response?.status === 404) {
+                try {
+                    const fallbackResponse = await api.post('/jobs/unsave', { jobId });
+                    return fallbackResponse.data;
+                } catch (fallbackError: any) {
+                    throw fallbackError.response?.data?.message || 'Failed to unsave job';
+                }
+            }
+            throw error.response?.data?.message || 'Failed to unsave job';
         }
     },
 
@@ -182,10 +186,6 @@ const jobService = {
             console.warn('Unexpected /applications response shape:', typeof raw, raw);
             return [];
         } catch (error: any) {
-            // Silently swallow 404 errors as they indicate no applications or unimplemented endpoints
-            if (error.response?.status === 404) {
-                return [];
-            }
             console.error('Failed to fetch applications:', error.response?.data?.message || error?.message);
             return [];
         }
@@ -201,10 +201,6 @@ const jobService = {
             if (Array.isArray(raw?.results)) return raw.results;
             return [];
         } catch (error: any) {
-            // Silently swallow 404 errors as they indicate an empty saved list on the backend
-            if (error.response?.status === 404) {
-                return [];
-            }
             console.error('Failed to fetch saved jobs:', error.response?.data?.message || error?.message);
             return [];
         }
