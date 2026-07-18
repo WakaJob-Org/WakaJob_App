@@ -44,15 +44,6 @@ const CreateJobScreen: React.FC<CreateJobScreenProps> = ({ isVisible, onClose, o
     const [description, setDescription] = useState('');
     const [salary, setSalary] = useState('');
     const [jobType, setJobType] = useState('Full-time');
-    const [contactMethod, setContactMethod] = useState('In-App');
-
-    // Perks State
-    const [perks, setPerks] = useState({
-        meals: false,
-        transport: false,
-        tools: false,
-        housing: false
-    });
 
     // Custom Requirements (The "Dynamic Cart")
     const [customReqs, setCustomReqs] = useState<string[]>([]);
@@ -65,7 +56,6 @@ const CreateJobScreen: React.FC<CreateJobScreenProps> = ({ isVisible, onClose, o
     const [loading, setLoading] = useState(false);
 
     const JOB_TYPES = ['Full-time', 'Part-time', 'Contract', 'Task-based'];
-    const CONTACT_METHODS = ['In-App', 'Phone Call', 'WhatsApp'];
 
     useEffect(() => {
         if (jobToEdit) {
@@ -88,22 +78,10 @@ const CreateJobScreen: React.FC<CreateJobScreenProps> = ({ isVisible, onClose, o
             }
             
             if (jobToEdit.description) {
+                // Strip off any "--- Additional Details ---" suffix from older job
+                // posts so it doesn't show up in the description field when editing.
                 const parts = jobToEdit.description.split('--- Additional Details ---');
                 setDescription(parts[0].trim());
-                if (parts.length > 1) {
-                    const details = parts[1];
-                    if (details.includes('Contact Method: Phone Call')) setContactMethod('Phone Call');
-                    else if (details.includes('Contact Method: WhatsApp')) setContactMethod('WhatsApp');
-                    
-                    setPerks({
-                        meals: details.includes('meals'),
-                        transport: details.includes('transport'),
-                        tools: details.includes('tools'),
-                        housing: details.includes('housing'),
-                    });
-                } else {
-                    setDescription(jobToEdit.description);
-                }
             }
         }
     }, [jobToEdit]);
@@ -137,10 +115,6 @@ const CreateJobScreen: React.FC<CreateJobScreenProps> = ({ isVisible, onClose, o
         setCustomReqs(customReqs.filter((_, i) => i !== index));
     };
 
-    const togglePerk = (key: keyof typeof perks) => {
-        setPerks(prev => ({ ...prev, [key]: !prev[key] }));
-    };
-
     const handleClose = () => {
         if (onClose) {
             onClose();
@@ -166,17 +140,7 @@ const CreateJobScreen: React.FC<CreateJobScreenProps> = ({ isVisible, onClose, o
 
             const formData = new FormData();
             formData.append('title', jobTitle);
-            
-            // Combine extra details into description for backend compatibility
-            const fullDescription = `
-${description}
-
---- Additional Details ---
-Contact Method: ${contactMethod}
-Perks: ${Object.entries(perks).filter(([_, v]) => v).map(([k]) => k).join(', ') || 'None'}
-            `.trim();
-
-            formData.append('description', fullDescription);
+            formData.append('description', description.trim());
             formData.append('location', location);
             formData.append('category', category);
             formData.append('salary', salary || 'Competitive');
@@ -246,7 +210,7 @@ Perks: ${Object.entries(perks).filter(([_, v]) => v).map(([k]) => k).join(', ') 
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
-                    <Ionicons name="close" size={24} color="#1F2937" />
+                    <Ionicons name="arrow-back" size={24} color="#1972ca" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>{isEditing ? 'Edit Opportunity' : 'Create Opportunity'}</Text>
                 <View style={{ width: 40 }} />
@@ -288,6 +252,7 @@ Perks: ${Object.entries(perks).filter(([_, v]) => v).map(([k]) => k).join(', ') 
                                 <TextInput
                                     style={styles.input}
                                     placeholder="e.g. Expert Tailor for Bridal Shop"
+                                    placeholderTextColor="#9CA3AF"
                                     value={jobTitle}
                                     onChangeText={setJobTitle}
                                 />
@@ -297,6 +262,7 @@ Perks: ${Object.entries(perks).filter(([_, v]) => v).map(([k]) => k).join(', ') 
                                 <TextInput
                                     style={styles.input}
                                     placeholder="e.g. Tailoring & Fashion"
+                                    placeholderTextColor="#9CA3AF"
                                     value={category}
                                     onChangeText={setCategory}
                                 />
@@ -313,6 +279,7 @@ Perks: ${Object.entries(perks).filter(([_, v]) => v).map(([k]) => k).join(', ') 
                                     <TextInput
                                         style={styles.flexInput}
                                         placeholder="e.g. Molyko, Opposite University"
+                                        placeholderTextColor="#9CA3AF"
                                         value={location}
                                         onChangeText={setLocation}
                                     />
@@ -323,6 +290,7 @@ Perks: ${Object.entries(perks).filter(([_, v]) => v).map(([k]) => k).join(', ') 
                                 <TextInput
                                     style={styles.input}
                                     placeholder="e.g. 50k - 70k"
+                                    placeholderTextColor="#9CA3AF"
                                     value={salary}
                                     onChangeText={setSalary}
                                     keyboardType="numeric"
@@ -339,6 +307,7 @@ Perks: ${Object.entries(perks).filter(([_, v]) => v).map(([k]) => k).join(', ') 
                             <TextInput
                                 style={styles.textArea}
                                 placeholder="Tell workers about the daily tasks, environment, and what makes this opportunity unique..."
+                                placeholderTextColor="#9CA3AF"
                                 multiline
                                 numberOfLines={5}
                                 textAlignVertical="top"
@@ -355,6 +324,7 @@ Perks: ${Object.entries(perks).filter(([_, v]) => v).map(([k]) => k).join(', ') 
                                 <TextInput
                                     style={[styles.input, { flex: 1 }]}
                                     placeholder="Add a requirement..."
+                                    placeholderTextColor="#9CA3AF"
                                     value={currentReq}
                                     onChangeText={setCurrentReq}
                                 />
@@ -376,46 +346,10 @@ Perks: ${Object.entries(perks).filter(([_, v]) => v).map(([k]) => k).join(', ') 
                             </View>
                         </View>
 
-                        {/* 6. Perks & Benefits */}
-                        <View style={styles.formSection}>
-                            <Text style={styles.sectionHeading}>Perks & Benefits</Text>
-                            <View style={styles.perksGrid}>
-                                <TouchableOpacity 
-                                    style={[styles.perkCard, perks.meals && styles.perkCardActive]}
-                                    onPress={() => togglePerk('meals')}
-                                >
-                                    <Ionicons name="fast-food-outline" size={24} color={perks.meals ? "#FFF" : "#1972ca"} />
-                                    <Text style={[styles.perkLabel, perks.meals && styles.perkLabelActive]}>Meals Provided</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity 
-                                    style={[styles.perkCard, perks.transport && styles.perkCardActive]}
-                                    onPress={() => togglePerk('transport')}
-                                >
-                                    <Ionicons name="bus-outline" size={24} color={perks.transport ? "#FFF" : "#1972ca"} />
-                                    <Text style={[styles.perkLabel, perks.transport && styles.perkLabelActive]}>Transport</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity 
-                                    style={[styles.perkCard, perks.tools && styles.perkCardActive]}
-                                    onPress={() => togglePerk('tools')}
-                                >
-                                    <Ionicons name="construct-outline" size={24} color={perks.tools ? "#FFF" : "#1972ca"} />
-                                    <Text style={[styles.perkLabel, perks.tools && styles.perkLabelActive]}>Tools Provided</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity 
-                                    style={[styles.perkCard, perks.housing && styles.perkCardActive]}
-                                    onPress={() => togglePerk('housing')}
-                                >
-                                    <Ionicons name="home-outline" size={24} color={perks.housing ? "#FFF" : "#1972ca"} />
-                                    <Text style={[styles.perkLabel, perks.housing && styles.perkLabelActive]}>Housing</Text>
-                                </TouchableOpacity>
-                            </View>
-                        </View>
-
-                        {/* 7. Application & Contact */}
+                        {/* 6. Application Requirements */}
                         <View style={styles.formSection}>
                             <Text style={styles.sectionHeading}>How to Apply</Text>
-                            {renderChipSelector("Preferred Contact Method", CONTACT_METHODS, contactMethod, setContactMethod)}
-                            
+
                             <View style={styles.switchRow}>
                                 <View style={{ flex: 1 }}>
                                     <Text style={styles.switchLabel}>Require CV / Resume</Text>
@@ -496,12 +430,10 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 20,
-        paddingVertical: 15,
-        borderBottomWidth: 1,
-        borderBottomColor: '#F3F4F6',
+        paddingVertical: 18,
     },
     headerTitle: {
-        fontSize: 18,
+        fontSize: 17,
         fontWeight: '700',
         color: '#111827',
     },
@@ -578,11 +510,9 @@ const styles = StyleSheet.create({
         marginBottom: 25,
     },
     sectionHeading: {
-        fontSize: 14,
-        fontWeight: '800',
+        fontSize: 18,
+        fontWeight: '700',
         color: '#111827',
-        textTransform: 'uppercase',
-        letterSpacing: 1,
         marginBottom: 15,
     },
     inputWrapper: {
@@ -591,7 +521,7 @@ const styles = StyleSheet.create({
     label: {
         fontSize: 14,
         fontWeight: '600',
-        color: '#4B5563',
+        color: '#374151',
         marginBottom: 8,
     },
     subLabel: {
@@ -600,28 +530,26 @@ const styles = StyleSheet.create({
         marginBottom: 10,
     },
     input: {
-        backgroundColor: '#F9FAFB',
-        borderWidth: 1,
-        borderColor: '#E5E7EB',
-        borderRadius: 12,
-        paddingHorizontal: 15,
-        paddingVertical: 12,
+        backgroundColor: '#F3F7FC',
+        borderRadius: 16,
+        paddingHorizontal: 16,
+        paddingVertical: 14,
         fontSize: 15,
+        color: '#111827',
     },
     iconInput: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#F9FAFB',
-        borderWidth: 1,
-        borderColor: '#E5E7EB',
-        borderRadius: 12,
-        paddingHorizontal: 12,
+        backgroundColor: '#F3F7FC',
+        borderRadius: 16,
+        paddingHorizontal: 16,
     },
     flexInput: {
         flex: 1,
-        paddingVertical: 12,
+        paddingVertical: 14,
         marginLeft: 10,
         fontSize: 15,
+        color: '#111827',
     },
     row: {
         flexDirection: 'row',
@@ -633,33 +561,29 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     chip: {
-        paddingHorizontal: 12,
-        paddingVertical: 8,
+        paddingHorizontal: 16,
+        paddingVertical: 10,
         borderRadius: 20,
-        backgroundColor: '#F3F4F6',
-        borderWidth: 1,
-        borderColor: '#E5E7EB',
+        backgroundColor: '#F3F7FC',
     },
     chipSelected: {
         backgroundColor: '#1972ca',
-        borderColor: '#1972ca',
     },
     chipText: {
-        fontSize: 12,
+        fontSize: 13,
         fontWeight: '600',
-        color: '#4B5563',
+        color: '#374151',
     },
     chipTextSelected: {
         color: '#FFFFFF',
     },
     textArea: {
-        backgroundColor: '#F9FAFB',
-        borderWidth: 1,
-        borderColor: '#E5E7EB',
-        borderRadius: 12,
-        padding: 15,
+        backgroundColor: '#F3F7FC',
+        borderRadius: 16,
+        padding: 16,
         fontSize: 15,
-        height: 100,
+        color: '#111827',
+        height: 110,
     },
     addReqRow: {
         flexDirection: 'row',
@@ -680,45 +604,16 @@ const styles = StyleSheet.create({
     reqItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#F9FAFB',
+        backgroundColor: '#F3F7FC',
         padding: 12,
-        borderRadius: 10,
+        borderRadius: 12,
         marginBottom: 8,
-        borderWidth: 1,
-        borderColor: '#E5E7EB',
     },
     reqItemText: {
         flex: 1,
         marginLeft: 10,
         fontSize: 14,
         color: '#374151',
-    },
-    perksGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 10,
-    },
-    perkCard: {
-        width: '48%',
-        backgroundColor: '#F9FAFB',
-        borderRadius: 12,
-        padding: 15,
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: '#E5E7EB',
-    },
-    perkCardActive: {
-        backgroundColor: '#1972ca',
-        borderColor: '#1972ca',
-    },
-    perkLabel: {
-        fontSize: 12,
-        fontWeight: '700',
-        color: '#1972ca',
-        marginTop: 8,
-    },
-    perkLabelActive: {
-        color: '#FFF',
     },
     switchRow: {
         flexDirection: 'row',
@@ -739,8 +634,8 @@ const styles = StyleSheet.create({
     },
     postButton: {
         backgroundColor: '#1972ca',
-        borderRadius: 16,
-        height: 56,
+        borderRadius: 30,
+        height: 58,
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',

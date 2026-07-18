@@ -14,7 +14,6 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import * as ScreenCapture from 'expo-screen-capture';
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
@@ -39,7 +38,6 @@ const OTPScreen: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [timer, setTimer] = useState(0);
 
-    ScreenCapture.usePreventScreenCapture();
     const inputRefs = useRef<Array<TextInput | null>>([]);
 
     useEffect(() => {
@@ -149,10 +147,21 @@ const OTPScreen: React.FC = () => {
             console.log('OTP Verified successfully and session persisted.');
             
             const redirectJob = route.params?.redirectJob;
+            // Reset (not navigate) so the whole auth stack (Signup/OTP/etc.) is wiped -
+            // leaves exactly one screen post-verification, nothing left to swipe back into.
             if (redirectJob) {
-                navigation.navigate('JobDetails', { job: redirectJob, autoOpenApply: true });
+                navigation.reset({
+                    index: 1,
+                    routes: [
+                        { name: 'MainTabs' },
+                        { name: 'JobDetails', params: { job: redirectJob, autoOpenApply: true } },
+                    ],
+                });
             } else {
-                navigation.navigate('MainTabs');
+                navigation.reset({
+                    index: 0,
+                    routes: [{ name: 'MainTabs' }],
+                });
             }
         } catch (error: any) {
             // Check for common error messages

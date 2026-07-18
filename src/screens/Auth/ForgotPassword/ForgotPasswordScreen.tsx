@@ -118,7 +118,7 @@ const ForgotPasswordScreen: React.FC = () => {
             Alert.alert(
                 'Password Updated! 🎉',
                 'Your password has been successfully reset. You can now log in with your new password.',
-                [{ text: 'Log In Now', onPress: () => navigation.navigate('Login') }]
+                [{ text: 'Log In Now', onPress: () => navigation.replace('Login') }]
             );
         } catch (error: any) {
             const rawMsg = error instanceof Error ? error.message : String(error);
@@ -265,7 +265,9 @@ const ForgotPasswordScreen: React.FC = () => {
                                             onChangeText={(text) => handleOtpChange(text, index)}
                                             onKeyPress={(e) => handleKeyPress(e, index)}
                                             keyboardType="number-pad"
-                                            maxLength={1}
+                                            maxLength={index === 0 ? 6 : 1} // First box accepts the whole pasted/autofilled code, others stay restricted
+                                            autoComplete="one-time-code"
+                                            textContentType="oneTimeCode"
                                             placeholder="0"
                                             placeholderTextColor="#CCC"
                                         />
@@ -360,6 +362,9 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#FFFFFF',
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        overflow: 'hidden',
     },
     handleContainer: {
         alignItems: 'center',
