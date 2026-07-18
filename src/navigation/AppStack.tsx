@@ -42,7 +42,6 @@ const AppStack = () => {
             <Stack.Screen name="VerificationSuccess" component={VerificationSuccessScreen} />
             <Stack.Screen name="VerificationFailed" component={VerificationFailedScreen} />
             <Stack.Screen name="EmployerDashboard" component={EmployerDashboardScreen} />
-            <Stack.Screen name="JobApplicants" component={JobApplicantsScreen} />
 
             {/* Auth screens presented as slide-up modals */}
             <Stack.Group

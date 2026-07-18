@@ -240,7 +240,7 @@ const JobDetailsScreen: React.FC = () => {
                 jobTitle={job.title || job.position_vacant || 'Position'}
                 requiresCv={job.requires_cv === 'true' || job.requires_cv === true}
             />
-        </View>
+        </SafeAreaView>
     );
 };
 
