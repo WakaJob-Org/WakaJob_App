@@ -26,31 +26,13 @@ import authService from '../../services/authService';
 import { useAuth } from '../../context/AuthContext';
 import { AppStackParamList, MainTabParamList } from '../../navigation/types';
 import ApplyModal from '../../components/ApplyModal';
+import JobCard, { JobType } from '../../components/JobCard';
+import DashboardSkeleton from '../../components/DashboardSkeleton';
 
 type DashboardNavigationProp = CompositeNavigationProp<
     BottomTabNavigationProp<MainTabParamList, 'Jobs'>,
     StackNavigationProp<AppStackParamList>
 >;
-
-interface JobType {
-    id: string;
-    title: string;
-    company: string;
-    location: string;
-    salary: string;
-    type: string;
-    description: string;
-    category: string;
-    email: string;
-    phone: string;
-    postedAt: string;
-    imageUrl?: string;
-    tags?: string[];
-    hasApprentice?: boolean;
-    requirements?: string[];
-}
-
-import DashboardSkeleton from '../../components/DashboardSkeleton';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -272,97 +254,19 @@ const DashboardScreen: React.FC = () => {
         return colors[charCode % colors.length];
     };
 
-    const renderJobItem = ({ item }: { item: JobType }) => {
-        const isExpanded = expandedJobId === item.id;
-
-        return (
-            <TouchableOpacity 
-                style={styles.jobCard} 
-                activeOpacity={0.9} 
-                onPress={() => navigation.navigate('JobDetails', { job: item, isSaved: isJobSaved(item.id) })}
-            >
-                <View style={styles.imageContainer}>
-                    {item.imageUrl ? (
-                        <Image source={{ uri: item.imageUrl }} style={styles.jobImage} />
-                    ) : (
-                        <View style={[styles.jobImage, styles.placeholderImage]}>
-                            <Ionicons name="image-outline" size={40} color="#9BA4B1" />
-                        </View>
-                    )}
-                    
-                    {/* Save Button Overlay */}
-                    <TouchableOpacity 
-                        style={styles.saveBadgeSmall} 
-                        onPress={() => handleSaveJob(item.id)}
-                        activeOpacity={0.8}
-                    >
-                        <Ionicons 
-                            name={isJobSaved(item.id) ? "bookmark" : "bookmark-outline"} 
-                            size={18} 
-                            color={isJobSaved(item.id) ? "#1972ca" : "#FFFFFF"} 
-                        />
-                    </TouchableOpacity>
-                </View>
-
-                {/* Content Section */}
-                <View style={styles.cardBody}>
-                    <Text style={styles.jobTitleText} numberOfLines={1}>{item.title}</Text>
-                    <Text style={styles.companySubText} numberOfLines={1}>{item.company}</Text>
-                    
-                    <View style={styles.cardDetailsRow}>
-                        <View style={styles.cardDetailItem}>
-                            <Ionicons name="location-outline" size={14} color="#64748B" />
-                            <Text style={styles.cardDetailText} numberOfLines={1}>{item.location}</Text>
-                        </View>
-                        <View style={styles.cardDetailItem}>
-                            <Ionicons name="wallet-outline" size={14} color="#64748B" />
-                            <Text style={styles.cardDetailText} numberOfLines={1}>{item.salary}</Text>
-                        </View>
-                    </View>
-
-                    {/* Tags */}
-                    <View style={styles.tagRow}>
-                        {[item.type, item.category, ...(item.tags || [])].filter(Boolean).map((tag, idx) => (
-                            <View key={idx} style={[styles.tag, idx === 0 ? styles.activeTag : null]}>
-                                <Text style={[styles.tagText, idx === 0 ? styles.activeTagText : null]}>{tag}</Text>
-                            </View>
-                        ))}
-                    </View>
-
-                    {/* Action Row */}
-                    <View style={styles.actionRow}>
-                        <View style={styles.mainApplyBtn}>
-                            <Text style={styles.mainApplyBtnText}>View Details</Text>
-                        </View>
-                        <TouchableOpacity 
-                            style={styles.dropdownBtn}
-                            onPress={() => setExpandedJobId(isExpanded ? null : item.id)}
-                        >
-                            <Ionicons name={isExpanded ? "chevron-up" : "chevron-down"} size={22} color="#1972ca" />
-                        </TouchableOpacity>
-                    </View>
-
-                    {/* Dropdown Content */}
-                    {isExpanded && (
-                        <View style={styles.expandedContent}>
-                            <TouchableOpacity 
-                                style={styles.apprenticeOption}
-                                onPress={() => {
-                                    setApplyingJob(item);
-                                    setDefaultAppType('apprentice');
-                                    setShowApplyModal(true);
-                                    setExpandedJobId(null);
-                                }}
-                            >
-                                <Ionicons name="school-outline" size={18} color="#1972ca" />
-                                <Text style={styles.apprenticeText}>Apply as Apprentice</Text>
-                            </TouchableOpacity>
-                        </View>
-                    )}
-                </View>
-            </TouchableOpacity>
-        );
-    };
+    const renderJobItem = ({ item }: { item: JobType }) => (
+        <JobCard
+            job={item}
+            isSaved={isJobSaved(item.id)}
+            onToggleSave={handleSaveJob}
+            onPress={(job) => navigation.navigate('JobDetails', { job, isSaved: isJobSaved(job.id) })}
+            onApplyRequest={(job, type) => {
+                setApplyingJob(job);
+                setDefaultAppType(type);
+                setShowApplyModal(true);
+            }}
+        />
+    );
 
     return (
         <View style={styles.container}>
@@ -647,140 +551,7 @@ const styles = StyleSheet.create({
     actionBtnOutline: { backgroundColor: '#F0F7FF', borderWidth: 1, borderColor: '#1972ca' },
     actionBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: 'bold' },
     actionBtnTextOutline: { color: '#1972ca' },
-    jobCard: {
-        backgroundColor: '#FFFFFF',
-        borderRadius: 24,
-        marginBottom: 20,
-        overflow: 'hidden',
-        borderWidth: 1,
-        borderColor: '#F1F5F9',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.05,
-        shadowRadius: 12,
-        elevation: 3,
-    },
-    imageContainer: {
-        width: '100%',
-        height: 160,
-        position: 'relative',
-    },
-    saveBadgeSmall: {
-        position: 'absolute',
-        top: 12,
-        right: 12,
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        backgroundColor: 'rgba(0,0,0,0.3)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    jobImage: {
-        width: '100%',
-        height: '100%',
-        resizeMode: 'cover',
-    },
-    placeholderImage: {
-        backgroundColor: '#F1F5F9',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    cardBody: {
-        padding: 16,
-    },
-    jobTitleText: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#111827',
-        marginBottom: 2,
-    },
-    companySubText: {
-        fontSize: 14,
-        color: '#9BA4B1',
-        marginBottom: 10,
-    },
-    cardDetailsRow: {
-        flexDirection: 'row',
-        gap: 15,
-        marginBottom: 16,
-    },
-    cardDetailItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-        flex: 1,
-    },
-    cardDetailText: {
-        fontSize: 13,
-        color: '#64748B',
-    },
-    tagRow: {
-        flexDirection: 'row',
-        gap: 8,
-        marginBottom: 20,
-    },
-    tag: {
-        backgroundColor: '#F8FAFC',
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 10,
-    },
-    activeTag: {
-        backgroundColor: '#EBF4FF',
-    },
-    tagText: {
-        fontSize: 12,
-        fontWeight: '600',
-        color: '#64748B',
-    },
-    activeTagText: {
-        color: '#1972ca',
-    },
-    actionRow: {
-        flexDirection: 'row',
-        gap: 12,
-    },
-    mainApplyBtn: {
-        flex: 1,
-        backgroundColor: '#1972ca',
-        height: 50,
-        borderRadius: 12,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    mainApplyBtnText: {
-        color: '#FFFFFF',
-        fontSize: 16,
-        fontWeight: '700',
-    },
-    dropdownBtn: {
-        width: 50,
-        height: 50,
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: '#E2E8F0',
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: '#F8FAFC',
-    },
-    expandedContent: {
-        marginTop: 12,
-        paddingTop: 12,
-        borderTopWidth: 1,
-        borderTopColor: '#F1F5F9',
-    },
-    apprenticeOption: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 10,
-        paddingVertical: 10,
-    },
-    apprenticeText: {
-        fontSize: 15,
-        fontWeight: '600',
-        color: '#1972ca',
-    },
+    // Card styles moved to JobCard.tsx
     modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
     modalContent: { flex: 1, backgroundColor: '#FFFFFF', marginTop: 50, borderTopLeftRadius: 25, borderTopRightRadius: 25 },
     modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
