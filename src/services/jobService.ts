@@ -131,7 +131,7 @@ const jobService = {
 
     saveJob: async (jobId: string) => {
         try {
-            const response = await api.post(`/jobs/save`, { jobId });
+            const response = await api.post(`/jobs/save`, { job_id: jobId });
             return response.data;
         } catch (error: any) {
             throw error.response?.data?.message || 'Failed to save job';
@@ -146,7 +146,7 @@ const jobService = {
             // Fallback in case the backend implemented it as POST /jobs/unsave
             if (error.response?.status === 404) {
                 try {
-                    const fallbackResponse = await api.post('/jobs/unsave', { jobId });
+                    const fallbackResponse = await api.post('/jobs/unsave', { job_id: jobId });
                     return fallbackResponse.data;
                 } catch (fallbackError: any) {
                     throw fallbackError.response?.data?.message || 'Failed to unsave job';
