@@ -41,7 +41,7 @@ export interface JobType {
 interface JobCardProps {
     job: JobType;
     isSaved: boolean;
-    onToggleSave: (jobId: string) => void;
+    onToggleSave: (job: JobType) => void;
     onPress: (job: JobType) => void;
     onApplyRequest?: (job: JobType, type: 'professional' | 'apprentice') => void;
 }
@@ -76,7 +76,7 @@ const JobCard: React.FC<JobCardProps> = ({
                 {/* Save / Bookmark Button Overlay */}
                 <TouchableOpacity
                     style={styles.saveBadgeSmall}
-                    onPress={() => onToggleSave(job.id)}
+                    onPress={() => onToggleSave(job)}
                     activeOpacity={0.8}
                 >
                     <Ionicons

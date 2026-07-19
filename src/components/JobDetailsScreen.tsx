@@ -105,10 +105,15 @@ const JobDetailsScreen: React.FC = () => {
 
     const handleSave = async () => {
         try {
-            setIsSaved(!isSaved); // Optimistic UI
-            await jobService.saveJob(job.id);
+            const newIsSaved = !isSaved;
+            setIsSaved(newIsSaved); // Optimistic UI
+            if (newIsSaved) {
+                await jobService.saveJob(job, currentUserId || undefined);
+            } else {
+                await jobService.unsaveJob(job.id, currentUserId || undefined);
+            }
         } catch (error) {
-            setIsSaved(!isSaved);
+            setIsSaved(isSaved); // Revert optimistic update on error
             Alert.alert("Error", "Failed to update saved jobs.");
         }
     };
@@ -271,7 +276,7 @@ const JobDetailsScreen: React.FC = () => {
                 jobTitle={job.title || job.position_vacant || 'Position'}
                 requiresCv={job.requires_cv === 'true' || job.requires_cv === true}
             />
-        </SafeAreaView>
+        </View>
     );
 };
 

@@ -225,15 +225,17 @@ const DashboardScreen: React.FC = () => {
 
     if (loading) return <DashboardSkeleton />;
 
-    const handleSaveJob = async (jobId: string) => {
+    const handleSaveJob = async (job: JobType) => {
         try {
+            const jobId = job.id;
             if (savedJobsList.includes(jobId)) {
                 setSavedJobsList(prev => prev.filter(id => id !== jobId));
                 showToast("Job removed from saved");
+                await jobService.unsaveJob(jobId, user?.id);
             } else {
                 setSavedJobsList(prev => [...prev, jobId]);
                 showToast("Job saved successfully");
-                await jobService.saveJob(jobId);
+                await jobService.saveJob(job, user?.id);
             }
         } catch (error) {
             console.error('Error saving job:', error);

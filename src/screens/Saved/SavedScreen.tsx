@@ -32,31 +32,8 @@ const SavedScreen: React.FC = () => {
         try {
             if (!isRefreshing) setLoading(true);
             const data = await jobService.getSavedJobs(user?.id);
-
-            const mapped: JobType[] = (data || []).map((item: any) => {
-                const job = item.job || item;
-                return {
-                    id: job.id || job._id || item.id || item._id,
-                    title: job.title || job.position_vacant || 'Untitled Position',
-                    position_vacant: job.position_vacant || job.title || 'Untitled Position',
-                    company: job.company || job.employer_name || job.company_name || 'WakaJob Partner',
-                    location: job.location || 'Remote',
-                    salary: job.salary || job.payment_rate || 'Competitive',
-                    type: job.type || job.job_type || 'Full-time',
-                    job_type: job.job_type || job.type || 'Full-time',
-                    category: job.category || '',
-                    description: job.description || '',
-                    imageUrl: job.image_url || job.imageUrl || job.job_image || '',
-                    image_url: job.image_url || job.imageUrl || '',
-                    tags: job.tags || [],
-                    requirements: job.qualifications ? job.qualifications.split(',') : [],
-                    created_at: job.created_at || item.created_at || '',
-                    email: job.employer_email || '',
-                    phone: job.employer_phone || '',
-                    postedAt: job.created_at || '',
-                };
-            });
-            setSavedJobs(mapped);
+            // Since jobs are saved locally as JobType objects, we can just use them directly
+            setSavedJobs(data || []);
         } catch (error) {
             console.error('Error fetching saved jobs:', error);
             setSavedJobs([]);
@@ -81,7 +58,8 @@ const SavedScreen: React.FC = () => {
         fetchSaved(true);
     }, []);
 
-    const handleUnsave = async (jobId: string) => {
+    const handleUnsave = async (job: JobType) => {
+        const jobId = job.id;
         Alert.alert('Remove Job', 'Remove this job from saved?', [
             { text: 'Cancel', style: 'cancel' },
             {
@@ -91,7 +69,7 @@ const SavedScreen: React.FC = () => {
                     // Optimistic UI update
                     setSavedJobs(prev => prev.filter(j => j.id !== jobId));
                     try {
-                        await jobService.unsaveJob(jobId);
+                        await jobService.unsaveJob(jobId, user?.id);
                     } catch (error) {
                         console.error('Error unsaving job:', error);
                         // Re-fetch to restore correct state if API call fails
