@@ -48,6 +48,7 @@ interface JobType {
     tags?: string[];
     hasApprentice?: boolean;
     requirements?: string[];
+    employerId?: string;
 }
 
 import DashboardSkeleton from '../../components/DashboardSkeleton';
@@ -176,22 +177,25 @@ const DashboardScreen: React.FC = () => {
                 return {
                     id: job.id,
                     title: title,
-                    company: job.employer_name || 'Private Employer',
+                    company: job.users?.full_name || 'Private Employer',
                     location: job.location || 'Not specified',
                     salary: job.salary || 'Competitive',
                     type: job.job_type || 'Full-time',
                     description: job.description,
                     category: job.category,
-                    email: job.employer_email || '',
-                    phone: job.employer_phone || '',
+                    email: job.users?.email || '',
+                    phone: job.users?.profiles?.phone_number || '',
                     postedAt: job.created_at,
                     imageUrl: job.image_url || job.job_image,
-                    requirements: job.qualifications ? job.qualifications.split(',') : []
+                    requirements: job.qualifications ? job.qualifications.split(',') : [],
+                    employerId: job.employer_id,
                 };
             });
 
-            // Filter: Only show jobs that have an uploaded image
-            const jobsWithImages = mappedJobs.filter(job => !!job.imageUrl);
+            // Filter: only show jobs that have an uploaded image, and never show the
+            // current user their own postings - the browse feed is for applying to
+            // other people's jobs, not for seeing your own listings.
+            const jobsWithImages = mappedJobs.filter(job => !!job.imageUrl && job.employerId !== user?.id);
 
             setAllJobs(jobsWithImages);
             setFilteredJobs(jobsWithImages);
@@ -244,6 +248,18 @@ const DashboardScreen: React.FC = () => {
     if (loading) return <DashboardSkeleton />;
 
     const handleSaveJob = async (jobId: string) => {
+        if (!isAuthenticated) {
+            Alert.alert(
+                "Authentication Required",
+                "Please sign up or log in to save jobs.",
+                [
+                    { text: "Cancel", style: "cancel" },
+                    { text: "Sign Up", onPress: () => navigation.navigate('Signup') },
+                    { text: "Log In", onPress: () => navigation.navigate('Login') }
+                ]
+            );
+            return;
+        }
         try {
             if (savedJobsList.includes(jobId)) {
                 setSavedJobsList(prev => prev.filter(id => id !== jobId));
@@ -345,13 +361,17 @@ const DashboardScreen: React.FC = () => {
                     {/* Dropdown Content */}
                     {isExpanded && (
                         <View style={styles.expandedContent}>
-                            <TouchableOpacity 
+                            <TouchableOpacity
                                 style={styles.apprenticeOption}
                                 onPress={() => {
+                                    setExpandedJobId(null);
+                                    if (user?.id && item.employerId && user.id === item.employerId) {
+                                        Alert.alert("Action Not Allowed", "You cannot apply for a job that you posted.");
+                                        return;
+                                    }
                                     setApplyingJob(item);
                                     setDefaultAppType('apprentice');
                                     setShowApplyModal(true);
-                                    setExpandedJobId(null);
                                 }}
                             >
                                 <Ionicons name="school-outline" size={18} color="#1972ca" />
@@ -531,7 +551,7 @@ const DashboardScreen: React.FC = () => {
             </Animated.View>
 
             {applyingJob && (
-                <ApplyModal 
+                <ApplyModal
                     visible={showApplyModal}
                     onClose={() => setShowApplyModal(false)}
                     initialApplicationType={defaultAppType}

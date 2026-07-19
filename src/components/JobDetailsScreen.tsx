@@ -104,6 +104,18 @@ const JobDetailsScreen: React.FC = () => {
     if (!job) return null;
 
     const handleSave = async () => {
+        if (!isAuthenticated) {
+            Alert.alert(
+                "Authentication Required",
+                "Please sign up or log in to save jobs.",
+                [
+                    { text: "Cancel", style: "cancel" },
+                    { text: "Sign Up", onPress: () => navigation.navigate('Signup', { redirectJob: job }) },
+                    { text: "Log In", onPress: () => navigation.navigate('Login', { redirectJob: job }) }
+                ]
+            );
+            return;
+        }
         try {
             setIsSaved(!isSaved); // Optimistic UI
             await jobService.saveJob(job.id);
@@ -139,7 +151,7 @@ const JobDetailsScreen: React.FC = () => {
         setShowApplyModal(true);
     };
 
-    const handleApply = async (data: { intro_text: string; application_type: 'professional' | 'apprentice' }) => {
+    const handleApply = async (data: { application_type: 'professional' | 'apprentice' }) => {
         try {
             setIsApplying(true);
             await jobService.applyToJob(job.id, data);
@@ -269,7 +281,6 @@ const JobDetailsScreen: React.FC = () => {
                 onClose={() => setShowApplyModal(false)}
                 onApply={handleApply}
                 jobTitle={job.title || job.position_vacant || 'Position'}
-                requiresCv={job.requires_cv === 'true' || job.requires_cv === true}
             />
         </View>
     );

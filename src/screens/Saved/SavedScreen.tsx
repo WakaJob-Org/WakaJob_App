@@ -60,7 +60,7 @@ const SavedScreen: React.FC = () => {
                     id: job.id || job._id || item.id || item._id,
                     title: job.title || job.position_vacant || 'Untitled Position',
                     position_vacant: job.position_vacant || job.title || 'Untitled Position',
-                    company: job.company || job.company_name || 'WakaJob Partner',
+                    company: job.users?.full_name || job.company || job.company_name || 'WakaJob Partner',
                     location: job.location || 'Remote',
                     salary: job.salary || job.payment_rate || '',
                     type: job.type || job.job_type || 'Full-time',
