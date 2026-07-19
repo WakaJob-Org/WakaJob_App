@@ -64,8 +64,11 @@ const jobService = {
 
     getJobById: async (id: string) => {
         try {
-            const response = await api.get<Job>(`/jobs/${id}`);
-            return response.data;
+            const response = await api.get(`/jobs/${id}`);
+            const raw = response.data;
+            // Same wrapped-response convention as /jobs: {status, data:{...}} rather than the job itself
+            if (raw && typeof raw === 'object' && raw.data && !raw.id) return raw.data as Job;
+            return raw as Job;
         } catch (error: any) {
             throw error.response?.data?.message || 'Failed to fetch job details';
         }
