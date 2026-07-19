@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import jobService from '../../services/jobService';
 import ApplicationsSkeleton from '../../components/ApplicationsSkeleton';
-import ApplicantProfileScreen, { Applicant } from './ApplicantProfileScreen';
+import type { Applicant } from './ApplicantProfileScreen';
 
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
@@ -129,15 +129,12 @@ interface ApplicationsScreenProps {
 
 const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ onViewApplicant }) => {
     const navigation = useNavigation<any>();
-    const { user, isAuthenticated } = useAuth();
-    const isEmployer = user?.role === 'employer';
+    const { isAuthenticated } = useAuth();
     const [activeTab, setActiveTab] = useState('All');
     const [searchQuery, setSearchQuery] = useState('');
     const [applicants, setApplicants] = useState<Applicant[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
-    const [selectedApplicant, setSelectedApplicant] = useState<Applicant | null>(null);
-    const [profileVisible, setProfileVisible] = useState(false);
 
     const fetchApplications = async (isRefreshing = false) => {
         try {
@@ -145,18 +142,9 @@ const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ onViewApplicant
             const fetched = await jobService.getUserApplications();
 
             if (fetched && fetched.length > 0) {
-                // Map backend fields → Applicant interface
-                // Worker view: each item = a job they applied to
-                // Employer view: each item = a person who applied to their job
+                // Map backend fields → Applicant interface. Each item is a job
+                // the current user applied to.
                 const mapped: Applicant[] = fetched.map((item: any) => {
-                    const fullName =
-                        item.applicant_name ||
-                        item.full_name ||
-                        item.user?.full_name ||
-                        item.user?.name ||
-                        item.name ||
-                        'Unknown Applicant';
-
                     const jobTitle =
                         item.job_title ||
                         item.job?.title ||
@@ -172,7 +160,7 @@ const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ onViewApplicant
                         item.job?.company_name ||
                         '';
 
-                    const initials = fullName
+                    const initials = jobTitle
                         .trim()
                         .split(' ')
                         .filter(Boolean)
@@ -202,10 +190,8 @@ const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ onViewApplicant
 
                     return {
                         id: item.id || item._id || String(Math.random()),
-                        // For workers: display the job they applied to
-                        // For employers: display the person who applied
-                        name: isEmployer ? fullName : jobTitle,
-                        role: isEmployer ? jobTitle : company || jobTitle,
+                        name: jobTitle,
+                        role: company || jobTitle,
                         location: item.location || item.job?.location || item.user?.location || '',
                         status,
                         photo: item.profile_image_url || item.photo || item.avatar || item.user?.profile_image_url || null,
@@ -265,28 +251,8 @@ const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ onViewApplicant
         return matchesSearch && matchesTab;
     });
 
-    const updateApplicantStatus = async (applicantId: string, status: StatusKey) => {
-        // Optimistic UI update
-        setApplicants(prev => prev.map(app =>
-            app.id === applicantId ? { ...app, status } : app
-        ));
-        try {
-            await jobService.updateApplicationStatus(applicantId, status as any);
-        } catch (error) {
-            console.error('Failed to update status:', error);
-            // Revert on failure
-            fetchApplications(true);
-        }
-    };
-
     const handleViewDetails = (item: Applicant) => {
-        // If parent provides navigation handler, use it; otherwise open internal modal
-        if (onViewApplicant) {
-            onViewApplicant(item.id);
-        } else {
-            setSelectedApplicant(item);
-            setProfileVisible(true);
-        }
+        onViewApplicant?.(item.id);
     };
 
     const renderApplicantCard = ({ item }: { item: Applicant }) => {
@@ -314,8 +280,7 @@ const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ onViewApplicant
                     <View style={styles.nameBlock}>
                         <Text style={styles.applicantName} numberOfLines={1}>{item.name}</Text>
                         <Text style={styles.applicantRole} numberOfLines={1}>{item.role}</Text>
-                        {/* Show company for worker view */}
-                        {!isEmployer && anyItem.company ? (
+                        {anyItem.company ? (
                             <Text style={styles.companyText} numberOfLines={1}>
                                 📍 {anyItem.company}
                             </Text>
@@ -391,9 +356,7 @@ const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ onViewApplicant
                     <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerIconBtn} activeOpacity={0.7}>
                         <Ionicons name="chevron-back" size={24} color="#1972ca" />
                     </TouchableOpacity>
-                    <Text style={styles.headerTitle}>
-                        {isEmployer ? 'Job Applications' : 'My Applications'}
-                    </Text>
+                    <Text style={styles.headerTitle}>My Applications</Text>
                     <TouchableOpacity style={styles.headerIconBtn} activeOpacity={0.7}>
                         <Ionicons name="notifications-outline" size={24} color="#1F2937" />
                     </TouchableOpacity>
@@ -405,7 +368,7 @@ const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ onViewApplicant
                 <Ionicons name="search-outline" size={18} color="#9CA3AF" style={styles.searchIcon} />
                 <TextInput
                     style={styles.searchInput}
-                    placeholder={isEmployer ? "Search by name or job title" : "Search your applications"}
+                    placeholder="Search your applications"
                     placeholderTextColor="#B0B8C5"
                     value={searchQuery}
                     onChangeText={setSearchQuery}

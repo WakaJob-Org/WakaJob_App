@@ -21,6 +21,7 @@ export type MainTabParamList = {
 };
 
 export type AppStackParamList = {
+    Splash: undefined;
     MainTabs: { screen?: keyof MainTabParamList } | undefined;
     Notifications: undefined;
     Settings: undefined;

@@ -348,18 +348,7 @@ const authService = {
       }
 
       console.log(`getUser: Fetching ${forceRefresh ? 'LIVE' : 'profile'} data via main API...`);
-      // Try /auth/profile first, then /auth/me as common synonyms
-      let response;
-      try {
-        response = await api.get('/auth/profile');
-      } catch (err: any) {
-        if (err.response?.status === 404) {
-          console.log('getUser: /auth/profile 404, trying /auth/me...');
-          response = await api.get('/auth/me');
-        } else {
-          throw err;
-        }
-      }
+      const response = await api.get('/auth/me');
 
       console.log('getUser RAW RESPONSE:', JSON.stringify(response.data));
 

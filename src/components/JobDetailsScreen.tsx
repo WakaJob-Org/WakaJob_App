@@ -104,6 +104,18 @@ const JobDetailsScreen: React.FC = () => {
     if (!job) return null;
 
     const handleSave = async () => {
+        if (!isAuthenticated) {
+            Alert.alert(
+                "Authentication Required",
+                "Please sign up or log in to save jobs.",
+                [
+                    { text: "Cancel", style: "cancel" },
+                    { text: "Sign Up", onPress: () => navigation.navigate('Signup', { redirectJob: job }) },
+                    { text: "Log In", onPress: () => navigation.navigate('Login', { redirectJob: job }) }
+                ]
+            );
+            return;
+        }
         try {
             setIsSaved(!isSaved); // Optimistic UI
             await jobService.saveJob(job.id);
@@ -136,9 +148,10 @@ const JobDetailsScreen: React.FC = () => {
             Alert.alert("Action Not Allowed", "You cannot apply for a job that you posted.");
             return;
         }
+        setShowApplyModal(true);
     };
 
-    const handleApply = async (data: { intro_text: string; application_type: 'professional' | 'apprentice' }) => {
+    const handleApply = async (data: { application_type: 'professional' | 'apprentice' }) => {
         try {
             setIsApplying(true);
             await jobService.applyToJob(job.id, data);
@@ -248,17 +261,17 @@ const JobDetailsScreen: React.FC = () => {
 
             {/* Footer Buttons */}
             <View style={[styles.footer, { paddingBottom: 40 + insets.bottom }]}>
-                <TouchableOpacity 
-                    style={[styles.applyBtn, { flex: 1 }, isApplying && { opacity: 0.7 }, isJobPoster && { opacity: 0.5 }]} 
+                <TouchableOpacity
+                    style={[styles.applyButton, { flex: 1 }, (isApplying || isJobPoster) && styles.applyButtonDisabled]}
                     onPress={handleApplyPress}
                     disabled={isApplying || isJobPoster}
                 >
                     {isJobPoster ? (
-                        <Text style={styles.applyBtnText}>Cannot Apply - Your Job</Text>
+                        <Text style={styles.applyButtonText}>Cannot Apply - Your Job</Text>
                     ) : isApplying ? (
                         <ActivityIndicator color="#FFF" />
                     ) : (
-                        <Text style={styles.applyBtnText}>Apply Now</Text>
+                        <Text style={styles.applyButtonText}>Apply Now</Text>
                     )}
                 </TouchableOpacity>
             </View>
@@ -268,7 +281,6 @@ const JobDetailsScreen: React.FC = () => {
                 onClose={() => setShowApplyModal(false)}
                 onApply={handleApply}
                 jobTitle={job.title || job.position_vacant || 'Position'}
-                requiresCv={job.requires_cv === 'true' || job.requires_cv === true}
             />
         </View>
     );

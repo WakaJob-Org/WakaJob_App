@@ -6,6 +6,7 @@ import type { StackCardInterpolationProps } from '@react-navigation/stack';
 import { AppStackParamList } from './types';
 import { useAuth } from '../context/AuthContext';
 import MainTabs from './MainTabs';
+import SplashScreen from '../screens/Splash/SplashScreen';
 import NotificationsScreen from '../screens/Dashboard/NotificationsScreen';
 import SettingsScreen from '../screens/Settings/SettingsScreen';
 
@@ -61,10 +62,12 @@ const AppStack = () => {
 
     return (
         <Stack.Navigator
+            initialRouteName="Splash"
             screenOptions={{
                 headerShown: false,
             }}
         >
+            <Stack.Screen name="Splash" component={SplashScreen} />
             <Stack.Screen name="MainTabs" component={MainTabs} />
             <Stack.Screen name="Notifications" component={NotificationsScreen} />
             <Stack.Screen name="Settings" component={SettingsScreen} />
