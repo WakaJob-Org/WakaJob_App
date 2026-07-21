@@ -10,6 +10,8 @@ import {
     ActivityIndicator,
     KeyboardAvoidingView,
     Platform,
+    Image,
+    Pressable,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Animated from 'react-native-reanimated';
@@ -119,7 +121,11 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
     };
 
     return (
-        <View style={styles.container}>
+        <View style={styles.modalWrapper}>
+            {/* Tapping the dimmed area above the sheet dismisses it, same as swiping down */}
+            <Pressable style={styles.backdropSpacer} onPress={() => navigation.goBack()} />
+
+            <View style={styles.container}>
             <View style={styles.handleContainer}>
                 <View style={styles.handle} />
             </View>
@@ -135,7 +141,12 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                 >
                     <View style={styles.header}>
                         <View style={styles.iconContainer}>
-                            <Ionicons name="briefcase" size={32} color="#FFFFFF" />
+                            <View style={styles.brandIconCrop}>
+                                <Image
+                                    source={require('../../../../assets/logo.png')}
+                                    style={styles.brandIconCropImage}
+                                />
+                            </View>
                         </View>
                         <Text style={styles.title}>Wakajob</Text>
                         <Text style={styles.welcomeText}>Welcome back to your career journey</Text>
@@ -217,11 +228,21 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                     </View>
                 </ScrollView>
             </KeyboardAvoidingView>
+            </View>
         </View>
     );
 };
 
 const styles = StyleSheet.create({
+    modalWrapper: {
+        flex: 1,
+    },
+    // The modal card now fills the full screen (see AppStack.tsx) - this
+    // transparent spacer stands in for the old marginTop, and is tappable so
+    // tapping the dimmed area above the sheet dismisses it like swiping down.
+    backdropSpacer: {
+        height: SCREEN_HEIGHT * 0.2,
+    },
     container: {
         flex: 1,
         backgroundColor: '#FFFFFF',
@@ -255,6 +276,20 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         marginBottom: 16,
+    },
+    // logo.png is a 1254x1254 lockup (icon + wordmark stacked); crop to just
+    // the icon (roughly x[280,862] y[274,793]) - it's natively white, which
+    // reads correctly against this circle's blue background with no tint.
+    brandIconCrop: {
+        width: 36,
+        height: 32,
+        overflow: 'hidden',
+    },
+    brandIconCropImage: {
+        width: 77,
+        height: 77,
+        left: -17,
+        top: -17,
     },
     title: {
         fontSize: 24,

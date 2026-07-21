@@ -16,6 +16,7 @@ import {
     ImageSourcePropType,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -54,6 +55,20 @@ interface JobType {
 import DashboardSkeleton from '../../components/DashboardSkeleton';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+// Shown under the search bar to guests only - short WakaJob-focused tips.
+const DASHBOARD_TIPS = [
+    {
+        title: 'Find the perfect job for you',
+        description: 'Search and apply to trusted local jobs across every trade, right from your phone.',
+        icon: 'briefcase' as const,
+    },
+    {
+        title: 'Get noticed by employers',
+        description: 'Create a free account and complete your profile to get matched with the right opportunities faster.',
+        icon: 'bulb' as const,
+    },
+];
 
 const DashboardScreen: React.FC = () => {
     const { user, logout, refreshUser, isAuthenticated } = useAuth();
@@ -96,6 +111,7 @@ const DashboardScreen: React.FC = () => {
     const [showApplyModal, setShowApplyModal] = useState(false);
     const [applyingJob, setApplyingJob] = useState<JobType | null>(null);
     const [defaultAppType, setDefaultAppType] = useState<'professional' | 'apprentice'>('professional');
+    const [tipPageIndex, setTipPageIndex] = useState(0);
     
     // Debounced search and location (500ms delay)
     const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -312,6 +328,55 @@ const DashboardScreen: React.FC = () => {
         return colors[charCode % colors.length];
     };
 
+    const tipCardWidth = SCREEN_WIDTH - 40;
+
+    const renderTipsSection = () => (
+        <View style={styles.tipsSection}>
+            <View style={styles.tipsSectionHeader}>
+                <Text style={styles.tipsSectionTitle}>Tips for you</Text>
+            </View>
+            <ScrollView
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                onMomentumScrollEnd={(e) => {
+                    const index = Math.round(e.nativeEvent.contentOffset.x / tipCardWidth);
+                    setTipPageIndex(index);
+                }}
+            >
+                {DASHBOARD_TIPS.map((tip, idx) => (
+                    <LinearGradient
+                        key={idx}
+                        colors={['#1972ca', '#0F5A9E']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={[styles.tipCard, { width: tipCardWidth }]}
+                    >
+                        <View style={styles.tipCardTextWrap}>
+                            <Text style={styles.tipCardTitle}>{tip.title}</Text>
+                            <Text style={styles.tipCardDesc}>{tip.description}</Text>
+                            <TouchableOpacity
+                                style={styles.tipReadMoreBtn}
+                                activeOpacity={0.8}
+                                onPress={() => navigation.navigate('Signup')}
+                            >
+                                <Text style={styles.tipReadMoreText}>Get Started</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <View style={styles.tipCardIconWrap}>
+                            <Ionicons name={tip.icon} size={54} color="rgba(255,255,255,0.25)" />
+                        </View>
+                    </LinearGradient>
+                ))}
+            </ScrollView>
+            <View style={styles.tipDotsRow}>
+                {DASHBOARD_TIPS.map((_, idx) => (
+                    <View key={idx} style={[styles.tipDot, tipPageIndex === idx && styles.tipDotActive]} />
+                ))}
+            </View>
+        </View>
+    );
+
     const renderJobItem = ({ item }: { item: JobType }) => {
         const isExpanded = expandedJobId === item.id;
 
@@ -413,8 +478,18 @@ const DashboardScreen: React.FC = () => {
             <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
                 <View style={styles.headerTop}>
                     <View style={styles.logoRow}>
-                        <Text style={styles.logoText}>WakaJob</Text>
-                        <View style={styles.pinkDot} />
+                        <View style={styles.iconCrop}>
+                            <Image
+                                source={require('../../../assets/logo.png')}
+                                style={styles.iconCropImage}
+                            />
+                        </View>
+                        <View style={styles.textCrop}>
+                            <Image
+                                source={require('../../../assets/logo-removebg-preview.png')}
+                                style={styles.textCropImage}
+                            />
+                        </View>
                     </View>
                     <View style={styles.headerActions}>
                         {isAuthenticated && (
@@ -441,18 +516,7 @@ const DashboardScreen: React.FC = () => {
                     </View>
                 </View>
 
-                {/* Welcome Message - Before Search Bar */}
-                <View style={styles.headerWelcome}>
-                    <Text style={styles.welcomeSub}>{isAuthenticated ? `Welcome, ${displayName}` : 'Welcome'}</Text>
-                    <View style={styles.welcomeHeaderRow}>
-                        <View style={{ flex: 1 }}>
-                            <Text style={styles.welcomeTitle}>Available Jobs</Text>
-                            {isAuthenticated && (
-                                <Text style={styles.welcomeDesc}>Based on your location and preferences</Text>
-                            )}
-                        </View>
-                    </View>
-                </View>
+                <Text style={styles.availableJobsLabel}>Available Jobs</Text>
 
                 <View style={styles.searchRow}>
                     <View style={styles.searchInputWrapper}>
@@ -539,7 +603,12 @@ const DashboardScreen: React.FC = () => {
                         tintColor="#1972ca"
                     />
                 }
-                ListHeaderComponent={<View style={{ height: 10 }} />}
+                ListHeaderComponent={
+                    <>
+                        {!isAuthenticated && renderTipsSection()}
+                        <View style={{ height: 10 }} />
+                    </>
+                }
                 ListEmptyComponent={
                     <View style={styles.empty}>
                         <Ionicons 
@@ -599,8 +668,20 @@ const styles = StyleSheet.create({
     safeArea: { backgroundColor: '#FFFFFF' },
     header: { paddingHorizontal: 20, paddingBottom: 15, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
     headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 },
-    logoRow: { flexDirection: 'row', alignItems: 'flex-start' },
+    logoRow: { flexDirection: 'row', alignItems: 'center' },
+    // logo.png is a 1254x1254 lockup (icon + wordmark stacked); crop to just
+    // the icon (roughly x[280,862] y[274,793]) at a small scale to sit next
+    // to the wordmark text image, same technique as the splash screen.
+    iconCrop: { width: 36, height: 32, overflow: 'hidden', marginRight: 3 },
+    iconCropImage: { width: 77, height: 77, left: -17, top: -17, tintColor: '#1972ca' },
     logoText: { fontSize: 24, fontWeight: 'bold', color: '#1972ca' },
+    logoImage: { width: 202, height: 32, tintColor: '#1972ca' },
+    // logo-removebg-preview.png (480x76) has a large transparent margin around
+    // the actual "wakajob" glyphs (opaque bbox roughly x[133,367] y[10,63]) -
+    // crop tightly to that region so no blank padding sits between the icon
+    // and the visible text.
+    textCrop: { width: 106, height: 26, overflow: 'hidden' },
+    textCropImage: { width: 212, height: 33, left: -57, top: -3, tintColor: '#1972ca' },
     pinkDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: '#E91E63', marginTop: 6, marginLeft: 2 },
     headerActions: { flexDirection: 'row', alignItems: 'center', gap: 15 },
     iconButton: { position: 'relative' },
@@ -611,7 +692,8 @@ const styles = StyleSheet.create({
     avatarChar: { color: '#FFFFFF', fontWeight: '600', fontSize: 16 },
     loginButton: { height: 40, paddingHorizontal: 18, borderRadius: 20, backgroundColor: '#1972ca', justifyContent: 'center', alignItems: 'center' },
     loginButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
-    searchRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 15 },
+    availableJobsLabel: { fontSize: 13, fontWeight: '600', color: '#374151', marginTop: 12 },
+    searchRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8 },
     searchInputWrapper: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', borderRadius: 12, paddingHorizontal: 15, height: 48 },
     input: { fontSize: 15, color: '#1F2937' },
     filterBtn: { width: 48, height: 48, backgroundColor: '#1972ca', borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
@@ -681,6 +763,33 @@ const styles = StyleSheet.create({
         fontWeight: '500',
     },
     listContent: { paddingHorizontal: 20, paddingBottom: 100 },
+    tipsSection: { marginTop: 14 },
+    tipsSectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+    tipsSectionTitle: { fontSize: 16, fontWeight: '700', color: '#111827' },
+    tipsSeeAll: { fontSize: 13, fontWeight: '600', color: '#1972ca' },
+    tipCard: {
+        borderRadius: 20,
+        padding: 20,
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        justifyContent: 'space-between',
+        overflow: 'hidden',
+    },
+    tipCardTextWrap: { flex: 1, paddingRight: 10 },
+    tipCardTitle: { fontSize: 17, fontWeight: '700', color: '#FFFFFF', marginBottom: 6 },
+    tipCardDesc: { fontSize: 13, color: 'rgba(255,255,255,0.85)', lineHeight: 19, marginBottom: 14 },
+    tipReadMoreBtn: {
+        alignSelf: 'flex-start',
+        backgroundColor: '#FBBF24',
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 10,
+    },
+    tipReadMoreText: { fontSize: 12, fontWeight: '700', color: '#78350F' },
+    tipCardIconWrap: { justifyContent: 'center', alignItems: 'center' },
+    tipDotsRow: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: 12 },
+    tipDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#D1D5DB' },
+    tipDotActive: { width: 16, backgroundColor: '#1972ca' },
     headerWelcome: { marginTop: 10, marginBottom: 5 },
     welcomeSub: { fontSize: 14, color: '#1972ca', fontWeight: '600', marginBottom: 4 },
     welcomeTitle: { fontSize: 22, fontWeight: 'bold', color: '#111827', marginBottom: 2 },

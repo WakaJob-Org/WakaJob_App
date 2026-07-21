@@ -242,7 +242,18 @@ const VerificationSuccessScreen: React.FC = () => {
             <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
                 <View style={styles.headerContent}>
                     <View style={styles.logoRow}>
-                        <Text style={styles.logoText}>WakaJob</Text>
+                        <View style={styles.iconCrop}>
+                            <Image
+                                source={require('../../../assets/logo.png')}
+                                style={styles.iconCropImage}
+                            />
+                        </View>
+                        <View style={styles.textCrop}>
+                            <Image
+                                source={require('../../../assets/logo-removebg-preview.png')}
+                                style={styles.textCropImage}
+                            />
+                        </View>
                     </View>
 
                     <TouchableOpacity style={styles.avatar}>
@@ -317,12 +328,42 @@ const styles = StyleSheet.create({
     },
     logoRow: {
         flexDirection: 'row',
-        alignItems: 'flex-start',
+        alignItems: 'center',
     },
     logoText: {
         fontSize: 24,
         fontWeight: 'bold',
         color: '#1972ca',
+    },
+    iconCrop: {
+        width: 36,
+        height: 32,
+        overflow: 'hidden',
+        marginRight: 3,
+    },
+    iconCropImage: {
+        width: 77,
+        height: 77,
+        left: -17,
+        top: -17,
+        tintColor: '#1972ca',
+    },
+    logoImage: {
+        width: 202,
+        height: 32,
+        tintColor: '#1972ca',
+    },
+    textCrop: {
+        width: 130,
+        height: 32,
+        overflow: 'hidden',
+    },
+    textCropImage: {
+        width: 260,
+        height: 41,
+        left: -71,
+        top: -4,
+        tintColor: '#1972ca',
     },
     avatar: {
         width: 40,

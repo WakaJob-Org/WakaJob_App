@@ -204,6 +204,33 @@ const jobService = {
         }
     },
 
+    // Applicants for a job an employer posted. Verified against the live
+    // backend: GET /jobs/:id/applications returns a 404 "Cannot GET" (route
+    // not registered), while GET /applications/job/:id returns a proper
+    // JSON 401 ("not logged in") - i.e. it exists and is auth-protected -
+    // so that's the real endpoint, despite the more obvious-looking
+    // /jobs/:id/applications path not actually existing on the backend.
+    getJobApplicants: async (jobId: string) => {
+        const unwrap = (raw: any): any[] => {
+            if (Array.isArray(raw)) return raw;
+            if (Array.isArray(raw?.applications)) return raw.applications;
+            if (Array.isArray(raw?.data)) return raw.data;
+            if (Array.isArray(raw?.results)) return raw.results;
+            return [];
+        };
+
+        try {
+            const response = await api.get(`/applications/job/${jobId}`);
+            return unwrap(response.data);
+        } catch (error: any) {
+            if (error.response?.status === 404) {
+                return [];
+            }
+            console.error(`Failed to fetch applicants for job ${jobId}:`, error.response?.data?.message || error?.message);
+            return [];
+        }
+    },
+
     getSavedJobs: async (userId?: string) => {
         try {
             const key = userId ? `SAVED_JOBS_${userId}` : 'SAVED_JOBS_GUEST';
