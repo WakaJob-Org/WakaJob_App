@@ -2,6 +2,7 @@ import api from './api';
 import authService from './authService';
 import * as SecureStore from 'expo-secure-store';
 import { jwtDecode } from 'jwt-decode';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface Job {
     id: string;
@@ -64,8 +65,11 @@ const jobService = {
 
     getJobById: async (id: string) => {
         try {
-            const response = await api.get<Job>(`/jobs/${id}`);
-            return response.data;
+            const response = await api.get(`/jobs/${id}`);
+            const raw = response.data;
+            // Same wrapped-response convention as /jobs: {status, data:{...}} rather than the job itself
+            if (raw && typeof raw === 'object' && raw.data && !raw.id) return raw.data as Job;
+            return raw as Job;
         } catch (error: any) {
             throw error.response?.data?.message || 'Failed to fetch job details';
         }
@@ -120,25 +124,38 @@ const jobService = {
         }
     },
 
-    saveJob: async (jobId: string) => {
+    // Saved jobs are stored locally on-device (per user), not synced to the backend.
+    saveJob: async (job: any, userId?: string) => {
         try {
-            // Extract UUID from token to satisfy Supabase RLS policies
-            let userId: string | undefined;
-            const token = await SecureStore.getItemAsync('auth_token');
-            if (token) {
-                try {
-                    const decoded: any = jwtDecode(token);
-                    userId = decoded.sub || decoded.id;
-                } catch (e) {}
-            }
+            const key = userId ? `SAVED_JOBS_${userId}` : 'SAVED_JOBS_GUEST';
+            const stored = await AsyncStorage.getItem(key);
+            const savedJobs = stored ? JSON.parse(stored) : [];
 
-            const response = await api.post(`/jobs/save`, { 
-                jobId,
-                user_id: userId // Explicitly providing ID for RLS compliance
-            });
-            return response.data;
+            const jobId = job.id || job._id;
+            if (!savedJobs.some((j: any) => (j.id || j._id) === jobId)) {
+                savedJobs.push(job);
+                await AsyncStorage.setItem(key, JSON.stringify(savedJobs));
+            }
+            return { message: 'Job saved locally' };
         } catch (error: any) {
-            throw error.response?.data?.message || 'Failed to save job';
+            console.error('Error saving job locally:', error);
+            throw new Error('Failed to save job locally');
+        }
+    },
+
+    unsaveJob: async (jobId: string, userId?: string) => {
+        try {
+            const key = userId ? `SAVED_JOBS_${userId}` : 'SAVED_JOBS_GUEST';
+            const stored = await AsyncStorage.getItem(key);
+            if (stored) {
+                let savedJobs = JSON.parse(stored);
+                savedJobs = savedJobs.filter((j: any) => (j.id || j._id) !== jobId);
+                await AsyncStorage.setItem(key, JSON.stringify(savedJobs));
+            }
+            return { message: 'Job unsaved locally' };
+        } catch (error: any) {
+            console.error('Error unsaving job locally:', error);
+            throw new Error('Failed to unsave job locally');
         }
     },
 
@@ -187,21 +204,13 @@ const jobService = {
         }
     },
 
-    getSavedJobs: async (workerId?: string) => {
+    getSavedJobs: async (userId?: string) => {
         try {
-            const response = await api.get('/jobs/saved');
-            const raw = response.data;
-            if (Array.isArray(raw)) return raw;
-            if (Array.isArray(raw?.saved)) return raw.saved;
-            if (Array.isArray(raw?.data)) return raw.data;
-            if (Array.isArray(raw?.results)) return raw.results;
-            return [];
+            const key = userId ? `SAVED_JOBS_${userId}` : 'SAVED_JOBS_GUEST';
+            const stored = await AsyncStorage.getItem(key);
+            return stored ? JSON.parse(stored) : [];
         } catch (error: any) {
-            // Silently swallow 404 errors as they indicate an empty saved list on the backend
-            if (error.response?.status === 404) {
-                return [];
-            }
-            console.error('Failed to fetch saved jobs:', error.response?.data?.message || error?.message);
+            console.error('Error fetching saved jobs locally:', error);
             return [];
         }
     },

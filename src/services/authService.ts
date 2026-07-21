@@ -271,7 +271,10 @@ const authService = {
       if (!refresh) return false;
       
       console.log('--- ATTEMPTING TOKEN REFRESH ---');
-      const response = await authApi.post('/auth/refresh-token', { refresh_token: refresh });
+      // Short timeout here - this must not block app startup for the full
+      // cold-start allowance. If it's slow, fail fast and fall back to
+      // treating the user as logged out rather than hanging the whole app.
+      const response = await authApi.post('/auth/refresh-token', { refresh_token: refresh }, { timeout: 20000 });
       
       const newToken = response.data.token ||
         response.data.data?.session?.access_token ||

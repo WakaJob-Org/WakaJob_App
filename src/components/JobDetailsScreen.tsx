@@ -27,7 +27,7 @@ const JobDetailsScreen: React.FC = () => {
     const navigation = useNavigation<any>();
     const insets = useSafeAreaInsets();
     const { user, isAuthenticated } = useAuth();
-    const { job, isSaved: initialIsSaved } = route.params || {};
+    const { job, isSaved: initialIsSaved, alreadyApplied } = route.params || {};
 
     const [isSaved, setIsSaved] = useState(initialIsSaved || false);
     const [isApplying, setIsApplying] = useState(false);
@@ -116,11 +116,16 @@ const JobDetailsScreen: React.FC = () => {
             );
             return;
         }
+        const wasSaved = isSaved;
         try {
-            setIsSaved(!isSaved); // Optimistic UI
-            await jobService.saveJob(job.id);
+            setIsSaved(!wasSaved); // Optimistic UI
+            if (wasSaved) {
+                await jobService.unsaveJob(job.id, user?.id);
+            } else {
+                await jobService.saveJob(job, user?.id);
+            }
         } catch (error) {
-            setIsSaved(!isSaved);
+            setIsSaved(wasSaved);
             Alert.alert("Error", "Failed to update saved jobs.");
         }
     };
@@ -146,6 +151,9 @@ const JobDetailsScreen: React.FC = () => {
         }
         if (user?.id === job.employer_id) {
             Alert.alert("Action Not Allowed", "You cannot apply for a job that you posted.");
+            return;
+        }
+        if (alreadyApplied) {
             return;
         }
         setShowApplyModal(true);
@@ -262,12 +270,14 @@ const JobDetailsScreen: React.FC = () => {
             {/* Footer Buttons */}
             <View style={[styles.footer, { paddingBottom: 40 + insets.bottom }]}>
                 <TouchableOpacity
-                    style={[styles.applyButton, { flex: 1 }, (isApplying || isJobPoster) && styles.applyButtonDisabled]}
+                    style={[styles.applyButton, { flex: 1 }, (isApplying || isJobPoster || alreadyApplied) && styles.applyButtonDisabled]}
                     onPress={handleApplyPress}
-                    disabled={isApplying || isJobPoster}
+                    disabled={isApplying || isJobPoster || alreadyApplied}
                 >
                     {isJobPoster ? (
                         <Text style={styles.applyButtonText}>Cannot Apply - Your Job</Text>
+                    ) : alreadyApplied ? (
+                        <Text style={styles.applyButtonText}>Already Applied</Text>
                     ) : isApplying ? (
                         <ActivityIndicator color="#FFF" />
                     ) : (
@@ -276,12 +286,14 @@ const JobDetailsScreen: React.FC = () => {
                 </TouchableOpacity>
             </View>
 
-            <ApplyModal 
-                visible={showApplyModal}
-                onClose={() => setShowApplyModal(false)}
-                onApply={handleApply}
-                jobTitle={job.title || job.position_vacant || 'Position'}
-            />
+            {!alreadyApplied && (
+                <ApplyModal
+                    visible={showApplyModal}
+                    onClose={() => setShowApplyModal(false)}
+                    onApply={handleApply}
+                    jobTitle={job.title || job.position_vacant || 'Position'}
+                />
+            )}
         </View>
     );
 };

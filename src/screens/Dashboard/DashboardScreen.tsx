@@ -217,6 +217,29 @@ const DashboardScreen: React.FC = () => {
         fetchJobs(false, isInitialLoad);
     }, [debouncedSearch, selectedLocation, debouncedLocation]);
 
+    const loadSavedJobs = React.useCallback(() => {
+        if (!isAuthenticated) {
+            setSavedJobsList([]);
+            return;
+        }
+        jobService.getSavedJobs(user?.id).then((saved: any[]) => {
+            setSavedJobsList((saved || []).map((j: any) => j.id || j._id));
+        });
+    }, [isAuthenticated, user?.id]);
+
+    useEffect(() => {
+        loadSavedJobs();
+    }, [loadSavedJobs]);
+
+    // Re-sync the saved-jobs state whenever this screen regains focus, so
+    // saving/unsaving from the Saved Jobs page is reflected on the bookmark
+    // icons here instead of showing stale state from the last mount.
+    useFocusEffect(
+        React.useCallback(() => {
+            loadSavedJobs();
+        }, [loadSavedJobs])
+    );
+
     const onRefresh = React.useCallback(async () => {
         setRefreshing(true);
         try {
@@ -247,7 +270,7 @@ const DashboardScreen: React.FC = () => {
 
     if (loading) return <DashboardSkeleton />;
 
-    const handleSaveJob = async (jobId: string) => {
+    const handleSaveJob = async (job: JobType) => {
         if (!isAuthenticated) {
             Alert.alert(
                 "Authentication Required",
@@ -261,13 +284,14 @@ const DashboardScreen: React.FC = () => {
             return;
         }
         try {
-            if (savedJobsList.includes(jobId)) {
-                setSavedJobsList(prev => prev.filter(id => id !== jobId));
+            if (savedJobsList.includes(job.id)) {
+                setSavedJobsList(prev => prev.filter(id => id !== job.id));
                 showToast("Job removed from saved");
+                await jobService.unsaveJob(job.id, user?.id);
             } else {
-                setSavedJobsList(prev => [...prev, jobId]);
+                setSavedJobsList(prev => [...prev, job.id]);
                 showToast("Job saved successfully");
-                await jobService.saveJob(jobId);
+                await jobService.saveJob(job, user?.id);
             }
         } catch (error) {
             console.error('Error saving job:', error);
@@ -309,7 +333,7 @@ const DashboardScreen: React.FC = () => {
                     {/* Save Button Overlay */}
                     <TouchableOpacity 
                         style={styles.saveBadgeSmall} 
-                        onPress={() => handleSaveJob(item.id)}
+                        onPress={() => handleSaveJob(item)}
                         activeOpacity={0.8}
                     >
                         <Ionicons 

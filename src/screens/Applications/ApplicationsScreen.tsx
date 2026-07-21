@@ -127,6 +127,26 @@ interface ApplicationsScreenProps {
     onViewApplicant?: (id: string) => void;
 }
 
+// Maps a raw backend job record (position_vacant/job_type, nested users.*) into
+// the shape JobDetailsScreen (and the application card) actually reads -
+// same mapping DashboardScreen uses for the normal browse feed.
+const mapRawJobToJob = (rawJob: any, jobId?: string | null) => ({
+    id: rawJob?.id || jobId,
+    title: rawJob?.title || rawJob?.position_vacant || undefined,
+    company: rawJob?.users?.full_name || undefined,
+    location: rawJob?.location || undefined,
+    salary: rawJob?.salary || 'Competitive',
+    type: rawJob?.job_type || 'Full-time',
+    description: rawJob?.description,
+    category: rawJob?.category,
+    email: rawJob?.users?.email || '',
+    phone: rawJob?.users?.profiles?.phone_number || '',
+    postedAt: rawJob?.created_at,
+    imageUrl: rawJob?.image_url || rawJob?.job_image,
+    requirements: rawJob?.qualifications ? rawJob.qualifications.split(',') : [],
+    employerId: rawJob?.employer_id,
+});
+
 const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ onViewApplicant }) => {
     const navigation = useNavigation<any>();
     const { isAuthenticated } = useAuth();
@@ -142,23 +162,33 @@ const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ onViewApplicant
             const fetched = await jobService.getUserApplications();
 
             if (fetched && fetched.length > 0) {
+                // The application record itself usually only carries a job_id, not
+                // the full job - resolve the actual job for each application so the
+                // card shows real title/company/image instead of "Unknown Position".
+                const resolvedJobs = await Promise.all(
+                    fetched.map(async (item: any) => {
+                        const jobId = item.job_id || item.jobId || item.job?.id || null;
+                        if (item.job && (item.job.title || item.job.position_vacant)) {
+                            return item.job;
+                        }
+                        if (!jobId) return null;
+                        try {
+                            return await jobService.getJobById(jobId);
+                        } catch (error) {
+                            console.error('Failed to resolve job for application:', error);
+                            return null;
+                        }
+                    })
+                );
+
                 // Map backend fields → Applicant interface. Each item is a job
                 // the current user applied to.
-                const mapped: Applicant[] = fetched.map((item: any) => {
-                    const jobTitle =
-                        item.job_title ||
-                        item.job?.title ||
-                        item.job?.position_vacant ||
-                        item.position ||
-                        item.role ||
-                        'Unknown Position';
+                const mapped: Applicant[] = fetched.map((item: any, index: number) => {
+                    const jobId = item.job_id || item.jobId || item.job?.id || null;
+                    const job = mapRawJobToJob(resolvedJobs[index], jobId);
 
-                    const company =
-                        item.company ||
-                        item.company_name ||
-                        item.job?.company ||
-                        item.job?.company_name ||
-                        '';
+                    const jobTitle = job.title || item.job_title || item.position || item.role || 'Unknown Position';
+                    const company = job.company || item.company || item.company_name || '';
 
                     const initials = jobTitle
                         .trim()
@@ -192,9 +222,9 @@ const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ onViewApplicant
                         id: item.id || item._id || String(Math.random()),
                         name: jobTitle,
                         role: company || jobTitle,
-                        location: item.location || item.job?.location || item.user?.location || '',
+                        location: job.location || item.location || item.user?.location || '',
                         status,
-                        photo: item.profile_image_url || item.photo || item.avatar || item.user?.profile_image_url || null,
+                        photo: job.imageUrl || item.profile_image_url || item.photo || item.avatar || item.user?.profile_image_url || null,
                         initials,
                         isVerified: item.is_verified || item.user?.is_verified || false,
                         bio: item.bio || item.intro_text || item.user?.bio || '',
@@ -204,6 +234,8 @@ const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ onViewApplicant
                         company,
                         appliedAt: item.created_at || item.applied_at || '',
                         applicationId: item.id || item._id,
+                        jobId,
+                        job,
                     } as any;
                 });
                 setApplicants(mapped);
@@ -251,8 +283,33 @@ const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ onViewApplicant
         return matchesSearch && matchesTab;
     });
 
-    const handleViewDetails = (item: Applicant) => {
-        onViewApplicant?.(item.id);
+    const handleViewDetails = async (item: Applicant) => {
+        if (onViewApplicant) {
+            onViewApplicant(item.id);
+            return;
+        }
+
+        const anyItem = item as any;
+        const jobId = anyItem.jobId;
+
+        // The list fetch already resolved and mapped the real job for this
+        // application (see fetchApplications) - reuse it instead of re-fetching.
+        // Only fall back to a fresh fetch if that resolution didn't happen/failed.
+        let job = anyItem.job?.title ? anyItem.job : null;
+        if (!job && jobId) {
+            try {
+                const rawJob = await jobService.getJobById(jobId);
+                job = mapRawJobToJob(rawJob, jobId);
+            } catch (error) {
+                console.error('Failed to load job details:', error);
+            }
+        }
+
+        if (!job) {
+            job = { id: jobId, title: anyItem.jobTitle, company: anyItem.company };
+        }
+
+        navigation.navigate('JobDetails', { job, alreadyApplied: true });
     };
 
     const renderApplicantCard = ({ item }: { item: Applicant }) => {
@@ -412,36 +469,15 @@ const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ onViewApplicant
                     />
                 }
                 ListHeaderComponent={
-                    <Text style={styles.sectionTitle}>
-                        {isEmployer ? 'Recent Applicants' : 'Recent Applications'}
-                    </Text>
+                    <Text style={styles.sectionTitle}>Recent Applications</Text>
                 }
                 ListEmptyComponent={
                     <View style={styles.emptyState}>
                         <Ionicons name="document-text-outline" size={60} color="#D1D5DB" />
-                        <Text style={styles.emptyStateText}>
-                            {isEmployer ? 'No applicants found' : 'No applications found'}
-                        </Text>
+                        <Text style={styles.emptyStateText}>No applications found</Text>
                     </View>
                 }
             />
-
-            {/* Applicant Profile Modal (Only relevant for Employer) */}
-            {isEmployer && (
-                <ApplicantProfileScreen
-                    applicant={selectedApplicant}
-                    visible={profileVisible}
-                    onClose={() => setProfileVisible(false)}
-                    onDecline={() => {
-                        if (selectedApplicant) updateApplicantStatus(selectedApplicant.id, 'REJECTED');
-                        setProfileVisible(false);
-                    }}
-                    onHire={(details) => {
-                        if (selectedApplicant) updateApplicantStatus(selectedApplicant.id, 'ACCEPTED');
-                        setProfileVisible(false);
-                    }}
-                />
-            )}
         </View>
     );
 };
