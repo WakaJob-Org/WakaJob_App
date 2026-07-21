@@ -8,6 +8,7 @@ import {
     FlatList,
     RefreshControl,
     Alert,
+    Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -26,6 +27,11 @@ interface SavedJob {
     job_type?: string;
     category?: string;
     description?: string;
+    email?: string;
+    phone?: string;
+    imageUrl?: string;
+    postedAt?: string;
+    employerId?: string;
     created_at?: string;
 }
 
@@ -67,6 +73,11 @@ const SavedScreen: React.FC = () => {
                     job_type: job.job_type || job.type || 'Full-time',
                     category: job.category || 'default',
                     description: job.description || '',
+                    email: job.email || job.users?.email || '',
+                    phone: job.phone || job.users?.profiles?.phone_number || '',
+                    imageUrl: job.imageUrl || job.image_url || job.job_image,
+                    postedAt: job.postedAt || job.created_at || item.created_at || '',
+                    employerId: job.employerId || job.employer_id,
                     created_at: job.created_at || item.created_at || '',
                 };
             });
@@ -102,8 +113,14 @@ const SavedScreen: React.FC = () => {
             {
                 text: 'Remove',
                 style: 'destructive',
-                onPress: () => {
+                onPress: async () => {
                     setSavedJobs(prev => prev.filter(j => j.id !== jobId));
+                    try {
+                        await jobService.unsaveJob(jobId, user?.id);
+                    } catch (error) {
+                        console.error('Error unsaving job:', error);
+                        fetchSaved();
+                    }
                 },
             },
         ]);
@@ -122,30 +139,39 @@ const SavedScreen: React.FC = () => {
                     navigation.navigate('JobDetails', {
                         job: {
                             id: item.id,
-                            position_vacant: title,
+                            title,
                             company: item.company,
                             location: item.location,
                             salary: item.salary,
-                            job_type: jobType,
+                            type: jobType,
                             category: item.category,
                             description: item.description,
+                            email: item.email,
+                            phone: item.phone,
+                            imageUrl: item.imageUrl,
+                            postedAt: item.postedAt,
+                            employerId: item.employerId,
                         },
                         isSaved: true
                     });
                 }}
             >
                 <View style={styles.cardLeft}>
-                    <View style={[styles.iconBox, { backgroundColor: bg }]}>
-                        <Ionicons
-                            name={
-                                (item.category?.toLowerCase() ?? '') === 'technology'
-                                    ? 'code-working'
-                                    : 'briefcase'
-                            }
-                            size={22}
-                            color={icon}
-                        />
-                    </View>
+                    {item.imageUrl ? (
+                        <Image source={{ uri: item.imageUrl }} style={styles.thumbnail} />
+                    ) : (
+                        <View style={[styles.iconBox, { backgroundColor: bg }]}>
+                            <Ionicons
+                                name={
+                                    (item.category?.toLowerCase() ?? '') === 'technology'
+                                        ? 'code-working'
+                                        : 'briefcase'
+                                }
+                                size={22}
+                                color={icon}
+                            />
+                        </View>
+                    )}
                     <View style={styles.cardInfo}>
                         <Text style={styles.jobTitle} numberOfLines={1}>{title}</Text>
                         <Text style={styles.company} numberOfLines={1}>
@@ -320,6 +346,13 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: 12,
+    },
+    thumbnail: {
+        width: 48,
+        height: 48,
+        borderRadius: 12,
+        marginRight: 12,
+        backgroundColor: '#F1F5F9',
     },
     cardInfo: {
         flex: 1,

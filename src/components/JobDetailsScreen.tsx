@@ -116,11 +116,16 @@ const JobDetailsScreen: React.FC = () => {
             );
             return;
         }
+        const wasSaved = isSaved;
         try {
-            setIsSaved(!isSaved); // Optimistic UI
-            await jobService.saveJob(job.id);
+            setIsSaved(!wasSaved); // Optimistic UI
+            if (wasSaved) {
+                await jobService.unsaveJob(job.id, user?.id);
+            } else {
+                await jobService.saveJob(job, user?.id);
+            }
         } catch (error) {
-            setIsSaved(!isSaved);
+            setIsSaved(wasSaved);
             Alert.alert("Error", "Failed to update saved jobs.");
         }
     };
