@@ -8,14 +8,49 @@ import {
     FlatList,
     RefreshControl,
     Alert,
+    Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import jobService from '../../services/jobService';
 import { useAuth } from '../../context/AuthContext';
+<<<<<<< HEAD
 import JobCard, { JobType } from '../../components/JobCard';
 import ApplyModal from '../../components/ApplyModal';
+=======
+
+interface SavedJob {
+    id: string;
+    title?: string;
+    position_vacant?: string;
+    company?: string;
+    location?: string;
+    salary?: string;
+    type?: string;
+    job_type?: string;
+    category?: string;
+    description?: string;
+    email?: string;
+    phone?: string;
+    imageUrl?: string;
+    postedAt?: string;
+    employerId?: string;
+    created_at?: string;
+}
+
+const CATEGORY_COLORS: Record<string, { bg: string; icon: string }> = {
+    technology: { bg: '#EFF6FF', icon: '#1972ca' },
+    design: { bg: '#FDF4FF', icon: '#9333EA' },
+    finance: { bg: '#F0FDF4', icon: '#16A34A' },
+    marketing: { bg: '#FFF7ED', icon: '#EA580C' },
+    default: { bg: '#F1F5F9', icon: '#64748B' },
+};
+
+const getCategoryStyle = (category = '') => {
+    return CATEGORY_COLORS[category.toLowerCase()] ?? CATEGORY_COLORS.default;
+};
+>>>>>>> ee974310ba5fb22195a01dba1af0b1e510e6779a
 
 const SavedScreen: React.FC = () => {
     const insets = useSafeAreaInsets();
@@ -221,6 +256,86 @@ const styles = StyleSheet.create({
         paddingTop: 16,
         paddingBottom: 100,
     },
+<<<<<<< HEAD
+=======
+    card: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 16,
+        padding: 16,
+        marginBottom: 12,
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#F3F4F6',
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 6,
+    },
+    cardLeft: {
+        flexDirection: 'row',
+        flex: 1,
+        alignItems: 'center',
+    },
+    iconBox: {
+        width: 48,
+        height: 48,
+        borderRadius: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
+    },
+    thumbnail: {
+        width: 48,
+        height: 48,
+        borderRadius: 12,
+        marginRight: 12,
+        backgroundColor: '#F1F5F9',
+    },
+    cardInfo: {
+        flex: 1,
+    },
+    jobTitle: {
+        fontSize: 15,
+        fontWeight: '700',
+        color: '#111827',
+        marginBottom: 2,
+    },
+    company: {
+        fontSize: 13,
+        color: '#6B7280',
+        marginBottom: 6,
+    },
+    metaRow: {
+        flexDirection: 'row',
+        gap: 10,
+    },
+    metaItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 3,
+    },
+    metaText: {
+        fontSize: 11,
+        color: '#9BA4B1',
+        fontWeight: '500',
+    },
+    cardRight: {
+        alignItems: 'flex-end',
+        gap: 8,
+        marginLeft: 8,
+    },
+    removeBtn: {
+        padding: 4,
+    },
+    salary: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: '#1972ca',
+        textAlign: 'right',
+    },
+>>>>>>> ee974310ba5fb22195a01dba1af0b1e510e6779a
     // Empty state
     emptyState: {
         alignItems: 'center',

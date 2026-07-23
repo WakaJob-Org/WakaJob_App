@@ -11,8 +11,7 @@ import {
     Image,
     Alert,
     ActivityIndicator,
-    Modal,
-    Switch
+    Modal
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -48,10 +47,6 @@ const CreateJobScreen: React.FC<CreateJobScreenProps> = ({ isVisible, onClose, o
     // Custom Requirements (The "Dynamic Cart")
     const [customReqs, setCustomReqs] = useState<string[]>([]);
     const [currentReq, setCurrentReq] = useState('');
-
-    // Requirements Toggles
-    const [reqUploadCv, setReqUploadCv] = useState(false);
-    const [reqCoverLetter, setReqCoverLetter] = useState(false);
 
     const [loading, setLoading] = useState(false);
 
@@ -150,8 +145,6 @@ const CreateJobScreen: React.FC<CreateJobScreenProps> = ({ isVisible, onClose, o
             const allQuals = customReqs.join(', ');
             
             formData.append('qualifications', allQuals);
-            formData.append('requires_cv', String(reqUploadCv));
-            formData.append('requires_cover_letter', String(reqCoverLetter));
             formData.append('employer_id', user.id);
             
             if (jobPhoto && !jobPhoto.startsWith('http')) {
@@ -343,35 +336,6 @@ const CreateJobScreen: React.FC<CreateJobScreenProps> = ({ isVisible, onClose, o
                                         </TouchableOpacity>
                                     </View>
                                 ))}
-                            </View>
-                        </View>
-
-                        {/* 6. Application Requirements */}
-                        <View style={styles.formSection}>
-                            <Text style={styles.sectionHeading}>How to Apply</Text>
-
-                            <View style={styles.switchRow}>
-                                <View style={{ flex: 1 }}>
-                                    <Text style={styles.switchLabel}>Require CV / Resume</Text>
-                                    <Text style={styles.switchSub}>Worker must upload their professional profile</Text>
-                                </View>
-                                <Switch 
-                                    value={reqUploadCv} 
-                                    onValueChange={setReqUploadCv}
-                                    trackColor={{ false: '#D1D5DB', true: '#1972ca' }}
-                                />
-                            </View>
-
-                            <View style={styles.switchRow}>
-                                <View style={{ flex: 1 }}>
-                                    <Text style={styles.switchLabel}>Require Cover Letter</Text>
-                                    <Text style={styles.switchSub}>Worker must explain why they are a fit</Text>
-                                </View>
-                                <Switch 
-                                    value={reqCoverLetter} 
-                                    onValueChange={setReqCoverLetter}
-                                    trackColor={{ false: '#D1D5DB', true: '#1972ca' }}
-                                />
                             </View>
                         </View>
 
@@ -614,23 +578,6 @@ const styles = StyleSheet.create({
         marginLeft: 10,
         fontSize: 14,
         color: '#374151',
-    },
-    switchRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 12,
-        borderBottomWidth: 1,
-        borderBottomColor: '#F3F4F6',
-    },
-    switchLabel: {
-        fontSize: 15,
-        fontWeight: '700',
-        color: '#1F2937',
-    },
-    switchSub: {
-        fontSize: 12,
-        color: '#6B7280',
-        marginTop: 2,
     },
     postButton: {
         backgroundColor: '#1972ca',

@@ -34,6 +34,30 @@ type DashboardNavigationProp = CompositeNavigationProp<
     StackNavigationProp<AppStackParamList>
 >;
 
+<<<<<<< HEAD
+=======
+interface JobType {
+    id: string;
+    title: string;
+    company: string;
+    location: string;
+    salary: string;
+    type: string;
+    description: string;
+    category: string;
+    email: string;
+    phone: string;
+    postedAt: string;
+    imageUrl?: string;
+    tags?: string[];
+    hasApprentice?: boolean;
+    requirements?: string[];
+    employerId?: string;
+}
+
+import DashboardSkeleton from '../../components/DashboardSkeleton';
+
+>>>>>>> ee974310ba5fb22195a01dba1af0b1e510e6779a
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const DashboardScreen: React.FC = () => {
@@ -158,22 +182,25 @@ const DashboardScreen: React.FC = () => {
                 return {
                     id: job.id,
                     title: title,
-                    company: job.employer_name || 'Private Employer',
+                    company: job.users?.full_name || 'Private Employer',
                     location: job.location || 'Not specified',
                     salary: job.salary || 'Competitive',
                     type: job.job_type || 'Full-time',
                     description: job.description,
                     category: job.category,
-                    email: job.employer_email || '',
-                    phone: job.employer_phone || '',
+                    email: job.users?.email || '',
+                    phone: job.users?.profiles?.phone_number || '',
                     postedAt: job.created_at,
                     imageUrl: job.image_url || job.job_image,
-                    requirements: job.qualifications ? job.qualifications.split(',') : []
+                    requirements: job.qualifications ? job.qualifications.split(',') : [],
+                    employerId: job.employer_id,
                 };
             });
 
-            // Filter: Only show jobs that have an uploaded image
-            const jobsWithImages = mappedJobs.filter(job => !!job.imageUrl);
+            // Filter: only show jobs that have an uploaded image, and never show the
+            // current user their own postings - the browse feed is for applying to
+            // other people's jobs, not for seeing your own listings.
+            const jobsWithImages = mappedJobs.filter(job => !!job.imageUrl && job.employerId !== user?.id);
 
             setAllJobs(jobsWithImages);
             setFilteredJobs(jobsWithImages);
@@ -194,6 +221,29 @@ const DashboardScreen: React.FC = () => {
         const isInitialLoad = allJobs.length === 0 && !debouncedSearch && !selectedLocation && !debouncedLocation;
         fetchJobs(false, isInitialLoad);
     }, [debouncedSearch, selectedLocation, debouncedLocation]);
+
+    const loadSavedJobs = React.useCallback(() => {
+        if (!isAuthenticated) {
+            setSavedJobsList([]);
+            return;
+        }
+        jobService.getSavedJobs(user?.id).then((saved: any[]) => {
+            setSavedJobsList((saved || []).map((j: any) => j.id || j._id));
+        });
+    }, [isAuthenticated, user?.id]);
+
+    useEffect(() => {
+        loadSavedJobs();
+    }, [loadSavedJobs]);
+
+    // Re-sync the saved-jobs state whenever this screen regains focus, so
+    // saving/unsaving from the Saved Jobs page is reflected on the bookmark
+    // icons here instead of showing stale state from the last mount.
+    useFocusEffect(
+        React.useCallback(() => {
+            loadSavedJobs();
+        }, [loadSavedJobs])
+    );
 
     const onRefresh = React.useCallback(async () => {
         setRefreshing(true);
@@ -226,6 +276,18 @@ const DashboardScreen: React.FC = () => {
     if (loading) return <DashboardSkeleton />;
 
     const handleSaveJob = async (job: JobType) => {
+        if (!isAuthenticated) {
+            Alert.alert(
+                "Authentication Required",
+                "Please sign up or log in to save jobs.",
+                [
+                    { text: "Cancel", style: "cancel" },
+                    { text: "Sign Up", onPress: () => navigation.navigate('Signup') },
+                    { text: "Log In", onPress: () => navigation.navigate('Login') }
+                ]
+            );
+            return;
+        }
         try {
             const jobId = job.id;
             if (savedJobsList.includes(jobId)) {
@@ -233,7 +295,7 @@ const DashboardScreen: React.FC = () => {
                 showToast("Job removed from saved");
                 await jobService.unsaveJob(jobId, user?.id);
             } else {
-                setSavedJobsList(prev => [...prev, jobId]);
+                setSavedJobsList(prev => [...prev, job.id]);
                 showToast("Job saved successfully");
                 await jobService.saveJob(job, user?.id);
             }
@@ -263,6 +325,10 @@ const DashboardScreen: React.FC = () => {
             onToggleSave={handleSaveJob}
             onPress={(job) => navigation.navigate('JobDetails', { job, isSaved: isJobSaved(job.id) })}
             onApplyRequest={(job, type) => {
+                if (user?.id && (job as any).employerId && user.id === (job as any).employerId) {
+                    Alert.alert("Action Not Allowed", "You cannot apply for a job that you posted.");
+                    return;
+                }
                 setApplyingJob(job);
                 setDefaultAppType(type);
                 setShowApplyModal(true);
@@ -437,7 +503,7 @@ const DashboardScreen: React.FC = () => {
             </Animated.View>
 
             {applyingJob && (
-                <ApplyModal 
+                <ApplyModal
                     visible={showApplyModal}
                     onClose={() => setShowApplyModal(false)}
                     initialApplicationType={defaultAppType}

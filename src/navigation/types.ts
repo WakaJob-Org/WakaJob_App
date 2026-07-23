@@ -21,11 +21,12 @@ export type MainTabParamList = {
 };
 
 export type AppStackParamList = {
+    Splash: undefined;
     MainTabs: { screen?: keyof MainTabParamList } | undefined;
     Notifications: undefined;
     Settings: undefined;
     CreateJob: undefined;
-    JobDetails: { job: any; autoOpenApply?: boolean };
+    JobDetails: { job: any; autoOpenApply?: boolean; alreadyApplied?: boolean };
     ProfileSetup: undefined;
 
     // Auth screens accessible from within the app (for apply gate)

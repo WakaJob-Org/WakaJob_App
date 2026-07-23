@@ -1,6 +1,10 @@
 import api from './api';
-import { Platform } from 'react-native';
+import authService from './authService';
 import * as SecureStore from 'expo-secure-store';
+<<<<<<< HEAD
+=======
+import { jwtDecode } from 'jwt-decode';
+>>>>>>> ee974310ba5fb22195a01dba1af0b1e510e6779a
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface Job {
@@ -17,6 +21,18 @@ export interface Job {
     created_at: string;
     image_url?: string;
     job_image?: string;
+    requires_cv?: boolean | string;
+    requires_cover_letter?: boolean | string;
+    // The employer who posted the job - nested by the backend via its join, not flat fields
+    users?: {
+        id?: string;
+        email?: string;
+        full_name?: string;
+        profiles?: {
+            phone_number?: string;
+            profile_image_url?: string;
+        };
+    };
 }
 
 export interface CreateJobData {
@@ -52,8 +68,11 @@ const jobService = {
 
     getJobById: async (id: string) => {
         try {
-            const response = await api.get<Job>(`/jobs/${id}`);
-            return response.data;
+            const response = await api.get(`/jobs/${id}`);
+            const raw = response.data;
+            // Same wrapped-response convention as /jobs: {status, data:{...}} rather than the job itself
+            if (raw && typeof raw === 'object' && raw.data && !raw.id) return raw.data as Job;
+            return raw as Job;
         } catch (error: any) {
             throw error.response?.data?.message || 'Failed to fetch job details';
         }
@@ -71,53 +90,31 @@ const jobService = {
         }
     },
 
-    applyToJob: async (jobId: string, data?: { intro_text?: string; voice_note_uri?: string; application_type?: 'professional' | 'apprentice'; cv_file?: { uri: string; name: string; size: number } }) => {
+    applyToJob: async (jobId: string, data?: { application_type?: 'professional' | 'apprentice' }) => {
         try {
+            // worker_id is required by the backend - decode it from the token directly
+            // (avoids an extra network round-trip to fetch the full user profile)
+            let workerId: string | undefined;
+            const token = await SecureStore.getItemAsync('auth_token');
+            if (token) {
+                try {
+                    const decoded: any = jwtDecode(token);
+                    workerId = decoded.sub || decoded.id;
+                } catch (e) {}
+            }
+            if (!workerId) {
+                throw new Error('You must be logged in to apply for a job.');
+            }
+
             const formData = new FormData();
             formData.append('job_id', jobId);
-            
-            if (data?.intro_text) formData.append('intro_text', data.intro_text);
+            formData.append('worker_id', workerId);
             if (data?.application_type) formData.append('application_type', data.application_type);
-            
-            if (data?.voice_note_uri) {
-                const filename = data.voice_note_uri.split('/').pop() || 'voice_note.m4a';
-                formData.append('voice_note', {
-                    uri: Platform.OS === 'ios' ? data.voice_note_uri.replace('file://', '') : data.voice_note_uri,
-                    name: filename,
-                    type: 'audio/m4a',
-                } as any);
-            }
 
-            if (data?.cv_file) {
-                const filename = data.cv_file.name || 'cv.pdf';
-                const match = /\.(\w+)$/.exec(filename);
-                const type = match ? `application/${match[1]}` : `application/pdf`;
-                formData.append('cv', {
-                    uri: Platform.OS === 'ios' ? data.cv_file.uri.replace('file://', '') : data.cv_file.uri,
-                    name: filename,
-                    type: type,
-                } as any);
-                formData.append('cv_file', {
-                    uri: Platform.OS === 'ios' ? data.cv_file.uri.replace('file://', '') : data.cv_file.uri,
-                    name: filename,
-                    type: type,
-                } as any);
-            }
-
-            // Get the API base URL from config
-            const CONFIG = require('../config').default;
-            const url = `${CONFIG.API_BASE_URL}/applications`;
-
-            const response = await fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                },
-                body: formData,
-            });
+            const response = await api.post('/applications', formData);
             return response.data;
         } catch (error: any) {
-            throw error.response?.data?.message || 'Failed to apply for job';
+            throw error.response?.data?.message || error.message || 'Failed to apply for job';
         }
     },
 
@@ -130,6 +127,7 @@ const jobService = {
         }
     },
 
+    // Saved jobs are stored locally on-device (per user), not synced to the backend.
     saveJob: async (job: any, userId?: string) => {
         try {
             const key = userId ? `SAVED_JOBS_${userId}` : 'SAVED_JOBS_GUEST';
@@ -183,17 +181,23 @@ const jobService = {
         }
     },
 
+    // Always the current user's own submitted applications (jobs they applied
+    // to) - regardless of role. Never the applicants to jobs they posted.
     getUserApplications: async () => {
-        try {
-            const response = await api.get('/applications');
-            const raw = response.data;
-            // Handle different response formats
+        const unwrap = (raw: any): any[] => {
             if (Array.isArray(raw)) return raw;
             if (Array.isArray(raw?.applications)) return raw.applications;
             if (Array.isArray(raw?.data)) return raw.data;
             if (Array.isArray(raw?.results)) return raw.results;
-            console.warn('Unexpected /applications response shape:', typeof raw, raw);
             return [];
+        };
+
+        try {
+            const user = await authService.getUser();
+            if (!user?.id) return [];
+
+            const response = await api.get('/applications/my', { params: { worker_id: user.id } });
+            return unwrap(response.data);
         } catch (error: any) {
             console.error('Failed to fetch applications:', error.response?.data?.message || error?.message);
             return [];
