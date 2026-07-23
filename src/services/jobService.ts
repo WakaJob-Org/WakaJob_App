@@ -1,10 +1,7 @@
 import api from './api';
 import authService from './authService';
 import * as SecureStore from 'expo-secure-store';
-<<<<<<< HEAD
-=======
 import { jwtDecode } from 'jwt-decode';
->>>>>>> ee974310ba5fb22195a01dba1af0b1e510e6779a
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface Job {
