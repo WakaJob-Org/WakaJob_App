@@ -93,6 +93,10 @@ const DashboardScreen: React.FC = () => {
     const [filteredJobs, setFilteredJobs] = useState<JobType[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [hasMore, setHasMore] = useState(true);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+    const PAGE_LIMIT = 10;
     const [profile, setProfile] = useState<any>(null);
     const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
     const [showFilterDropdown, setShowFilterDropdown] = useState(false);
@@ -162,12 +166,12 @@ const DashboardScreen: React.FC = () => {
     const displayName = profile?.full_name || user?.full_name || 'User';
     const avatarInitials = getInitials(displayName);
 
-    const fetchJobs = async (isRefreshing = false, showSkeleton = false) => {
+    const fetchJobs = async (isRefreshing = false, showSkeleton = false, pageNumber = 1) => {
         try {
             if (showSkeleton) setLoading(true);
             
             // Prepare Query Params
-            const apiParams: any = {};
+            const apiParams: any = { page: pageNumber, limit: PAGE_LIMIT };
             if (debouncedSearch.trim()) apiParams.search = debouncedSearch;
             
             const locationToUse = selectedLocation === 'Custom' ? debouncedLocation : selectedLocation;
@@ -202,13 +206,26 @@ const DashboardScreen: React.FC = () => {
             // other people's jobs, not for seeing your own listings.
             const jobsWithImages = mappedJobs.filter(job => !!job.imageUrl && job.employerId !== user?.id);
 
-            setAllJobs(jobsWithImages);
-            setFilteredJobs(jobsWithImages);
+            setHasMore(fetchedJobs.length === PAGE_LIMIT);
+
+            if (pageNumber === 1) {
+                setAllJobs(jobsWithImages);
+                setFilteredJobs(jobsWithImages);
+            } else {
+                setAllJobs(prev => {
+                    // Prevent duplicates
+                    const newJobs = jobsWithImages.filter(nj => !prev.some(pj => pj.id === nj.id));
+                    const combined = [...prev, ...newJobs];
+                    setFilteredJobs(combined);
+                    return combined;
+                });
+            }
         } catch (error) {
             console.error('Error fetching jobs:', error);
-            if (!isRefreshing) {
+            if (!isRefreshing && pageNumber === 1) {
                 setAllJobs([]);
                 setFilteredJobs([]);
+                setHasMore(false);
             }
         } finally {
             setLoading(false);
@@ -217,9 +234,12 @@ const DashboardScreen: React.FC = () => {
     };
 
     useEffect(() => {
+        // Reset pagination when search/filter changes
+        setCurrentPage(1);
+        setHasMore(true);
         // Initial load shows skeleton, subsequent filter updates don't (smoother UX)
         const isInitialLoad = allJobs.length === 0 && !debouncedSearch && !selectedLocation && !debouncedLocation;
-        fetchJobs(false, isInitialLoad);
+        fetchJobs(false, isInitialLoad, 1);
     }, [debouncedSearch, selectedLocation, debouncedLocation]);
 
     const loadSavedJobs = React.useCallback(() => {
@@ -247,9 +267,11 @@ const DashboardScreen: React.FC = () => {
 
     const onRefresh = React.useCallback(async () => {
         setRefreshing(true);
+        setCurrentPage(1);
+        setHasMore(true);
         try {
             await Promise.all([
-                fetchJobs(true),
+                fetchJobs(true, false, 1),
                 refreshUser()
             ]);
         } catch (error) {
@@ -258,6 +280,18 @@ const DashboardScreen: React.FC = () => {
             setRefreshing(false);
         }
     }, [debouncedSearch, selectedLocation, customLocation, refreshUser]);
+
+    const handleLoadMore = async () => {
+        if (!hasMore || isLoadingMore || loading || refreshing) return;
+        setIsLoadingMore(true);
+        try {
+            const nextPage = currentPage + 1;
+            await fetchJobs(false, false, nextPage);
+            setCurrentPage(nextPage);
+        } finally {
+            setIsLoadingMore(false);
+        }
+    };
 
     useEffect(() => {
         if (searchQuery.trim()) {
@@ -466,6 +500,15 @@ const DashboardScreen: React.FC = () => {
                         colors={['#1972ca']}
                         tintColor="#1972ca"
                     />
+                }
+                onEndReached={handleLoadMore}
+                onEndReachedThreshold={0.5}
+                ListFooterComponent={
+                    isLoadingMore ? (
+                        <View style={{ paddingVertical: 20 }}>
+                            <ActivityIndicator size="small" color="#1972ca" />
+                        </View>
+                    ) : null
                 }
                 ListHeaderComponent={<View style={{ height: 10 }} />}
                 ListEmptyComponent={

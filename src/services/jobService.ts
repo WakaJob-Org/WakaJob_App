@@ -47,7 +47,7 @@ export interface CreateJobData {
 }
 
 const jobService = {
-    getJobs: async (params?: { search?: string, location?: string, category?: string, job_type?: string }): Promise<Job[]> => {
+    getJobs: async (params?: { search?: string, location?: string, category?: string, job_type?: string, page?: number, limit?: number }): Promise<Job[]> => {
         try {
             const response = await api.get('/jobs', { params });
             const raw = response.data;
