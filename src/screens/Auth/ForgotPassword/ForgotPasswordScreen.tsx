@@ -212,12 +212,11 @@ const ForgotPasswordScreen: React.FC = () => {
 
                 <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
                     <View style={styles.iconContainer}>
-                        <View style={styles.brandIconCrop}>
-                            <Image
-                                source={require('../../../../assets/logo.png')}
-                                style={styles.brandIconCropImage}
-                            />
-                        </View>
+                        <Image
+                            source={require('../../../../assets/icon-mark.png')}
+                            style={styles.brandIconCropImage}
+                            resizeMode="contain"
+                        />
                     </View>
                     <Text style={styles.topTitle}>{renderHeaderTitle()}</Text>
                     {step === 'request' && (
@@ -423,19 +422,15 @@ const styles = StyleSheet.create({
         alignSelf: 'center',
         marginBottom: 16,
     },
-    // logo.png is a 1254x1254 lockup (icon + wordmark stacked); crop to just
-    // the icon (roughly x[280,862] y[274,793]) - it's natively white, which
-    // reads correctly against this circle's blue background with no tint.
-    brandIconCrop: {
+    // icon-mark.png is natively white, which reads correctly against this
+    // circle's blue background with no tint needed. The glyph's visual
+    // weight sits right/down of its own bounding box (measured center of
+    // mass, not just geometry), so a plain centered box looks lopsided -
+    // nudge it back to compensate for true optical centering.
+    brandIconCropImage: {
         width: 36,
         height: 32,
-        overflow: 'hidden',
-    },
-    brandIconCropImage: {
-        width: 77,
-        height: 77,
-        left: -17,
-        top: -17,
+        transform: [{ translateX: -5 }, { translateY: -1 }],
     },
     topTitle: {
         fontSize: 18,

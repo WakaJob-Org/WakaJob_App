@@ -213,12 +213,11 @@ const VerificationPendingScreen: React.FC = () => {
             <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
                 <View style={styles.headerContent}>
                     <View style={styles.logoRow}>
-                        <View style={styles.iconCrop}>
-                            <Image
-                                source={require('../../../assets/logo.png')}
-                                style={styles.iconCropImage}
-                            />
-                        </View>
+                        <Image
+                            source={require('../../../assets/icon-mark.png')}
+                            style={styles.iconCropImage}
+                            resizeMode="contain"
+                        />
                         <View style={styles.textCrop}>
                             <Image
                                 source={require('../../../assets/logo-removebg-preview.png')}
@@ -323,12 +322,6 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
     },
-    iconCrop: {
-        width: 36,
-        height: 32,
-        overflow: 'hidden',
-        marginRight: 3,
-    },
     textCrop: {
         width: 130,
         height: 32,
@@ -342,11 +335,11 @@ const styles = StyleSheet.create({
         tintColor: '#1972ca',
     },
     iconCropImage: {
-        width: 77,
-        height: 77,
-        left: -17,
-        top: -17,
+        width: 36,
+        height: 32,
+        marginRight: 3,
         tintColor: '#1972ca',
+        transform: [{ translateX: -5 }, { translateY: -1 }],
     },
     logoText: {
         fontSize: 24,

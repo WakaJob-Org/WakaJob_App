@@ -242,12 +242,11 @@ const VerificationSuccessScreen: React.FC = () => {
             <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
                 <View style={styles.headerContent}>
                     <View style={styles.logoRow}>
-                        <View style={styles.iconCrop}>
-                            <Image
-                                source={require('../../../assets/logo.png')}
-                                style={styles.iconCropImage}
-                            />
-                        </View>
+                        <Image
+                            source={require('../../../assets/icon-mark.png')}
+                            style={styles.iconCropImage}
+                            resizeMode="contain"
+                        />
                         <View style={styles.textCrop}>
                             <Image
                                 source={require('../../../assets/logo-removebg-preview.png')}
@@ -335,18 +334,12 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         color: '#1972ca',
     },
-    iconCrop: {
+    iconCropImage: {
         width: 36,
         height: 32,
-        overflow: 'hidden',
         marginRight: 3,
-    },
-    iconCropImage: {
-        width: 77,
-        height: 77,
-        left: -17,
-        top: -17,
         tintColor: '#1972ca',
+        transform: [{ translateX: -5 }, { translateY: -1 }],
     },
     logoImage: {
         width: 202,

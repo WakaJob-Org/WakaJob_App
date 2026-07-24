@@ -27,6 +27,7 @@ export type AppStackParamList = {
     Settings: undefined;
     CreateJob: undefined;
     JobDetails: { job: any; autoOpenApply?: boolean; alreadyApplied?: boolean };
+    JobApplicants: { jobId: string; jobTitle: string };
     ProfileSetup: undefined;
 
     // Auth screens accessible from within the app (for apply gate)

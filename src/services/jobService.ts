@@ -205,11 +205,13 @@ const jobService = {
     },
 
     // Applicants for a job an employer posted. Verified against the live
-    // backend: GET /jobs/:id/applications returns a 404 "Cannot GET" (route
-    // not registered), while GET /applications/job/:id returns a proper
-    // JSON 401 ("not logged in") - i.e. it exists and is auth-protected -
-    // so that's the real endpoint, despite the more obvious-looking
-    // /jobs/:id/applications path not actually existing on the backend.
+    // backend with a real logged-in session: each item is
+    // { id, job_id, worker_id, cover_letter, status, created_at, updated_at,
+    //   cv_url, users: { id, email, full_name, profiles: { phone_number,
+    //   profile_image_url } } } - status is lowercase ("pending" etc), and
+    // the applicant's own profile fields (bio, skills, location) are NOT
+    // included here, only email/full_name/phone/photo via the nested
+    // `users` object. Use getUserProfile(worker_id) to get the rest.
     getJobApplicants: async (jobId: string) => {
         const unwrap = (raw: any): any[] => {
             if (Array.isArray(raw)) return raw;
@@ -228,6 +230,26 @@ const jobService = {
             }
             console.error(`Failed to fetch applicants for job ${jobId}:`, error.response?.data?.message || error?.message);
             return [];
+        }
+    },
+
+    // A worker's full profile (bio, skills, phone, dob, photo) by user id.
+    // Verified against the live backend: GET /profiles/:id -> 200 with
+    // { status, data: { id, full_name, email, role, created_at, bio, skills,
+    //   phone_number, date_of_birth, profile_image_url } }. Any of the
+    // profile fields (bio, skills, phone_number, profile_image_url) can be
+    // null if the worker never filled them in. No `location` field exists
+    // anywhere in this response.
+    getUserProfile: async (userId: string) => {
+        try {
+            const response = await api.get(`/profiles/${userId}`);
+            return response.data?.data || response.data || null;
+        } catch (error: any) {
+            if (error.response?.status === 404) {
+                return null;
+            }
+            console.error(`Failed to fetch profile for user ${userId}:`, error.response?.data?.message || error?.message);
+            return null;
         }
     },
 

@@ -51,15 +51,11 @@ const SplashScreen = ({
         >
 
             <Animated.View style={[styles.content, logoStyle]}>
-                {/* logo.png is a single lockup image (icon + wordmark stacked
-                    vertically) - crop to just the icon here via overflow:hidden
-                    so the wordmark isn't duplicated with the one below. */}
-                <View style={styles.iconCrop}>
-                    <Image
-                        source={require('../../../assets/logo.png')}
-                        style={styles.iconCropImage}
-                    />
-                </View>
+                <Image
+                    source={require('../../../assets/icon-mark.png')}
+                    style={styles.iconCropImage}
+                    resizeMode="contain"
+                />
             </Animated.View>
 
             <Animated.View style={[styles.bottomTextWrap, { paddingBottom: insets.bottom + 30 }, logoStyle]}>
@@ -98,21 +94,17 @@ const styles = StyleSheet.create({
         width: 280,
         height: 280,
     },
-    // logo.png is 1254x1254: the icon glyph sits at roughly x[280,862] y[274,793]
-    // and the wordmark sits at roughly x[323,931] y[904,1057]. Each crop below
-    // renders the full image at a fixed scale inside an overflow:hidden box,
-    // shifted so only that region is visible.
-    iconCrop: {
+    // icon-mark.png's glyph has more visual weight right/down of its own
+    // bounding box (measured center of mass), so plain centering looks
+    // lopsided - nudge it back for true optical centering.
+    iconCropImage: {
         width: 126,
         height: 112,
-        overflow: 'hidden',
+        transform: [{ translateX: -17 }, { translateY: -5 }],
     },
-    iconCropImage: {
-        width: 271,
-        height: 271,
-        left: -60,
-        top: -59,
-    },
+    // logo.png is 1254x1254; the wordmark sits at roughly x[323,931] y[904,1057].
+    // This crop renders the full image at a fixed scale inside an
+    // overflow:hidden box, shifted so only that region is visible.
     // Independently pinned to the bottom edge (rather than relying on flex
     // distribution against the now-absolutely-positioned icon above).
     bottomTextWrap: {

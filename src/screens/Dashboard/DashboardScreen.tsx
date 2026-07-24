@@ -478,12 +478,11 @@ const DashboardScreen: React.FC = () => {
             <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
                 <View style={styles.headerTop}>
                     <View style={styles.logoRow}>
-                        <View style={styles.iconCrop}>
-                            <Image
-                                source={require('../../../assets/logo.png')}
-                                style={styles.iconCropImage}
-                            />
-                        </View>
+                        <Image
+                            source={require('../../../assets/icon-mark.png')}
+                            style={styles.iconCropImage}
+                            resizeMode="contain"
+                        />
                         <View style={styles.textCrop}>
                             <Image
                                 source={require('../../../assets/logo-removebg-preview.png')}
@@ -669,11 +668,7 @@ const styles = StyleSheet.create({
     header: { paddingHorizontal: 20, paddingBottom: 15, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
     headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 },
     logoRow: { flexDirection: 'row', alignItems: 'center' },
-    // logo.png is a 1254x1254 lockup (icon + wordmark stacked); crop to just
-    // the icon (roughly x[280,862] y[274,793]) at a small scale to sit next
-    // to the wordmark text image, same technique as the splash screen.
-    iconCrop: { width: 36, height: 32, overflow: 'hidden', marginRight: 3 },
-    iconCropImage: { width: 77, height: 77, left: -17, top: -17, tintColor: '#1972ca' },
+    iconCropImage: { width: 36, height: 32, marginRight: 3, tintColor: '#1972ca', transform: [{ translateX: -5 }, { translateY: -1 }] },
     logoText: { fontSize: 24, fontWeight: 'bold', color: '#1972ca' },
     logoImage: { width: 202, height: 32, tintColor: '#1972ca' },
     // logo-removebg-preview.png (480x76) has a large transparent margin around

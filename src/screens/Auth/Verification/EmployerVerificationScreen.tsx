@@ -76,32 +76,41 @@ const EmployerVerificationScreen: React.FC = () => {
     const [errors, setErrors] = useState<any>({});
     const [touched, setTouched] = useState<any>({});
 
-    const validateField = (name: string, value: any) => {
-        let error = '';
+    // Pure - computes an error message with no side effects, so it's safe to
+    // call during render (e.g. to compute isFormValid() below). Only
+    // validateField() (which wraps this with a setErrors call) should be
+    // called from event handlers.
+    const getFieldError = (name: string, value: any): string => {
         switch (name) {
             case 'bio':
-                if (!value.trim()) error = 'Professional bio is required';
-                else if (value.trim().split(/\s+/).length > 50) error = 'Bio must be under 50 words';
-                break;
+                if (!value.trim()) return 'Professional bio is required';
+                if (value.trim().split(/\s+/).length > 50) return 'Bio must be under 50 words';
+                return '';
             case 'location':
-                if (!value.trim()) error = 'Service location is required';
-                break;
+                if (!value.trim()) return 'Service location is required';
+                return '';
             case 'workLocationPic':
-                if (!value) error = 'Photo of work location is required';
-                break;
+                if (!value) return 'Photo of work location is required';
+                return '';
             case 'idFrontPic':
-                if (!value) error = 'Front of ID card is required';
-                break;
+                if (!value) return 'Front of ID card is required';
+                return '';
             case 'idBackPic':
-                if (!value) error = 'Back of ID card is required';
-                break;
+                if (!value) return 'Back of ID card is required';
+                return '';
             case 'permitDoc':
-                if (!value) error = 'Council permit document is required';
-                break;
+                if (!value) return 'Council permit document is required';
+                return '';
             case 'isApprenticeOpen':
-                if (value === null) error = 'Mentorship preference is required';
-                break;
+                if (value === null) return 'Mentorship preference is required';
+                return '';
+            default:
+                return '';
         }
+    };
+
+    const validateField = (name: string, value: any) => {
+        const error = getFieldError(name, value);
         setErrors(prev => ({ ...prev, [name]: error }));
         return error;
     };
@@ -121,19 +130,18 @@ const EmployerVerificationScreen: React.FC = () => {
         validateField(name, value);
     };
 
-    const isFormValid = () => {
-        const requiredFields = ['bio', 'location', 'isApprenticeOpen', 'workLocationPic', 'idFrontPic', 'idBackPic', 'permitDoc'];
-        const currentErrors = {
-            bio: validateField('bio', bio),
-            location: validateField('location', location),
-            isApprenticeOpen: validateField('isApprenticeOpen', isApprenticeOpen),
-            workLocationPic: validateField('workLocationPic', workLocationPic),
-            idFrontPic: validateField('idFrontPic', idFrontPic),
-            idBackPic: validateField('idBackPic', idBackPic),
-            permitDoc: validateField('permitDoc', permitDoc),
-        };
-        return Object.values(currentErrors).every(err => !err);
-    };
+    // Pure - no setState, safe to call on every render.
+    const getAllErrors = () => ({
+        bio: getFieldError('bio', bio),
+        location: getFieldError('location', location),
+        isApprenticeOpen: getFieldError('isApprenticeOpen', isApprenticeOpen),
+        workLocationPic: getFieldError('workLocationPic', workLocationPic),
+        idFrontPic: getFieldError('idFrontPic', idFrontPic),
+        idBackPic: getFieldError('idBackPic', idBackPic),
+        permitDoc: getFieldError('permitDoc', permitDoc),
+    });
+
+    const isFormValid = () => Object.values(getAllErrors()).every(err => !err);
 
     const handleAutoDetect = async () => {
         try {
@@ -270,7 +278,13 @@ const EmployerVerificationScreen: React.FC = () => {
     };
 
     const handleSubmit = async () => {
-        if (!isFormValid()) {
+        const currentErrors = getAllErrors();
+        const isValid = Object.values(currentErrors).every(err => !err);
+        if (!isValid) {
+            // Reveal error messages for every required field, not just ones
+            // already touched, so the user sees exactly what's missing.
+            setErrors(currentErrors);
+            setTouched(Object.keys(currentErrors).reduce((acc, key) => ({ ...acc, [key]: true }), {}));
             Alert.alert("Form Invalid", "Please fill all required fields correctly.");
             return;
         }

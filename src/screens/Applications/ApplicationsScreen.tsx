@@ -16,7 +16,7 @@ import jobService from '../../services/jobService';
 import ApplicationsSkeleton from '../../components/ApplicationsSkeleton';
 import type { Applicant } from './ApplicantProfileScreen';
 
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 
 type StatusKey = 'NEW' | 'UNDER REVIEW' | 'INTERVIEWING' | 'ACCEPTED' | 'REJECTED';
@@ -251,13 +251,19 @@ const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ onViewApplicant
         }
     };
 
-    React.useEffect(() => {
-        if (!isAuthenticated) {
-            setLoading(false);
-            return;
-        }
-        fetchApplications();
-    }, [isAuthenticated]);
+    // Refetch every time this tab regains focus (not just on mount) so a
+    // status change made by an employer while the applicant was elsewhere
+    // in the app (New -> Under Review/Accepted/Rejected) shows up without
+    // requiring a manual pull-to-refresh.
+    useFocusEffect(
+        React.useCallback(() => {
+            if (!isAuthenticated) {
+                setLoading(false);
+                return;
+            }
+            fetchApplications();
+        }, [isAuthenticated])
+    );
 
     const onRefresh = React.useCallback(() => {
         setRefreshing(true);

@@ -143,26 +143,52 @@ const EmployerDashboardScreen: React.FC = () => {
         }
     };
 
+    // Same mapping DashboardScreen uses to turn a raw backend Job into the
+    // shape JobDetailsScreen expects - so tapping an employer's own listing
+    // opens the identical detail view a job seeker would see on Dashboard.
+    // employer_id (snake_case) is kept alongside employerId because
+    // JobDetailsScreen's isJobPoster check reads job.employer_id specifically.
+    const mapJobForDetails = (job: Job) => ({
+        id: job.id,
+        title: (job as any).title || job.position_vacant || job.category || 'Professional Trade',
+        company: job.users?.full_name || 'Private Employer',
+        location: job.location || 'Not specified',
+        salary: job.salary || 'Competitive',
+        type: job.job_type || 'Full-time',
+        description: job.description,
+        category: job.category,
+        email: job.users?.email || '',
+        phone: job.users?.profiles?.phone_number || '',
+        postedAt: job.created_at,
+        imageUrl: job.image_url || job.job_image,
+        requirements: job.qualifications ? job.qualifications.split(',') : [],
+        employerId: job.employer_id,
+        employer_id: job.employer_id,
+    });
+
     const renderJobItem = ({ item }: { item: Job }) => {
-        const title = (item as any).title || item.position_vacant;
-        const imageUrl = item.image_url || item.job_image;
+        const mapped = mapJobForDetails(item);
         const applicants = applicantsByJob[item.id] || [];
 
         return (
-            <TouchableOpacity style={styles.jobCard} activeOpacity={0.9}>
+            <TouchableOpacity
+                style={styles.jobCard}
+                activeOpacity={0.9}
+                onPress={() => navigation.navigate('JobDetails', { job: mapped })}
+            >
                 <View style={styles.imageContainer}>
-                    {imageUrl ? (
-                        <Image source={{ uri: imageUrl }} style={styles.jobImage} />
+                    {mapped.imageUrl ? (
+                        <Image source={{ uri: mapped.imageUrl }} style={styles.jobImage} />
                     ) : (
                         <View style={[styles.jobImage, styles.placeholderImage]}>
-                            <Ionicons name="image-outline" size={30} color="#9BA4B1" />
+                            <Ionicons name="image-outline" size={26} color="#9BA4B1" />
                         </View>
                     )}
                 </View>
 
                 <View style={styles.cardBody}>
                     <View style={styles.cardBodyTopRow}>
-                        <Text style={styles.jobTitle} numberOfLines={1}>{title}</Text>
+                        <Text style={styles.jobTitle} numberOfLines={1}>{mapped.title}</Text>
                         <TouchableOpacity onPress={() => handleJobOptions(item)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                             <Ionicons name="ellipsis-vertical" size={14} color="#9CA3AF" />
                         </TouchableOpacity>
@@ -183,12 +209,11 @@ const EmployerDashboardScreen: React.FC = () => {
                         {applicants.length > 0 && (
                             <View style={styles.avatarStack}>
                                 {applicants.slice(0, 3).map((app, idx) => {
-                                    const photo =
-                                        app.worker?.profile_image_url ||
-                                        app.worker?.profiles?.profile_image_url ||
-                                        app.user?.profile_image_url ||
-                                        app.profile_image_url;
-                                    const name = app.worker?.full_name || app.user?.full_name || app.full_name || 'A';
+                                    // Verified against the live backend: the applicant's
+                                    // account info is nested under `users` on the
+                                    // application record (see jobService.getJobApplicants).
+                                    const photo = app.users?.profiles?.profile_image_url;
+                                    const name = app.users?.full_name || 'A';
                                     return (
                                         <View
                                             key={app.id || app._id || idx}
@@ -321,7 +346,6 @@ const styles = StyleSheet.create({
         color: '#111827',
         marginBottom: 14,
     },
-    // Compact card: image occupies the left ~1/4 (stretches to the card's
     // Compact list row, same pattern as SavedScreen.tsx: small fixed-size
     // thumbnail, center-aligned single-column details, no stretching.
     jobCard: {
@@ -345,6 +369,7 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         overflow: 'hidden',
         marginRight: 16,
+        position: 'relative',
     },
     jobImage: {
         width: '100%',

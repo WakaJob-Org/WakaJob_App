@@ -368,12 +368,25 @@ const authService = {
     } catch (e: any) {
       console.error('getUser error:', e.response?.status || e.message);
 
-      // Try to return a skeleton user with the cached name if API fails
+      // Try to return a skeleton user with the cached name if API fails.
+      // Crucially, this must include `id` - not just full_name - since
+      // callers (e.g. filtering "jobs I posted" by employer_id === user.id)
+      // silently match nothing without it. The id doesn't need caching
+      // separately: it's already embedded in the JWT's `sub` claim, so it
+      // can be recovered from the stored token with no extra network call.
       try {
         const cachedName = await SecureStore.getItemAsync('cached_user_name');
-        if (cachedName) {
-          console.log('getUser: API failed, falling back to cache:', cachedName);
-          return { full_name: cachedName };
+        const token = await SecureStore.getItemAsync('auth_token');
+        let id: string | undefined;
+        if (token) {
+          try {
+            const decoded: any = jwtDecode(token);
+            id = decoded.sub || decoded.id;
+          } catch (decodeErr) { }
+        }
+        if (cachedName || id) {
+          console.log('getUser: API failed, falling back to cache:', cachedName, id);
+          return { id, full_name: cachedName };
         }
       } catch (cacheErr) { }
 
