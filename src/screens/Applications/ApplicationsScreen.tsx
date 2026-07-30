@@ -23,65 +23,7 @@ type StatusKey = 'NEW' | 'UNDER REVIEW' | 'INTERVIEWING' | 'ACCEPTED' | 'REJECTE
 
 const FILTER_TABS = ['All', 'New', 'Reviewing', 'Interview', 'Accepted', 'Rejected'];
 
-const MOCK_APPLICANTS: Applicant[] = [
-    {
-        id: '1',
-        name: 'Samuel Adebayo',
-        role: 'Master Carpenter',
-        location: 'Lagos, Nigeria',
-        status: 'NEW',
-        photo: null,
-        initials: 'SA',
-        isVerified: true,
-        bio: 'Dedicated and detail-oriented Master Carpenter with over 12 years of experience in residential and commercial construction. Specialized in bespoke cabinetry, structural framing, and intricate wood finishing.',
-        skills: ['Custom Cabinetry', 'Roof Framing', 'Wood Finishing', 'Blueprint Reading', 'Team Leadership'],
-        startDate: 'Oct 24, 2023',
-        jobDuration: '2 Weeks',
-        agreedRate: '₦150,000',
-    },
-    {
-        id: '2',
-        name: 'Chioma Okafor',
-        role: 'Senior Hair Stylist',
-        location: 'Abuja, Nigeria',
-        status: 'UNDER REVIEW',
-        photo: null,
-        initials: 'CO',
-        isVerified: true,
-        skills: ['Braiding', 'Coloring', 'Keratin Treatments', 'Styling'],
-        startDate: 'Nov 01, 2023',
-        jobDuration: '3 Days/Week',
-        agreedRate: '₦80,000',
-    },
-    {
-        id: '3',
-        name: 'Kofi Mensah',
-        role: 'Professional Barber',
-        location: 'Accra, Ghana',
-        status: 'INTERVIEWING',
-        photo: null,
-        initials: 'KM',
-        isVerified: false,
-        skills: ['Fades', 'Line-ups', 'Beard Grooming', 'Skin Tapers'],
-        startDate: 'Oct 30, 2023',
-        jobDuration: '1 Month',
-        agreedRate: '₦60,000',
-    },
-    {
-        id: '4',
-        name: 'Emeka Musa',
-        role: 'Apprentice Carpenter',
-        location: 'Kano, Nigeria',
-        status: 'ACCEPTED',
-        photo: null,
-        initials: 'EM',
-        isVerified: false,
-        skills: ['Sanding', 'Assembly', 'Wood Cutting'],
-        startDate: 'Oct 20, 2023',
-        jobDuration: '6 Months',
-        agreedRate: '₦40,000',
-    },
-];
+
 
 const STATUS_CONFIG: Record<StatusKey, { label: string; bg: string; text: string; borderColor: string }> = {
     'NEW': {

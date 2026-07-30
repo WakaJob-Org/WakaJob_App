@@ -98,9 +98,9 @@ const styles = StyleSheet.create({
     // bounding box (measured center of mass), so plain centering looks
     // lopsided - nudge it back for true optical centering.
     iconCropImage: {
-        width: 126,
-        height: 112,
-        transform: [{ translateX: -17 }, { translateY: -5 }],
+        width: 180,
+        height: 160,
+        transform: [{ translateX: -24 }, { translateY: -7 }],
     },
     // logo.png is 1254x1254; the wordmark sits at roughly x[323,931] y[904,1057].
     // This crop renders the full image at a fixed scale inside an

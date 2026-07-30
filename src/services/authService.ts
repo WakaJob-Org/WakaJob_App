@@ -394,6 +394,18 @@ const authService = {
     }
   },
 
+  // Verified against the live backend: POST /profiles/push-token expects
+  // { push_token: string } (not /users/push-token as one might assume),
+  // requires auth, returns { status: "success", message: "Push token
+  // saved successfully" }.
+  async savePushToken(pushToken: string): Promise<void> {
+    try {
+      await api.post('/profiles/push-token', { push_token: pushToken });
+    } catch (error: any) {
+      console.error('Failed to save push token:', error.response?.data?.message || error?.message);
+    }
+  },
+
   async updateProfile(userId: string, data: any): Promise<any> {
     const dataIsFormData = isFormData(data);
     

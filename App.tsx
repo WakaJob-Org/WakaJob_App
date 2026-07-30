@@ -8,6 +8,12 @@ import { AuthProvider, useAuth } from './src/context/AuthContext';
 import RootNavigator from './src/navigation/RootNavigator';
 import 'react-native-gesture-handler';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { registerBackgroundNotificationTask } from './src/services/pushNotificationService';
+
+// Registers the badge-increment background task with the OS. Importing
+// pushNotificationService.ts also defines the task itself (TaskManager
+// requires task definitions at module scope), so this just has to run once.
+registerBackgroundNotificationTask();
 
 // Original Auth Screens
 import SplashScreenUI from './src/screens/Splash/SplashScreen';

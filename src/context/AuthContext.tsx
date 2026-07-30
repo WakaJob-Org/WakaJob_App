@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import authService from '../services/authService';
+import { registerPushTokenAfterLogin } from '../services/pushNotificationService';
 
 interface User {
     id?: string;
@@ -55,6 +56,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             const userData = await authService.getUser();
             setUser(userData);
             setIsAuthenticated(true);
+            // Fire-and-forget: request notification permission, generate an
+            // Expo push token, and save it to the backend. Must never block
+            // or fail the login itself.
+            registerPushTokenAfterLogin();
         } catch (error) {
             throw error;
         }

@@ -37,7 +37,15 @@
           "resizeMode": "contain",
           "backgroundColor": "#1972ca"
         }
-      ]
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon-mark.png",
+          "color": "#1972ca"
+        }
+      ],
+      "expo-task-manager"
     ],
     "extra": {
       "eas": {
