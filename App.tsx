@@ -39,7 +39,7 @@ const MainApp = () => {
   }
 
   return (
-    <View style={styles.container || styles.appContainer} onLayout={onLayoutRootView}>
+    <View style={styles.appContainer} onLayout={onLayoutRootView}>
       <StatusBar style="dark" hidden={false} translucent={true} />
       <RootNavigator />
     </View>

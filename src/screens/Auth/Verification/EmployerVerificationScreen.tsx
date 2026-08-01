@@ -102,7 +102,7 @@ const EmployerVerificationScreen: React.FC = () => {
                 if (value === null) error = 'Mentorship preference is required';
                 break;
         }
-        setErrors(prev => ({ ...prev, [name]: error }));
+        setErrors((prev: any) => ({ ...prev, [name]: error }));
         return error;
     };
 
@@ -116,7 +116,7 @@ const EmployerVerificationScreen: React.FC = () => {
     };
 
     const handleBlur = (name: string) => {
-        setTouched(prev => ({ ...prev, [name]: true }));
+        setTouched((prev: any) => ({ ...prev, [name]: true }));
         const value = name === 'bio' ? bio : name === 'location' ? location : null;
         validateField(name, value);
     };
@@ -326,7 +326,7 @@ const EmployerVerificationScreen: React.FC = () => {
                 } catch (e) {}
             }
 
-            const appendFile = (uri: string, fieldName: string) => {
+            const appendFile = (uri: string | null, fieldName: string) => {
                 if (!uri) return;
 
                 const filename = uri.split('/').pop() || `${fieldName}.jpg`;

@@ -17,6 +17,7 @@ export interface Job {
     is_active: boolean;
     created_at: string;
     image_url?: string;
+    title?: string;
     job_image?: string;
     requires_cv?: boolean | string;
     requires_cover_letter?: boolean | string;

@@ -200,6 +200,33 @@ const illustrationStyles = StyleSheet.create({
         marginTop: -1,
         zIndex: 1,
     },
+    notchLeft: {
+        position: 'absolute',
+        left: -8,
+        top: '45%',
+        width: 16,
+        height: 16,
+        borderRadius: 8,
+        backgroundColor: '#FFFFFF',
+    },
+    notchRight: {
+        position: 'absolute',
+        right: -8,
+        top: '45%',
+        width: 16,
+        height: 16,
+        borderRadius: 8,
+        backgroundColor: '#FFFFFF',
+    },
+    notchBottom: {
+        position: 'absolute',
+        bottom: -8,
+        left: '45%',
+        width: 16,
+        height: 16,
+        borderRadius: 8,
+        backgroundColor: '#FFFFFF',
+    },
 });
 
 const VerificationSuccessScreen: React.FC = () => {

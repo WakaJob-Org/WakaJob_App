@@ -14,6 +14,7 @@ import {
     RefreshControl,
     Image,
     ImageSourcePropType,
+    ActivityIndicator
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -34,30 +35,7 @@ type DashboardNavigationProp = CompositeNavigationProp<
     StackNavigationProp<AppStackParamList>
 >;
 
-<<<<<<< HEAD
-=======
-interface JobType {
-    id: string;
-    title: string;
-    company: string;
-    location: string;
-    salary: string;
-    type: string;
-    description: string;
-    category: string;
-    email: string;
-    phone: string;
-    postedAt: string;
-    imageUrl?: string;
-    tags?: string[];
-    hasApprentice?: boolean;
-    requirements?: string[];
-    employerId?: string;
-}
 
-import DashboardSkeleton from '../../components/DashboardSkeleton';
-
->>>>>>> ee974310ba5fb22195a01dba1af0b1e510e6779a
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const DashboardScreen: React.FC = () => {
@@ -357,7 +335,7 @@ const DashboardScreen: React.FC = () => {
             job={item}
             isSaved={isJobSaved(item.id)}
             onToggleSave={handleSaveJob}
-            onPress={(job) => navigation.navigate('JobDetails', { job, isSaved: isJobSaved(job.id) })}
+            onPress={(job) => navigation.navigate('JobDetails', { job })}
             onApplyRequest={(job, type) => {
                 if (user?.id && (job as any).employerId && user.id === (job as any).employerId) {
                     Alert.alert("Action Not Allowed", "You cannot apply for a job that you posted.");

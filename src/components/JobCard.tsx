@@ -36,6 +36,7 @@ export interface JobType {
     job_type?: string;
     created_at?: string;
     job_image?: string;
+    employerId?: string;
 }
 
 interface JobCardProps {
