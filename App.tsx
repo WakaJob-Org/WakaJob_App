@@ -5,10 +5,11 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts, Pacifico_400Regular } from '@expo-google-fonts/pacifico';
 import * as SplashScreen from 'expo-splash-screen';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
+import { ChatProvider } from './src/context/ChatContext';
 import RootNavigator from './src/navigation/RootNavigator';
 import 'react-native-gesture-handler';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { registerBackgroundNotificationTask } from './src/services/pushNotificationService';
+import { registerBackgroundNotificationTask, registerChatNotificationTapHandler } from './src/services/pushNotificationService';
 
 // Registers the badge-increment background task with the OS. Importing
 // pushNotificationService.ts also defines the task itself (TaskManager
@@ -40,6 +41,11 @@ const MainApp = () => {
     }
   }, [fontsLoaded, isLoading]);
 
+  useEffect(() => {
+    const unsubscribe = registerChatNotificationTapHandler();
+    return unsubscribe;
+  }, []);
+
   if (!fontsLoaded || isLoading) {
     return null; // Keep splash screen shown
   }
@@ -57,7 +63,9 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <AuthProvider>
-          <MainApp />
+          <ChatProvider>
+            <MainApp />
+          </ChatProvider>
         </AuthProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

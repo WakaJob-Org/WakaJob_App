@@ -9,6 +9,7 @@ import {
     ScrollView,
     TextInput,
     Image,
+    Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,6 +19,8 @@ import type { Applicant } from './ApplicantProfileScreen';
 
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
+import { useChat } from '../../context/ChatContext';
+import { buildConversationId } from '../../services/chatService';
 
 type StatusKey = 'NEW' | 'UNDER REVIEW' | 'INTERVIEWING' | 'ACCEPTED' | 'REJECTED';
 
@@ -91,7 +94,8 @@ const mapRawJobToJob = (rawJob: any, jobId?: string | null) => ({
 
 const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ onViewApplicant }) => {
     const navigation = useNavigation<any>();
-    const { isAuthenticated } = useAuth();
+    const { isAuthenticated, user } = useAuth();
+    const { openConversation } = useChat();
     const [activeTab, setActiveTab] = useState('All');
     const [searchQuery, setSearchQuery] = useState('');
     const [applicants, setApplicants] = useState<Applicant[]>([]);
@@ -260,6 +264,37 @@ const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ onViewApplicant
         navigation.navigate('JobDetails', { job, alreadyApplied: true });
     };
 
+    // Worker -> employer entry point, mirroring handleMessageApplicant on the
+    // employer side of JobApplicantsScreen. Same client-derived conversation
+    // id scheme so both sides land in the same thread with no backend call.
+    const handleMessageEmployer = (item: Applicant) => {
+        const anyItem = item as any;
+        const jobId = anyItem.jobId;
+        const employerId = anyItem.job?.employerId;
+        if (!user?.id || !employerId || !jobId) {
+            Alert.alert('Unable to start chat', 'Missing employer or job id.');
+            return;
+        }
+        const conversationId = buildConversationId(jobId, user.id, employerId);
+        const otherUserName = anyItem.company || anyItem.jobTitle || 'Employer';
+        openConversation({
+            id: conversationId,
+            jobId,
+            jobTitle: anyItem.jobTitle || item.name,
+            otherUserId: employerId,
+            otherUserName,
+            otherUserPhoto: null,
+        });
+        navigation.navigate('ChatConversation', {
+            conversationId,
+            jobId,
+            jobTitle: anyItem.jobTitle || item.name,
+            otherUserId: employerId,
+            otherUserName,
+            otherUserPhoto: null,
+        });
+    };
+
     const renderApplicantCard = ({ item }: { item: Applicant }) => {
         const statusCfg = STATUS_CONFIG[item.status as StatusKey] ?? STATUS_CONFIG['NEW'];
         const anyItem = item as any;
@@ -317,9 +352,18 @@ const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ onViewApplicant
                             {item.location || 'Location not specified'}
                         </Text>
                     </View>
-                    <TouchableOpacity activeOpacity={0.7} onPress={() => handleViewDetails(item)}>
-                        <Text style={styles.viewDetails}>View Details</Text>
-                    </TouchableOpacity>
+                    <View style={styles.cardActions}>
+                        <TouchableOpacity
+                            style={styles.messageIconBtn}
+                            activeOpacity={0.7}
+                            onPress={() => handleMessageEmployer(item)}
+                        >
+                            <Ionicons name="chatbubble-outline" size={16} color="#1972ca" />
+                        </TouchableOpacity>
+                        <TouchableOpacity activeOpacity={0.7} onPress={() => handleViewDetails(item)}>
+                            <Text style={styles.viewDetails}>View Details</Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
             </TouchableOpacity>
         );
@@ -622,6 +666,19 @@ const styles = StyleSheet.create({
         fontSize: 13,
         fontWeight: '700',
         color: '#1972ca',
+    },
+    cardActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 14,
+    },
+    messageIconBtn: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        backgroundColor: '#EBF5FF',
+        alignItems: 'center',
+        justifyContent: 'center',
     },
 
     // ── Empty State ──

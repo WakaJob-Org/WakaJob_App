@@ -17,6 +17,9 @@ import ApplicationsSkeleton from '../../components/ApplicationsSkeleton';
 import ApplicantProfileScreen, { Applicant } from './ApplicantProfileScreen';
 import Header from '../../components/Header';
 import { AppStackParamList } from '../../navigation/types';
+import { useAuth } from '../../context/AuthContext';
+import { useChat } from '../../context/ChatContext';
+import { buildConversationId } from '../../services/chatService';
 
 type JobApplicantsRouteProp = RouteProp<AppStackParamList, 'JobApplicants'>;
 type StatusKey = 'NEW' | 'UNDER REVIEW' | 'INTERVIEWING' | 'ACCEPTED' | 'REJECTED';
@@ -88,6 +91,8 @@ const JobApplicantsScreen: React.FC = () => {
     const navigation = useNavigation<any>();
     const route = useRoute<JobApplicantsRouteProp>();
     const { jobId, jobTitle } = route.params;
+    const { user } = useAuth();
+    const { openConversation } = useChat();
 
     const [activeTab, setActiveTab] = useState('All');
     const [searchQuery, setSearchQuery] = useState('');
@@ -141,6 +146,36 @@ const JobApplicantsScreen: React.FC = () => {
         fetchApplicants(true);
     }, [jobId]);
 
+    // Employer -> worker entry point. The chat engine has no "create
+    // conversation" endpoint, so the id is derived client-side (see
+    // buildConversationId) and the shell is upserted into the local registry
+    // immediately so it shows up in the Conversations List even before the
+    // first message is sent.
+    const handleMessageApplicant = (applicant: Applicant & { workerId?: string }) => {
+        if (!user?.id || !applicant.workerId) {
+            Alert.alert('Unable to start chat', 'Missing worker or employer id.');
+            return;
+        }
+        const conversationId = buildConversationId(jobId, user.id, applicant.workerId);
+        openConversation({
+            id: conversationId,
+            jobId,
+            jobTitle,
+            otherUserId: applicant.workerId,
+            otherUserName: applicant.name,
+            otherUserPhoto: applicant.photo,
+        });
+        setProfileVisible(false);
+        navigation.navigate('ChatConversation', {
+            conversationId,
+            jobId,
+            jobTitle,
+            otherUserId: applicant.workerId,
+            otherUserName: applicant.name,
+            otherUserPhoto: applicant.photo,
+        });
+    };
+
     const filteredApplicants = applicants.filter((item) => {
         const matchesSearch =
             searchQuery === '' ||
@@ -156,7 +191,11 @@ const JobApplicantsScreen: React.FC = () => {
         return matchesSearch && matchesTab;
     });
 
-    const updateApplicantStatus = async (applicantId: string, status: 'ACCEPTED' | 'REJECTED' | 'INTERVIEWING' | 'UNDER REVIEW') => {
+    const updateApplicantStatus = async (
+        applicantId: string,
+        status: 'ACCEPTED' | 'REJECTED' | 'INTERVIEWING' | 'UNDER REVIEW',
+        options?: { silent?: boolean }
+    ) => {
         try {
             setApplicants(prev => prev.map(app =>
                 app.id === applicantId ? { ...app, status } : app
@@ -164,7 +203,15 @@ const JobApplicantsScreen: React.FC = () => {
             await jobService.updateApplicationStatus(applicantId, status);
         } catch (error) {
             console.error('Failed to update status:', error);
-            Alert.alert('Error', 'Failed to update application status.');
+            // Explicit actions (Hire/Decline) must surface a failure - the
+            // employer needs to know their decision didn't save. The
+            // "mark as viewed" nudge on opening a profile is a best-effort
+            // side effect, not something the employer asked for, so it fails
+            // silently instead of interrupting them with an alert every time
+            // they open an applicant.
+            if (!options?.silent) {
+                Alert.alert('Error', 'Failed to update application status.');
+            }
         }
     };
 
@@ -176,7 +223,7 @@ const JobApplicantsScreen: React.FC = () => {
         // it's already further along (reviewing again shouldn't reset a
         // decision back from Accepted/Rejected/Interviewing).
         if (item.status === 'NEW') {
-            updateApplicantStatus(item.id, 'UNDER REVIEW');
+            updateApplicantStatus(item.id, 'UNDER REVIEW', { silent: true });
         }
     };
 
@@ -300,6 +347,7 @@ const JobApplicantsScreen: React.FC = () => {
                 applicant={selectedApplicant}
                 visible={profileVisible}
                 onClose={() => setProfileVisible(false)}
+                onMessage={() => selectedApplicant && handleMessageApplicant(selectedApplicant)}
                 onDecline={() => {
                     if (selectedApplicant) updateApplicantStatus(selectedApplicant.id, 'REJECTED');
                     setProfileVisible(false);

@@ -42,7 +42,8 @@
         "expo-notifications",
         {
           "icon": "./assets/icon-mark.png",
-          "color": "#1972ca"
+          "color": "#1972ca",
+          "enableBackgroundRemoteNotifications": true
         }
       ],
       "expo-task-manager"

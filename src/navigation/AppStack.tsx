@@ -13,6 +13,7 @@ import SettingsScreen from '../screens/Settings/SettingsScreen';
 import CreateJobScreen from '../screens/Dashboard/CreateJobScreen';
 import JobDetailsScreen from '../components/JobDetailsScreen';
 import JobApplicantsScreen from '../screens/Applications/JobApplicantsScreen';
+import ChatScreen from '../screens/Chat/ChatScreen';
 import ProfileSetupScreen from '../screens/Profile/ProfileSetupScreen';
 import EmployerVerificationScreen from '../screens/Auth/Verification/EmployerVerificationScreen';
 import VerificationPendingScreen from '../screens/Verification/VerificationPendingScreen';
@@ -74,6 +75,7 @@ const AppStack = () => {
             <Stack.Screen name="CreateJob" component={CreateJobScreen} />
             <Stack.Screen name="JobDetails" component={JobDetailsScreen} />
             <Stack.Screen name="JobApplicants" component={JobApplicantsScreen} />
+            <Stack.Screen name="ChatConversation" component={ChatScreen} />
             <Stack.Screen name="ProfileSetup" component={ProfileSetupScreen} />
             <Stack.Screen name="EmployerVerification" component={EmployerVerificationScreen} />
             <Stack.Screen name="VerificationPending" component={VerificationPendingScreen} />

@@ -15,9 +15,23 @@ export type EmployerVerificationParamList = {
 
 export type MainTabParamList = {
     Jobs: undefined;
-    Applications: undefined;
     Saved: undefined;
+    Applications: undefined;
+    Chat: undefined;
     Profile: undefined;
+};
+
+// Params needed to open a chat thread: the conversation is identified by
+// conversationId (deterministically derived from jobId + both participants -
+// see chatService.buildConversationId), everything else is display data for
+// the top bar / job context banner so the Chat Screen never has to guess it.
+export type ChatConversationParams = {
+    conversationId: string;
+    jobId: string;
+    jobTitle: string;
+    otherUserId: string;
+    otherUserName: string;
+    otherUserPhoto?: string | null;
 };
 
 export type AppStackParamList = {
@@ -28,6 +42,7 @@ export type AppStackParamList = {
     CreateJob: undefined;
     JobDetails: { job: any; autoOpenApply?: boolean; alreadyApplied?: boolean };
     JobApplicants: { jobId: string; jobTitle: string };
+    ChatConversation: ChatConversationParams;
     ProfileSetup: undefined;
 
     // Auth screens accessible from within the app (for apply gate)
