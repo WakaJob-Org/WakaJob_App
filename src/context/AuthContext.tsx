@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import authService from '../services/authService';
+import pushNotificationService from '../services/pushNotificationService';
 
 interface User {
     id?: string;
@@ -24,6 +25,14 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Fire-and-forget: registers the device's Expo push token with the backend.
+// Never awaited by callers — a slow permission prompt or network hiccup
+// must not block login/session-init UX. Errors are swallowed inside the service.
+const registerPushToken = (userId?: string) => {
+    if (!userId) return;
+    pushNotificationService.registerPushToken(userId);
+};
+
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [user, setUser] = useState<User | null>(null);
     const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -38,6 +47,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 if (authenticated) {
                     const userData = await authService.getUser();
                     setUser(userData);
+                    registerPushToken(userData?.id);
                 }
             } catch (error) {
                 console.error('Auth initialization error:', error);
@@ -55,6 +65,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             const userData = await authService.getUser();
             setUser(userData);
             setIsAuthenticated(true);
+            registerPushToken(userData?.id);
         } catch (error) {
             throw error;
         }
@@ -78,6 +89,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             if (authenticated) {
                 const userData = await authService.getUser();
                 setUser(userData);
+                registerPushToken(userData?.id);
             }
             return response;
         } catch (error) {
