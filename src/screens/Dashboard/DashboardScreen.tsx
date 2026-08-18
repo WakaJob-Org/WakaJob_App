@@ -59,6 +59,10 @@ const DashboardScreen: React.FC = () => {
             navigation.navigate('CreateJob');
         } else if (status === 'pending') {
             navigation.navigate('VerificationPending');
+        } else if (status === 'rejected' || status === 'denied' || status === 'failed') {
+            // Show them why before sending them back into the resubmission form —
+            // matches the same branching ProfileScreen already uses.
+            navigation.navigate('VerificationFailed', { reason: user?.rejection_reason });
         } else {
             navigation.navigate('EmployerVerification');
         }
