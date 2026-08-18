@@ -52,7 +52,6 @@ const MainApp = () => {
 
   return (
     <View style={styles.container || styles.appContainer} onLayout={onLayoutRootView}>
-      <StatusBar style="dark" hidden={false} translucent={true} />
       <RootNavigator />
     </View>
   );
@@ -64,8 +63,9 @@ export default function App() {
       <SafeAreaProvider>
         <AuthProvider>
           <ChatProvider>
-            <MainApp />
-          </ChatProvider>
+              <StatusBar style="dark" hidden={false} translucent={false} />
+              <MainApp />
+            </ChatProvider>
         </AuthProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

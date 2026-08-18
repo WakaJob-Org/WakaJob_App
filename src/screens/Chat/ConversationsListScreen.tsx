@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, FlatList, TextInput, Image } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, FlatList, TextInput, Image, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
@@ -64,7 +64,7 @@ const EmptyState = ({ onBrowse }: { onBrowse: () => void }) => (
 const ConversationsListScreen: React.FC = () => {
     const insets = useSafeAreaInsets();
     const navigation = useNavigation<any>();
-    const { conversations, markConversationRead, isLoadingConversations } = useChat();
+    const { conversations, markConversationRead, deleteConversation, isLoadingConversations } = useChat();
     const [searchQuery, setSearchQuery] = useState('');
 
     const filtered = useMemo(() => {
@@ -90,7 +90,33 @@ const ConversationsListScreen: React.FC = () => {
     const renderItem = ({ item }: { item: ConversationShell }) => {
         const isUnread = item.unreadCount > 0;
         return (
-            <TouchableOpacity style={styles.row} onPress={() => openThread(item)} activeOpacity={0.7}>
+            <TouchableOpacity
+                style={styles.row}
+                onPress={() => openThread(item)}
+                activeOpacity={0.7}
+                onLongPress={() => {
+                    Alert.alert(
+                        'Delete conversation',
+                        'Are you sure you want to delete this conversation? This will remove it from your conversations list.',
+                        [
+                            { text: 'Cancel', style: 'cancel' },
+                            {
+                                text: 'Delete',
+                                style: 'destructive',
+                                onPress: async () => {
+                                    try {
+                                        await deleteConversation(item.id);
+                                    } catch (e) {
+                                        console.warn('Failed to delete conversation:', e);
+                                        Alert.alert('Unable to delete', 'Could not delete the conversation. Please try again.');
+                                    }
+                                },
+                            },
+                        ],
+                        { cancelable: true }
+                    );
+                }}
+            >
                 <View style={styles.avatarWrap}>
                     {item.otherUserPhoto ? (
                         <Image source={{ uri: item.otherUserPhoto }} style={styles.avatarImage} />
@@ -156,13 +182,18 @@ const ConversationsListScreen: React.FC = () => {
             ) : filtered.length === 0 ? (
                 <EmptyState onBrowse={() => navigation.navigate('Jobs')} />
             ) : (
-                <FlatList
-                    data={filtered}
-                    keyExtractor={(item) => item.id}
-                    renderItem={renderItem}
-                    contentContainerStyle={styles.listContent}
-                    showsVerticalScrollIndicator={false}
-                />
+   <FlatList
+    data={filtered.filter(
+        (item, index, array) =>
+            array.findIndex(
+                (other) => other.id === item.id
+            ) === index
+    )}
+    keyExtractor={(item) => item.id}
+    renderItem={renderItem}
+    contentContainerStyle={styles.listContent}
+    showsVerticalScrollIndicator={false}
+/>
             )}
         </View>
     );

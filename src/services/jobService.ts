@@ -115,14 +115,37 @@ const jobService = {
         }
     },
 
-    updateApplicationStatus: async (applicationId: string, status: 'ACCEPTED' | 'REJECTED' | 'INTERVIEWING' | 'UNDER REVIEW') => {
-        try {
-            const response = await api.put(`/applications/${applicationId}/status`, { status });
-            return response.data;
-        } catch (error: any) {
-            throw error.response?.data?.message || 'Failed to update application status';
-        }
-    },
+  updateApplicationStatus: async (
+    applicationId: string,
+    status:
+        | 'accepted'
+        | 'rejected'
+        | 'interviewing'
+        | 'under review'
+) => {
+    try {
+        const response = await api.put(
+            `/applications/${applicationId}/status`,
+            {
+                status,
+            }
+        );
+
+        return response.data;
+    } catch (error: any) {
+        console.error(
+            '[APPLICATION STATUS] Backend error:',
+            error?.response?.status,
+            error?.response?.data
+        );
+
+        throw (
+            error?.response?.data?.message ||
+            error?.response?.data?.detail ||
+            'Failed to update application status'
+        );
+    }
+},
 
     // Saved jobs are stored locally on-device (per user), not synced to the backend.
     saveJob: async (job: any, userId?: string) => {

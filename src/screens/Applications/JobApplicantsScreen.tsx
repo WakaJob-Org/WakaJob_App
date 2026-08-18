@@ -19,7 +19,7 @@ import Header from '../../components/Header';
 import { AppStackParamList } from '../../navigation/types';
 import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../context/ChatContext';
-import { buildConversationId } from '../../services/chatService';
+import chatService, { buildConversationId } from '../../services/chatService';
 
 type JobApplicantsRouteProp = RouteProp<AppStackParamList, 'JobApplicants'>;
 type StatusKey = 'NEW' | 'UNDER REVIEW' | 'INTERVIEWING' | 'ACCEPTED' | 'REJECTED';
@@ -146,17 +146,35 @@ const JobApplicantsScreen: React.FC = () => {
         fetchApplicants(true);
     }, [jobId]);
 
-    // Employer -> worker entry point. The chat engine has no "create
-    // conversation" endpoint, so the id is derived client-side (see
-    // buildConversationId) and the shell is upserted into the local registry
-    // immediately so it shows up in the Conversations List even before the
-    // first message is sent.
-    const handleMessageApplicant = (applicant: Applicant & { workerId?: string }) => {
+    // Employer -> worker entry point. The backend provides POST /conversations
+    // that returns a canonical conversation id; call it and open the returned
+    // conversation. Fall back to a client-generated id only if the server
+    // request fails.
+    const handleMessageApplicant = async (applicant: Applicant & { workerId?: string }) => {
         if (!user?.id || !applicant.workerId) {
             Alert.alert('Unable to start chat', 'Missing worker or employer id.');
             return;
         }
-        const conversationId = buildConversationId(jobId, user.id, applicant.workerId);
+
+        let conversationId: string;
+        try {
+            const conv = await chatService.createConversation({
+                job_id: jobId,
+                job_title: jobTitle,
+                job_status: 'active',
+                employer_id: user.id,
+                worker_id: applicant.workerId,
+            });
+            conversationId = conv?._id || conv?.id || '';
+        } catch (e) {
+            console.warn('Failed to create conversation on server, falling back to client id:', e);
+            conversationId = buildConversationId(jobId, user.id, applicant.workerId);
+        }
+
+        if (!conversationId) {
+            conversationId = buildConversationId(jobId, user.id, applicant.workerId);
+        }
+
         openConversation({
             id: conversationId,
             jobId,

@@ -180,8 +180,12 @@ const DashboardScreen: React.FC = () => {
             // Prepare Query Params
             const apiParams: any = {};
             if (debouncedSearch.trim()) apiParams.search = debouncedSearch;
-            
-            const locationToUse = selectedLocation === 'Custom' ? debouncedLocation : selectedLocation;
+
+            // Prefer the tapped preset chip; fall back to freehand-typed text.
+            // (Previously checked `selectedLocation === 'Custom'`, but nothing
+            // ever set that literal sentinel, so typed locations never made
+            // it into the request.)
+            const locationToUse = selectedLocation || debouncedLocation;
             if (locationToUse.trim()) apiParams.location = locationToUse;
 
             const fetchedJobs = await jobService.getJobs(apiParams);
@@ -270,19 +274,30 @@ const DashboardScreen: React.FC = () => {
         }
     }, [debouncedSearch, selectedLocation, customLocation, refreshUser]);
 
+    // Re-narrows the already-fetched job list on-device for both search and
+    // location, rather than trusting the backend's /jobs query params alone -
+    // the backend doesn't currently filter by `location` at all, so without
+    // this the location chips/custom input had no visible effect.
     useEffect(() => {
+        let result = allJobs;
+
         if (searchQuery.trim()) {
             const query = searchQuery.toLowerCase();
-            const filtered = allJobs.filter(job =>
+            result = result.filter(job =>
                 job.title.toLowerCase().includes(query) ||
                 job.company.toLowerCase().includes(query) ||
                 job.description.toLowerCase().includes(query)
             );
-            setFilteredJobs(filtered);
-        } else {
-            setFilteredJobs(allJobs);
         }
-    }, [searchQuery, allJobs]);
+
+        const activeLocation = selectedLocation || customLocation;
+        if (activeLocation.trim()) {
+            const loc = activeLocation.toLowerCase();
+            result = result.filter(job => job.location.toLowerCase().includes(loc));
+        }
+
+        setFilteredJobs(result);
+    }, [searchQuery, allJobs, selectedLocation, customLocation]);
 
     if (loading) return <DashboardSkeleton />;
 
@@ -548,17 +563,17 @@ const DashboardScreen: React.FC = () => {
 
                         {/* Location preset chips */}
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.locationScroll}>
-                            <TouchableOpacity 
+                            <TouchableOpacity
                                 style={[styles.locationChip, (selectedLocation === '' && !customLocation) && styles.locationChipActive]}
-                                onPress={() => { setSelectedLocation(''); setCustomLocation(''); }}
+                                onPress={() => { setSelectedLocation(''); setCustomLocation(''); setShowFilterDropdown(false); }}
                             >
                                 <Text style={[styles.locationChipText, (selectedLocation === '' && !customLocation) && styles.locationChipTextActive]}>All</Text>
                             </TouchableOpacity>
                             {BAMENDA_LOCATIONS.map(loc => (
-                                <TouchableOpacity 
-                                    key={loc} 
+                                <TouchableOpacity
+                                    key={loc}
                                     style={[styles.locationChip, selectedLocation === loc && styles.locationChipActive]}
-                                    onPress={() => { setSelectedLocation(loc); setCustomLocation(''); }}
+                                    onPress={() => { setSelectedLocation(loc); setCustomLocation(''); setShowFilterDropdown(false); }}
                                 >
                                     <Text style={[styles.locationChipText, selectedLocation === loc && styles.locationChipTextActive]}>{loc}</Text>
                                 </TouchableOpacity>

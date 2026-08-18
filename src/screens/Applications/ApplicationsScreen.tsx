@@ -20,7 +20,7 @@ import type { Applicant } from './ApplicantProfileScreen';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../context/ChatContext';
-import { buildConversationId } from '../../services/chatService';
+import chatService, { buildConversationId } from '../../services/chatService';
 
 type StatusKey = 'NEW' | 'UNDER REVIEW' | 'INTERVIEWING' | 'ACCEPTED' | 'REJECTED';
 
@@ -267,7 +267,7 @@ const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ onViewApplicant
     // Worker -> employer entry point, mirroring handleMessageApplicant on the
     // employer side of JobApplicantsScreen. Same client-derived conversation
     // id scheme so both sides land in the same thread with no backend call.
-    const handleMessageEmployer = (item: Applicant) => {
+    const handleMessageEmployer = async (item: Applicant) => {
         const anyItem = item as any;
         const jobId = anyItem.jobId;
         const employerId = anyItem.job?.employerId;
@@ -275,7 +275,24 @@ const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ onViewApplicant
             Alert.alert('Unable to start chat', 'Missing employer or job id.');
             return;
         }
-        const conversationId = buildConversationId(jobId, user.id, employerId);
+
+        let conversationId = '';
+        try {
+            const conv = await chatService.createConversation({
+                job_id: jobId,
+                job_title: anyItem.jobTitle || item.name,
+                job_status: 'active',
+                employer_id: employerId,
+                worker_id: user.id,
+            });
+            conversationId = conv?._id || conv?.id || '';
+        } catch (e) {
+            console.warn('Failed to create conversation on server, falling back to client id:', e);
+            conversationId = buildConversationId(jobId, user.id, employerId);
+        }
+
+        if (!conversationId) conversationId = buildConversationId(jobId, user.id, employerId);
+
         const otherUserName = anyItem.company || anyItem.jobTitle || 'Employer';
         openConversation({
             id: conversationId,
