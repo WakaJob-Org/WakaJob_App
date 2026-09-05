@@ -76,15 +76,15 @@ const EmployerVerificationScreen: React.FC = () => {
     const [errors, setErrors] = useState<any>({});
     const [touched, setTouched] = useState<any>({});
 
-    const getFieldError = (name: string, value: any) => {
+    const validateField = (name: string, value: any) => {
         let error = '';
         switch (name) {
             case 'bio':
-                if (!value || !value.trim()) error = 'Professional bio is required';
+                if (!value.trim()) error = 'Professional bio is required';
                 else if (value.trim().split(/\s+/).length > 50) error = 'Bio must be under 50 words';
                 break;
             case 'location':
-                if (!value || !value.trim()) error = 'Service location is required';
+                if (!value.trim()) error = 'Service location is required';
                 break;
             case 'workLocationPic':
                 if (!value) error = 'Photo of work location is required';
@@ -98,13 +98,10 @@ const EmployerVerificationScreen: React.FC = () => {
             case 'permitDoc':
                 if (!value) error = 'Council permit document is required';
                 break;
-
+            case 'isApprenticeOpen':
+                if (value === null) error = 'Mentorship preference is required';
+                break;
         }
-        return error;
-    };
-
-    const validateField = (name: string, value: any) => {
-        const error = getFieldError(name, value);
         setErrors(prev => ({ ...prev, [name]: error }));
         return error;
     };
@@ -125,13 +122,15 @@ const EmployerVerificationScreen: React.FC = () => {
     };
 
     const isFormValid = () => {
+        const requiredFields = ['bio', 'location', 'isApprenticeOpen', 'workLocationPic', 'idFrontPic', 'idBackPic', 'permitDoc'];
         const currentErrors = {
-            bio: getFieldError('bio', bio),
-            location: getFieldError('location', location),
-            workLocationPic: getFieldError('workLocationPic', workLocationPic),
-            idFrontPic: getFieldError('idFrontPic', idFrontPic),
-            idBackPic: getFieldError('idBackPic', idBackPic),
-            permitDoc: getFieldError('permitDoc', permitDoc),
+            bio: validateField('bio', bio),
+            location: validateField('location', location),
+            isApprenticeOpen: validateField('isApprenticeOpen', isApprenticeOpen),
+            workLocationPic: validateField('workLocationPic', workLocationPic),
+            idFrontPic: validateField('idFrontPic', idFrontPic),
+            idBackPic: validateField('idBackPic', idBackPic),
+            permitDoc: validateField('permitDoc', permitDoc),
         };
         return Object.values(currentErrors).every(err => !err);
     };
@@ -315,6 +314,7 @@ const EmployerVerificationScreen: React.FC = () => {
             const formData = new FormData();
             formData.append('company_bio', bio);
             formData.append('company_location', location);
+            formData.append('is_apprentice_open', String(isApprenticeOpen));
 
             // Inject the ID field specifically if we can get it
             const currentToken = await SecureStore.getItemAsync('auth_token');
@@ -619,7 +619,41 @@ const EmployerVerificationScreen: React.FC = () => {
                         </View>
                     </View>
 
+                    {/* Apprentice Toggle */}
+                    <View style={styles.apprenticeCard}>
+                        <Text style={styles.apprenticeTitle}>Are you looking for a new apprentice?</Text>
+                        <Text style={styles.apprenticeDesc}>Indicate if you are open to mentoring new talents</Text>
+                        <View style={styles.toggleRow}>
+                            <TouchableOpacity
+                                style={styles.checkboxWrapper}
+                                onPress={() => handleFieldChange('isApprenticeOpen', true)}
+                                activeOpacity={0.7}
+                            >
+                                <View style={[styles.checkbox, isApprenticeOpen === true && styles.checkboxSelected]}>
+                                    <Ionicons name="checkmark" size={18} color={isApprenticeOpen === true ? "#FFF" : "#1972ca"} />
+                                    <View style={styles.checkboxLabelContainer}>
+                                        <Text style={[styles.checkboxLabel, isApprenticeOpen === true && styles.checkboxLabelSelected]}>Yes</Text>
+                                    </View>
+                                </View>
+                            </TouchableOpacity>
 
+                            <TouchableOpacity
+                                style={styles.checkboxWrapper}
+                                onPress={() => handleFieldChange('isApprenticeOpen', false)}
+                                activeOpacity={0.7}
+                            >
+                                <View style={[styles.checkbox, isApprenticeOpen === false && styles.checkboxSelected]}>
+                                    <Ionicons name="close" size={18} color={isApprenticeOpen === false ? "#FFF" : "#1972ca"} />
+                                    <View style={styles.checkboxLabelContainer}>
+                                        <Text style={[styles.checkboxLabel, isApprenticeOpen === false && styles.checkboxLabelSelected]}>No</Text>
+                                    </View>
+                                </View>
+                            </TouchableOpacity>
+                        </View>
+                        {touched.isApprenticeOpen && errors.isApprenticeOpen && (
+                            <Text style={[styles.errorText, { marginTop: 10 }]}>{errors.isApprenticeOpen}</Text>
+                        )}
+                    </View>
 
                     {/* Submit Button */}
                     <TouchableOpacity

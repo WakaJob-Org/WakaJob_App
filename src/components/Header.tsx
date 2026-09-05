@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 
 interface HeaderProps {
@@ -26,17 +27,19 @@ const Header: React.FC<HeaderProps> = ({
 
     return (
         <View style={[styles.headerContainer, { paddingTop: insets.top }]}>
+            <StatusBar style="light" />
             <View style={styles.headerContent}>
                 <View style={styles.leftSection}>
-                    {showBackButton && (
-                        <TouchableOpacity onPress={onBackPress} style={[styles.iconButton, { marginRight: 10 }]}>
+                    {showBackButton ? (
+                        <TouchableOpacity onPress={onBackPress} style={styles.iconButton}>
                             <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
                         </TouchableOpacity>
+                    ) : (
+                        <View style={styles.greetingContainer}>
+                            <Text style={styles.headerTitle}>{title}</Text>
+                            {userName && <Text style={styles.userName}>Welcome, {userName}</Text>}
+                        </View>
                     )}
-                    <View style={styles.greetingContainer}>
-                        <Text style={styles.headerTitle}>{title}</Text>
-                        {userName && <Text style={styles.userName}>Welcome, {userName}</Text>}
-                    </View>
                 </View>
 
                 <View style={styles.rightSection}>
@@ -77,8 +80,6 @@ const styles = StyleSheet.create({
     },
     leftSection: {
         flex: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
     },
     greetingContainer: {
         justifyContent: 'center',

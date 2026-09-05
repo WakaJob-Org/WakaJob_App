@@ -11,8 +11,7 @@ import {
     Image,
     Alert,
     ActivityIndicator,
-    Modal,
-    Switch
+    Modal
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -45,21 +44,11 @@ const CreateJobScreen: React.FC<CreateJobScreenProps> = ({ isVisible, onClose, o
     const [salary, setSalary] = useState('');
     const [jobType, setJobType] = useState('Full-time');
 
-    // Custom Requirements
+    // Custom Requirements (The "Dynamic Cart")
     const [customReqs, setCustomReqs] = useState<string[]>([]);
     const [currentReq, setCurrentReq] = useState('');
 
-    // Requirements Toggles
-    const [reqUploadCv, setReqUploadCv] = useState(false);
-    const [reqCoverLetter, setReqCoverLetter] = useState(false);
-
     const [loading, setLoading] = useState(false);
-    const [currentStep, setCurrentStep] = useState(1);
-
-    const STEPS = [
-        { id: 1, title: 'Job Details' },
-        { id: 2, title: 'Skills & Qualifications' }
-    ];
 
     const JOB_TYPES = ['Full-time', 'Part-time', 'Contract', 'Task-based'];
 
@@ -84,6 +73,8 @@ const CreateJobScreen: React.FC<CreateJobScreenProps> = ({ isVisible, onClose, o
             }
             
             if (jobToEdit.description) {
+                // Strip off any "--- Additional Details ---" suffix from older job
+                // posts so it doesn't show up in the description field when editing.
                 const parts = jobToEdit.description.split('--- Additional Details ---');
                 setDescription(parts[0].trim());
             }
@@ -120,20 +111,10 @@ const CreateJobScreen: React.FC<CreateJobScreenProps> = ({ isVisible, onClose, o
     };
 
     const handleClose = () => {
-        if (currentStep > 1) {
-            setCurrentStep(currentStep - 1);
-        } else if (onClose) {
+        if (onClose) {
             onClose();
         } else if (navigation.canGoBack()) {
             navigation.goBack();
-        }
-    };
-
-    const handleNext = () => {
-        if (currentStep < 2) {
-            setCurrentStep(currentStep + 1);
-        } else {
-            handlePostJob();
         }
     };
 
@@ -154,27 +135,17 @@ const CreateJobScreen: React.FC<CreateJobScreenProps> = ({ isVisible, onClose, o
 
             const formData = new FormData();
             formData.append('title', jobTitle);
-            formData.append('description', description);
+            formData.append('description', description.trim());
             formData.append('location', location);
             formData.append('category', category);
-            const finalSalary = salary && salary.trim() ? salary : 'Competitive';
-            formData.append('salary', finalSalary);
+            formData.append('salary', salary || 'Competitive');
             formData.append('job_type', jobType);
             
+            // Combine requirements
             const allQuals = customReqs.join(', ');
-            formData.append('qualifications', allQuals);
-            formData.append('requires_cv', String(reqUploadCv));
-            formData.append('requires_cover_letter', String(reqCoverLetter));
-            formData.append('employer_id', user.id);
             
-            console.log('Posting job with:', {
-                title: jobTitle,
-                salary: finalSalary,
-                job_type: jobType,
-                qualifications: allQuals,
-                requires_cv: reqUploadCv,
-                requires_cover_letter: reqCoverLetter
-            });
+            formData.append('qualifications', allQuals);
+            formData.append('employer_id', user.id);
             
             if (jobPhoto && !jobPhoto.startsWith('http')) {
                 const filename = jobPhoto.split('/').pop() || 'job_photo.jpg';
@@ -187,6 +158,7 @@ const CreateJobScreen: React.FC<CreateJobScreenProps> = ({ isVisible, onClose, o
                     type,
                 } as any);
             } else if (jobPhoto && isEditing) {
+                // Keep existing image URL if not changed
                 formData.append('image_url', jobPhoto);
             }
 
@@ -199,8 +171,7 @@ const CreateJobScreen: React.FC<CreateJobScreenProps> = ({ isVisible, onClose, o
             }
             
             if (onPost) onPost();
-            if (onClose) onClose();
-            else if (navigation.canGoBack()) navigation.goBack();
+            handleClose();
         } catch (error: any) {
             Alert.alert('Posting Failed', typeof error === 'string' ? error : 'Could not post job at this time.');
         } finally {
@@ -208,95 +179,145 @@ const CreateJobScreen: React.FC<CreateJobScreenProps> = ({ isVisible, onClose, o
         }
     };
 
-    const renderStepContent = () => {
-        switch (currentStep) {
-            case 1:
-                return (
-                    <View style={styles.stepContainer}>
-                        <View style={styles.inputWrapper}>
-                            <Text style={styles.label}>Job Title</Text>
-                            <TextInput
-                                style={styles.input}
-                                placeholder="e.g. Professional Plumber"
-                                placeholderTextColor="#9BA4B1"
-                                value={jobTitle}
-                                onChangeText={setJobTitle}
-                            />
+    const renderChipSelector = (label: string, options: string[], selectedValue: string, onSelect: (val: string) => void) => (
+        <View style={styles.formSection}>
+            <Text style={styles.sectionHeading}>{label}</Text>
+            <View style={styles.chipContainer}>
+                {options.map((option) => (
+                    <TouchableOpacity 
+                        key={option}
+                        style={[styles.chip, selectedValue === option && styles.chipSelected]}
+                        onPress={() => onSelect(option)}
+                    >
+                        <Text style={[styles.chipText, selectedValue === option && styles.chipTextSelected]}>
+                            {option}
+                        </Text>
+                    </TouchableOpacity>
+                ))}
+            </View>
+        </View>
+    );
+
+    const content = (
+        <View style={styles.mainContainer}>
+            {/* Header */}
+            <View style={styles.header}>
+                <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
+                    <Ionicons name="arrow-back" size={24} color="#1972ca" />
+                </TouchableOpacity>
+                <Text style={styles.headerTitle}>{isEditing ? 'Edit Opportunity' : 'Create Opportunity'}</Text>
+                <View style={{ width: 40 }} />
+            </View>
+
+            <KeyboardAvoidingView 
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                style={{ flex: 1 }}
+            >
+                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+                    
+                    {/* 1. Job Photo & Basic Info */}
+                    <View style={styles.imageSection}>
+                        <TouchableOpacity style={styles.imagePlaceholder} onPress={handlePickImage} activeOpacity={0.9}>
+                            {jobPhoto ? (
+                                <Image source={{ uri: jobPhoto }} style={styles.heroImage} />
+                            ) : (
+                                <View style={styles.placeholderContent}>
+                                    <View style={styles.iconCircle}>
+                                        <Ionicons name="camera" size={32} color="#1972ca" />
+                                    </View>
+                                    <Text style={styles.placeholderText}>Add Job Site Photo *</Text>
+                                    <Text style={styles.placeholderSubtext}>Show workers where they will be working</Text>
+                                </View>
+                            )}
+                            {jobPhoto && (
+                                <TouchableOpacity style={styles.editImageBadge} onPress={handlePickImage}>
+                                    <Ionicons name="pencil" size={16} color="#FFF" />
+                                </TouchableOpacity>
+                            )}
+                        </TouchableOpacity>
+                    </View>
+
+                    <View style={styles.formContent}>
+                        <View style={styles.formSection}>
+                            <Text style={styles.sectionHeading}>Basic Identity</Text>
+                            <View style={styles.inputWrapper}>
+                                <Text style={styles.label}>Job Title *</Text>
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="e.g. Expert Tailor for Bridal Shop"
+                                    placeholderTextColor="#9CA3AF"
+                                    value={jobTitle}
+                                    onChangeText={setJobTitle}
+                                />
+                            </View>
+                            <View style={styles.inputWrapper}>
+                                <Text style={styles.label}>Category *</Text>
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="e.g. Tailoring & Fashion"
+                                    placeholderTextColor="#9CA3AF"
+                                    value={category}
+                                    onChangeText={setCategory}
+                                />
+                            </View>
                         </View>
-                        <View style={styles.inputWrapper}>
-                            <Text style={styles.label}>Category</Text>
-                            <TextInput
-                                style={styles.input}
-                                placeholder="e.g. Construction"
-                                placeholderTextColor="#9BA4B1"
-                                value={category}
-                                onChangeText={setCategory}
-                            />
+
+                        {/* 2. Logistics & Pay */}
+                        <View style={styles.formSection}>
+                            <Text style={styles.sectionHeading}>Logistics & Payment</Text>
+                            <View style={styles.inputWrapper}>
+                                <Text style={styles.label}>Precise Location *</Text>
+                                <View style={styles.iconInput}>
+                                    <Ionicons name="location-outline" size={20} color="#1972ca" />
+                                    <TextInput
+                                        style={styles.flexInput}
+                                        placeholder="e.g. Molyko, Opposite University"
+                                        placeholderTextColor="#9CA3AF"
+                                        value={location}
+                                        onChangeText={setLocation}
+                                    />
+                                </View>
+                            </View>
+                            <View style={styles.inputWrapper}>
+                                <Text style={styles.label}>Salary Range</Text>
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="e.g. 50k - 70k"
+                                    placeholderTextColor="#9CA3AF"
+                                    value={salary}
+                                    onChangeText={setSalary}
+                                    keyboardType="numeric"
+                                />
+                            </View>
                         </View>
-                        <View style={styles.inputWrapper}>
-                            <Text style={styles.label}>Description</Text>
+
+                        {/* 3. Job Type */}
+                        {renderChipSelector("Employment Type", JOB_TYPES, jobType, setJobType)}
+
+                        {/* 4. Description */}
+                        <View style={styles.formSection}>
+                            <Text style={styles.sectionHeading}>Detailed Description</Text>
                             <TextInput
                                 style={styles.textArea}
-                                placeholder="Describe the job duties and expectations..."
-                                placeholderTextColor="#9BA4B1"
+                                placeholder="Tell workers about the daily tasks, environment, and what makes this opportunity unique..."
+                                placeholderTextColor="#9CA3AF"
                                 multiline
                                 numberOfLines={5}
+                                textAlignVertical="top"
                                 value={description}
                                 onChangeText={setDescription}
                             />
                         </View>
-                        <View style={styles.inputWrapper}>
-                            <Text style={styles.label}>Location</Text>
-                            <TextInput
-                                style={styles.input}
-                                placeholder="Enter specific location or neighborhood"
-                                placeholderTextColor="#9BA4B1"
-                                value={location}
-                                onChangeText={setLocation}
-                            />
-                        </View>
-                        <View style={styles.inputWrapper}>
-                            <Text style={styles.label}>Job Type</Text>
-                            <View style={styles.chipRow}>
-                                {JOB_TYPES.map(type => (
-                                    <TouchableOpacity 
-                                        key={type} 
-                                        style={[styles.chip, jobType === type && styles.chipActive]}
-                                        onPress={() => setJobType(type)}
-                                    >
-                                        <Text style={[styles.chipText, jobType === type && styles.chipTextActive]}>{type}</Text>
-                                    </TouchableOpacity>
-                                ))}
-                            </View>
-                        </View>
 
-
-
-                        <View style={styles.inputWrapper}>
-                            <Text style={styles.label}>Site Photo (Shows on Job Card)</Text>
-                            <TouchableOpacity style={styles.photoUpload} onPress={handlePickImage}>
-                                {jobPhoto ? (
-                                    <Image source={{ uri: jobPhoto }} style={styles.previewImage} />
-                                ) : (
-                                    <View style={styles.photoPlaceholder}>
-                                        <Ionicons name="camera-outline" size={40} color="#9BA4B1" />
-                                        <Text style={styles.photoText}>Upload Job Site Photo</Text>
-                                    </View>
-                                )}
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                );
-            case 2:
-                return (
-                    <View style={styles.stepContainer}>
-                        <View style={styles.inputWrapper}>
-                            <Text style={styles.label}>Requirements</Text>
+                        {/* 5. Custom Requirements (The Cart) */}
+                        <View style={styles.formSection}>
+                            <Text style={styles.sectionHeading}>Custom Requirements</Text>
+                            <Text style={styles.subLabel}>Add specific needs (e.g. 'Must have own tools')</Text>
                             <View style={styles.addReqRow}>
                                 <TextInput
                                     style={[styles.input, { flex: 1 }]}
                                     placeholder="Add a requirement..."
-                                    placeholderTextColor="#9BA4B1"
+                                    placeholderTextColor="#9CA3AF"
                                     value={currentReq}
                                     onChangeText={setCurrentReq}
                                 />
@@ -304,6 +325,7 @@ const CreateJobScreen: React.FC<CreateJobScreenProps> = ({ isVisible, onClose, o
                                     <Ionicons name="add" size={24} color="#FFF" />
                                 </TouchableOpacity>
                             </View>
+                            
                             <View style={styles.reqList}>
                                 {customReqs.map((req, index) => (
                                     <View key={index} style={styles.reqItem}>
@@ -317,130 +339,36 @@ const CreateJobScreen: React.FC<CreateJobScreenProps> = ({ isVisible, onClose, o
                             </View>
                         </View>
 
-                        <View style={styles.inputWrapper}>
-                            <Text style={styles.label}>Salary Range (FCFA)</Text>
-                            <TextInput
-                                style={styles.input}
-                                placeholder="e.g. 50,000 - 70,000"
-                                placeholderTextColor="#9BA4B1"
-                                value={salary}
-                                onChangeText={setSalary}
-                                keyboardType="numeric"
-                            />
-                        </View>
-
-                        <View style={styles.switchRow}>
-                            <View style={{ flex: 1 }}>
-                                <Text style={styles.switchLabel}>Require CV / Resume</Text>
-                            </View>
-                            <Switch 
-                                value={reqUploadCv} 
-                                onValueChange={setReqUploadCv}
-                                trackColor={{ false: '#D1D5DB', true: '#1972ca' }}
-                            />
-                        </View>
-                        <View style={styles.switchRow}>
-                            <View style={{ flex: 1 }}>
-                                <Text style={styles.switchLabel}>Require Cover Letter</Text>
-                            </View>
-                            <Switch 
-                                value={reqCoverLetter} 
-                                onValueChange={setReqCoverLetter}
-                                trackColor={{ false: '#D1D5DB', true: '#1972ca' }}
-                            />
-                        </View>
-
+                        {/* Post Button */}
+                        <TouchableOpacity 
+                            style={[styles.postButton, loading && styles.postButtonDisabled]} 
+                            onPress={handlePostJob}
+                            disabled={loading}
+                        >
+                            {loading ? (
+                                <ActivityIndicator color="#FFF" />
+                            ) : (
+                                <>
+                                    <Text style={styles.postButtonText}>{isEditing ? 'Save Changes' : 'Launch Opportunity'}</Text>
+                                    <Ionicons name={isEditing ? "save-outline" : "paper-plane"} size={20} color="#FFF" style={{ marginLeft: 10 }} />
+                                </>
+                            )}
+                        </TouchableOpacity>
+                        
                         <Text style={styles.disclaimer}>
                             By launching, you confirm this information is accurate and agree to WakaJob's professional standards.
                         </Text>
                     </View>
-                );
-            default:
-                return null;
-        }
-    };
-
-
-    const ProgressBar = () => (
-        <View style={styles.progressWrapper}>
-            <ScrollView 
-                horizontal 
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.progressScrollContent}
-            >
-                <View style={styles.progressBarContent}>
-                    <View style={styles.stepLabels}>
-                        {STEPS.map(step => (
-                            <View key={step.id} style={styles.stepLabelItem}>
-                                <Text 
-                                    style={[styles.stepLabelText, currentStep === step.id && styles.stepLabelActive]}
-                                    numberOfLines={1}
-                                >
-                                    {step.title}
-                                </Text>
-                            </View>
-                        ))}
-                    </View>
-                    <View style={styles.progressTrack}>
-                        {STEPS.map((step, index) => (
-                            <React.Fragment key={step.id}>
-                                <View style={[styles.dot, currentStep >= step.id && styles.dotActive]} />
-                                {index < STEPS.length - 1 && (
-                                    <View style={[styles.line, currentStep > step.id && styles.lineActive]} />
-                                )}
-                            </React.Fragment>
-                        ))}
-                    </View>
-                </View>
-            </ScrollView>
+                </ScrollView>
+            </KeyboardAvoidingView>
         </View>
-    );
-
-    const renderMainContent = () => (
-        <KeyboardAvoidingView 
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={{ flex: 1 }}
-        >
-            {/* Header */}
-            <View style={styles.header}>
-                <TouchableOpacity onPress={handleClose} style={styles.backBtn}>
-                    <Ionicons name={currentStep > 1 ? "arrow-back" : "close"} size={24} color="#000" />
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>{isEditing ? 'Edit Job' : 'Create Job'}</Text>
-                <View style={{ width: 40 }} />
-            </View>
-
-            <ScrollView 
-                style={styles.scrollView}
-                contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={false}
-            >
-                <ProgressBar />
-                {renderStepContent()}
-            </ScrollView>
-
-            {/* Bottom Button */}
-            <View style={styles.footer}>
-                <TouchableOpacity 
-                    style={[styles.nextButton, loading && styles.nextButtonDisabled]} 
-                    onPress={handleNext}
-                    disabled={loading}
-                >
-                    {loading ? (
-                        <ActivityIndicator color="#FFF" />
-                    ) : (
-                        <Text style={styles.nextButtonText}>{currentStep === 2 ? (isEditing ? 'Save Changes' : 'Post Job') : 'Next'}</Text>
-                    )}
-                </TouchableOpacity>
-            </View>
-        </KeyboardAvoidingView>
     );
 
     if (isModal) {
         return (
             <Modal visible={isVisible} animationType="slide" transparent={false}>
                 <SafeAreaView style={styles.container}>
-                    {renderMainContent()}
+                    {content}
                 </SafeAreaView>
             </Modal>
         );
@@ -448,7 +376,7 @@ const CreateJobScreen: React.FC<CreateJobScreenProps> = ({ isVisible, onClose, o
 
     return (
         <SafeAreaView style={styles.container}>
-            {renderMainContent()}
+            {content}
         </SafeAreaView>
     );
 };
@@ -458,159 +386,168 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#FFFFFF',
     },
+    mainContainer: {
+        flex: 1,
+    },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 20,
-        paddingVertical: 15,
-        borderBottomWidth: 1,
-        borderBottomColor: '#F3F4F6',
-    },
-    backBtn: {
-        padding: 5,
+        paddingVertical: 18,
     },
     headerTitle: {
-        fontSize: 18,
+        fontSize: 17,
         fontWeight: '700',
-        color: '#000',
+        color: '#111827',
     },
-    scrollView: {
-        flex: 1,
+    closeButton: {
+        padding: 5,
     },
     scrollContent: {
-        paddingBottom: 20,
+        paddingBottom: 40,
     },
-    progressWrapper: {
-        paddingVertical: 20,
-        backgroundColor: '#FFF',
+    imageSection: {
+        width: '100%',
+        height: 200,
+        backgroundColor: '#F3F6FF',
     },
-    progressScrollContent: {
-        paddingHorizontal: 20,
-    },
-    progressBarContent: {
-        minWidth: 400, // Reduced from 600 as there are only 2 steps now
-    },
-    stepLabels: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginBottom: 12,
-    },
-    stepLabelItem: {
-        flex: 1,
-        alignItems: 'center',
-        paddingHorizontal: 10,
-    },
-    stepLabelText: {
-        fontSize: 15, // Larger font size
-        color: '#9BA4B1',
-        textAlign: 'center',
-        fontWeight: '600',
-    },
-    stepLabelActive: {
-        color: '#1972ca',
-        fontWeight: '800',
-    },
-    progressTrack: {
-        flexDirection: 'row',
-        alignItems: 'center',
+    imagePlaceholder: {
+        width: '100%',
+        height: '100%',
         justifyContent: 'center',
-        paddingHorizontal: 10,
+        alignItems: 'center',
     },
-    dot: {
-        width: 12,
-        height: 12,
-        borderRadius: 6,
-        borderWidth: 2,
-        borderColor: '#E5E7EB',
-        backgroundColor: '#FFF',
+    placeholderContent: {
+        alignItems: 'center',
     },
-    dotActive: {
-        borderColor: '#1972ca',
-        backgroundColor: '#1972ca',
+    iconCircle: {
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        backgroundColor: '#FFFFFF',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 10,
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
     },
-    line: {
-        flex: 1,
-        height: 2,
-        backgroundColor: '#E5E7EB',
-        marginHorizontal: 0,
-    },
-    lineActive: {
-        backgroundColor: '#1972ca',
-    },
-    stepContainer: {
-        paddingHorizontal: 20,
-    },
-    inputWrapper: {
-        marginBottom: 20,
-    },
-    label: {
+    placeholderText: {
         fontSize: 15,
         fontWeight: '700',
-        color: '#000',
+        color: '#1F2937',
+    },
+    placeholderSubtext: {
+        fontSize: 12,
+        color: '#6B7280',
+        marginTop: 4,
+    },
+    heroImage: {
+        width: '100%',
+        height: '100%',
+        resizeMode: 'cover',
+    },
+    editImageBadge: {
+        position: 'absolute',
+        bottom: 15,
+        right: 15,
+        backgroundColor: '#1972ca',
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 2,
+        borderColor: '#FFF',
+    },
+    formContent: {
+        padding: 20,
+        backgroundColor: '#FFF',
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        marginTop: -20,
+    },
+    formSection: {
+        marginBottom: 25,
+    },
+    sectionHeading: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: '#111827',
+        marginBottom: 15,
+    },
+    inputWrapper: {
+        marginBottom: 15,
+    },
+    label: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#374151',
         marginBottom: 8,
     },
+    subLabel: {
+        fontSize: 12,
+        color: '#6B7280',
+        marginBottom: 10,
+    },
     input: {
-        backgroundColor: '#FFFFFF',
-        borderWidth: 1,
-        borderColor: '#E5E7EB',
-        borderRadius: 12,
-        paddingHorizontal: 15,
-        paddingVertical: 12,
+        backgroundColor: '#F3F7FC',
+        borderRadius: 16,
+        paddingHorizontal: 16,
+        paddingVertical: 14,
         fontSize: 15,
-        color: '#000',
+        color: '#111827',
     },
-    textArea: {
-        backgroundColor: '#FFFFFF',
-        borderWidth: 1,
-        borderColor: '#E5E7EB',
-        borderRadius: 12,
-        padding: 15,
-        fontSize: 15,
-        height: 120,
-        textAlignVertical: 'top',
-        color: '#000',
-    },
-    dropdown: {
+    iconInput: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#FFFFFF',
-        borderWidth: 1,
-        borderColor: '#E5E7EB',
-        borderRadius: 12,
-        paddingHorizontal: 15,
-        paddingVertical: 12,
+        backgroundColor: '#F3F7FC',
+        borderRadius: 16,
+        paddingHorizontal: 16,
     },
-    dropdownInput: {
+    flexInput: {
         flex: 1,
+        paddingVertical: 14,
+        marginLeft: 10,
         fontSize: 15,
-        color: '#000',
+        color: '#111827',
     },
-    chipRow: {
+    row: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+    },
+    chipContainer: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        marginTop: 10,
         gap: 8,
     },
     chip: {
-        paddingHorizontal: 15,
-        paddingVertical: 8,
+        paddingHorizontal: 16,
+        paddingVertical: 10,
         borderRadius: 20,
-        backgroundColor: '#F3F4F6',
-        borderWidth: 1,
-        borderColor: '#E5E7EB',
+        backgroundColor: '#F3F7FC',
     },
-    chipActive: {
+    chipSelected: {
         backgroundColor: '#1972ca',
-        borderColor: '#1972ca',
     },
     chipText: {
         fontSize: 13,
-        color: '#4B5563',
         fontWeight: '600',
+        color: '#374151',
     },
-    chipTextActive: {
+    chipTextSelected: {
         color: '#FFFFFF',
+    },
+    textArea: {
+        backgroundColor: '#F3F7FC',
+        borderRadius: 16,
+        padding: 16,
+        fontSize: 15,
+        color: '#111827',
+        height: 110,
     },
     addReqRow: {
         flexDirection: 'row',
@@ -631,12 +568,10 @@ const styles = StyleSheet.create({
     reqItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#F9FAFB',
+        backgroundColor: '#F3F7FC',
         padding: 12,
-        borderRadius: 10,
+        borderRadius: 12,
         marginBottom: 8,
-        borderWidth: 1,
-        borderColor: '#E5E7EB',
     },
     reqItemText: {
         flex: 1,
@@ -644,89 +579,24 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: '#374151',
     },
-    switchRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingVertical: 15,
-        borderBottomWidth: 1,
-        borderBottomColor: '#F3F4F6',
-    },
-    switchLabel: {
-        fontSize: 15,
-        fontWeight: '700',
-        color: '#1F2937',
-    },
-    perksGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 10,
-    },
-    perkCard: {
-        width: '48%',
-        backgroundColor: '#F9FAFB',
-        borderRadius: 12,
-        padding: 15,
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: '#E5E7EB',
-    },
-    perkCardActive: {
+    postButton: {
         backgroundColor: '#1972ca',
-        borderColor: '#1972ca',
-    },
-    perkLabel: {
-        fontSize: 12,
-        fontWeight: '700',
-        color: '#1972ca',
-        marginTop: 8,
-    },
-    perkLabelActive: {
-        color: '#FFF',
-    },
-    photoUpload: {
-        height: 180,
-        backgroundColor: '#F9FAFB',
-        borderRadius: 16,
-        borderWidth: 2,
-        borderColor: '#E5E7EB',
-        borderStyle: 'dashed',
-        overflow: 'hidden',
-    },
-    photoPlaceholder: {
-        flex: 1,
+        borderRadius: 30,
+        height: 58,
+        flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
+        marginTop: 20,
+        elevation: 4,
+        shadowColor: '#1972ca',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
     },
-    photoText: {
-        marginTop: 10,
-        fontSize: 14,
-        color: '#9BA4B1',
-        fontWeight: '600',
-    },
-    previewImage: {
-        width: '100%',
-        height: '100%',
-        resizeMode: 'cover',
-    },
-    footer: {
-        paddingHorizontal: 20,
-        paddingVertical: 20,
-        borderTopWidth: 1,
-        borderTopColor: '#F3F4F6',
-        backgroundColor: '#FFF',
-    },
-    nextButton: {
-        backgroundColor: '#1972ca',
-        borderRadius: 16,
-        height: 56,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    nextButtonDisabled: {
+    postButtonDisabled: {
         opacity: 0.7,
     },
-    nextButtonText: {
+    postButtonText: {
         color: '#FFFFFF',
         fontSize: 17,
         fontWeight: '700',
@@ -737,7 +607,6 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         marginTop: 20,
         lineHeight: 16,
-        paddingHorizontal: 20,
     }
 });
 

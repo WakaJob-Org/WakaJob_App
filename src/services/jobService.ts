@@ -1,7 +1,8 @@
 import api from './api';
-import { Platform } from 'react-native';
+import authService from './authService';
 import * as SecureStore from 'expo-secure-store';
 import { jwtDecode } from 'jwt-decode';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface Job {
     id: string;
@@ -17,6 +18,18 @@ export interface Job {
     created_at: string;
     image_url?: string;
     job_image?: string;
+    requires_cv?: boolean | string;
+    requires_cover_letter?: boolean | string;
+    // The employer who posted the job - nested by the backend via its join, not flat fields
+    users?: {
+        id?: string;
+        email?: string;
+        full_name?: string;
+        profiles?: {
+            phone_number?: string;
+            profile_image_url?: string;
+        };
+    };
 }
 
 export interface CreateJobData {
@@ -52,8 +65,11 @@ const jobService = {
 
     getJobById: async (id: string) => {
         try {
-            const response = await api.get<Job>(`/jobs/${id}`);
-            return response.data;
+            const response = await api.get(`/jobs/${id}`);
+            const raw = response.data;
+            // Same wrapped-response convention as /jobs: {status, data:{...}} rather than the job itself
+            if (raw && typeof raw === 'object' && raw.data && !raw.id) return raw.data as Job;
+            return raw as Job;
         } catch (error: any) {
             throw error.response?.data?.message || 'Failed to fetch job details';
         }
@@ -61,109 +77,41 @@ const jobService = {
 
     createJob: async (data: any) => {
         try {
-            // Get auth token
-            const token = await SecureStore.getItemAsync('auth_token');
-            if (!token) {
-                throw new Error('No authentication token found');
-            }
-
-            // Get the API base URL from config
-            const CONFIG = require('../config').default;
-            const url = `${CONFIG.API_BASE_URL}/jobs`;
-
-            const response = await fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                },
-                body: data,
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({ message: `HTTP ${response.status}` }));
-                throw new Error(errorData.message || `HTTP ${response.status}: Failed to post job`);
-            }
-
-            const result = await response.json();
-            return result;
+            // Most modern backends handle both JSON and FormData. 
+            // We'll send the data as provided, and api.ts will handle the headers.
+            const response = await api.post<Job>('/jobs', data);
+            return response.data;
         } catch (error: any) {
-            console.error('Job creation error:', error.message);
-            throw error.message || 'Failed to post job';
+            console.error('Job creation error:', error.response?.data || error.message);
+            throw error.response?.data?.message || error.message || 'Failed to post job';
         }
     },
 
-    applyToJob: async (jobId: string, data?: { intro_text?: string; voice_note_uri?: string; application_type?: 'professional' | 'apprentice'; cv_file?: { uri: string; name: string; size: number } }) => {
+    applyToJob: async (jobId: string, data?: { application_type?: 'professional' | 'apprentice' }) => {
         try {
-            // Extract UUID from token to satisfy Supabase RLS policies
-            let userId: string | undefined;
+            // worker_id is required by the backend - decode it from the token directly
+            // (avoids an extra network round-trip to fetch the full user profile)
+            let workerId: string | undefined;
             const token = await SecureStore.getItemAsync('auth_token');
             if (token) {
                 try {
                     const decoded: any = jwtDecode(token);
-                    userId = decoded.sub || decoded.id;
+                    workerId = decoded.sub || decoded.id;
                 } catch (e) {}
             }
-
-            if (!token) {
-                throw new Error('No authentication token found');
+            if (!workerId) {
+                throw new Error('You must be logged in to apply for a job.');
             }
 
             const formData = new FormData();
             formData.append('job_id', jobId);
-            if (userId) {
-                formData.append('user_id', userId);
-            }
-            
-            if (data?.intro_text) formData.append('intro_text', data.intro_text);
+            formData.append('worker_id', workerId);
             if (data?.application_type) formData.append('application_type', data.application_type);
-            
-            if (data?.voice_note_uri) {
-                const filename = data.voice_note_uri.split('/').pop() || 'voice_note.m4a';
-                formData.append('voice_note', {
-                    uri: Platform.OS === 'ios' ? data.voice_note_uri.replace('file://', '') : data.voice_note_uri,
-                    name: filename,
-                    type: 'audio/m4a',
-                } as any);
-            }
 
-            if (data?.cv_file) {
-                const filename = data.cv_file.name || 'cv.pdf';
-                const match = /\.(\w+)$/.exec(filename);
-                const type = match ? `application/${match[1]}` : `application/pdf`;
-                formData.append('cv', {
-                    uri: Platform.OS === 'ios' ? data.cv_file.uri.replace('file://', '') : data.cv_file.uri,
-                    name: filename,
-                    type: type,
-                } as any);
-                formData.append('cv_file', {
-                    uri: Platform.OS === 'ios' ? data.cv_file.uri.replace('file://', '') : data.cv_file.uri,
-                    name: filename,
-                    type: type,
-                } as any);
-            }
-
-            // Get the API base URL from config
-            const CONFIG = require('../config').default;
-            const url = `${CONFIG.API_BASE_URL}/applications`;
-
-            const response = await fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                },
-                body: formData,
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({ message: `HTTP ${response.status}` }));
-                const backendMsg = errorData.message || errorData.error || `HTTP ${response.status}: Failed to apply for job`;
-                throw new Error(backendMsg);
-            }
-
-            const result = await response.json();
-            return result;
+            const response = await api.post('/applications', formData);
+            return response.data;
         } catch (error: any) {
-            throw error.message || 'Failed to apply for job';
+            throw error.response?.data?.message || error.message || 'Failed to apply for job';
         }
     },
 
@@ -176,47 +124,38 @@ const jobService = {
         }
     },
 
-    saveJob: async (jobId: string) => {
+    // Saved jobs are stored locally on-device (per user), not synced to the backend.
+    saveJob: async (job: any, userId?: string) => {
         try {
-            // Extract UUID from token to satisfy Supabase RLS policies
-            let userId: string | undefined;
-            const token = await SecureStore.getItemAsync('auth_token');
-            if (token) {
-                try {
-                    const decoded: any = jwtDecode(token);
-                    userId = decoded.sub || decoded.id;
-                } catch (e) {}
-            }
+            const key = userId ? `SAVED_JOBS_${userId}` : 'SAVED_JOBS_GUEST';
+            const stored = await AsyncStorage.getItem(key);
+            const savedJobs = stored ? JSON.parse(stored) : [];
 
-            const response = await api.post(`/jobs/save`, { 
-                jobId,
-                user_id: userId // Explicitly providing ID for RLS compliance
-            });
-            return response.data;
+            const jobId = job.id || job._id;
+            if (!savedJobs.some((j: any) => (j.id || j._id) === jobId)) {
+                savedJobs.push(job);
+                await AsyncStorage.setItem(key, JSON.stringify(savedJobs));
+            }
+            return { message: 'Job saved locally' };
         } catch (error: any) {
-            throw error.response?.data?.message || 'Failed to save job';
+            console.error('Error saving job locally:', error);
+            throw new Error('Failed to save job locally');
         }
     },
 
-    unsaveJob: async (jobId: string) => {
+    unsaveJob: async (jobId: string, userId?: string) => {
         try {
-            // Extract UUID from token to satisfy Supabase RLS policies
-            let userId: string | undefined;
-            const token = await SecureStore.getItemAsync('auth_token');
-            if (token) {
-                try {
-                    const decoded: any = jwtDecode(token);
-                    userId = decoded.sub || decoded.id;
-                } catch (e) {}
+            const key = userId ? `SAVED_JOBS_${userId}` : 'SAVED_JOBS_GUEST';
+            const stored = await AsyncStorage.getItem(key);
+            if (stored) {
+                let savedJobs = JSON.parse(stored);
+                savedJobs = savedJobs.filter((j: any) => (j.id || j._id) !== jobId);
+                await AsyncStorage.setItem(key, JSON.stringify(savedJobs));
             }
-
-            const response = await api.post(`/jobs/unsave`, { 
-                jobId,
-                user_id: userId // Explicitly providing ID for RLS compliance
-            });
-            return response.data;
+            return { message: 'Job unsaved locally' };
         } catch (error: any) {
-            throw error.response?.data?.message || 'Failed to unsave job';
+            console.error('Error unsaving job locally:', error);
+            throw new Error('Failed to unsave job locally');
         }
     },
 
@@ -238,17 +177,23 @@ const jobService = {
         }
     },
 
+    // Always the current user's own submitted applications (jobs they applied
+    // to) - regardless of role. Never the applicants to jobs they posted.
     getUserApplications: async () => {
-        try {
-            const response = await api.get('/applications');
-            const raw = response.data;
-            // Handle different response formats
+        const unwrap = (raw: any): any[] => {
             if (Array.isArray(raw)) return raw;
             if (Array.isArray(raw?.applications)) return raw.applications;
             if (Array.isArray(raw?.data)) return raw.data;
             if (Array.isArray(raw?.results)) return raw.results;
-            console.warn('Unexpected /applications response shape:', typeof raw, raw);
             return [];
+        };
+
+        try {
+            const user = await authService.getUser();
+            if (!user?.id) return [];
+
+            const response = await api.get('/applications/my', { params: { worker_id: user.id } });
+            return unwrap(response.data);
         } catch (error: any) {
             // Silently swallow 404 errors as they indicate no applications or unimplemented endpoints
             if (error.response?.status === 404) {
@@ -259,37 +204,13 @@ const jobService = {
         }
     },
 
-    getJobApplicants: async (jobId: string) => {
+    getSavedJobs: async (userId?: string) => {
         try {
-            const response = await api.get(`/jobs/${jobId}/applications`);
-            const raw = response.data;
-            if (Array.isArray(raw)) return raw;
-            if (Array.isArray(raw?.applications)) return raw.applications;
-            if (Array.isArray(raw?.data)) return raw.data;
-            if (Array.isArray(raw?.results)) return raw.results;
-            console.warn(`Unexpected /jobs/${jobId}/applications response shape:`, typeof raw, raw);
-            return [];
+            const key = userId ? `SAVED_JOBS_${userId}` : 'SAVED_JOBS_GUEST';
+            const stored = await AsyncStorage.getItem(key);
+            return stored ? JSON.parse(stored) : [];
         } catch (error: any) {
-            console.error(`Failed to fetch applicants for job ${jobId}:`, error.response?.data?.message || error?.message);
-            return [];
-        }
-    },
-
-    getSavedJobs: async (workerId?: string) => {
-        try {
-            const response = await api.get('/jobs/saved');
-            const raw = response.data;
-            if (Array.isArray(raw)) return raw;
-            if (Array.isArray(raw?.saved)) return raw.saved;
-            if (Array.isArray(raw?.data)) return raw.data;
-            if (Array.isArray(raw?.results)) return raw.results;
-            return [];
-        } catch (error: any) {
-            // Silently swallow 404 errors as they indicate an empty saved list on the backend
-            if (error.response?.status === 404) {
-                return [];
-            }
-            console.error('Failed to fetch saved jobs:', error.response?.data?.message || error?.message);
+            console.error('Error fetching saved jobs locally:', error);
             return [];
         }
     },

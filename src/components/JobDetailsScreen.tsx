@@ -5,39 +5,41 @@ import {
     Text,
     TouchableOpacity,
     ScrollView,
+    Modal,
+    Dimensions,
     Image,
     ActivityIndicator,
-    Dimensions,
-    StatusBar,
-    Linking,
     Alert,
 } from 'react-native';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
+import { Ionicons } from '@expo/vector-icons';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import jobService from '../services/jobService';
 import authService from '../services/authService';
-import ApplyModal from './ApplyModal';
 import { useAuth } from '../context/AuthContext';
+import ApplyModal from './ApplyModal';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const JobDetailsScreen: React.FC = () => {
     const route = useRoute<any>();
     const navigation = useNavigation<any>();
+    const insets = useSafeAreaInsets();
     const { user, isAuthenticated } = useAuth();
-    const { job, isSaved: initialIsSaved } = route.params || {};
+    const { job, isSaved: initialIsSaved, alreadyApplied } = route.params || {};
 
     const [isSaved, setIsSaved] = useState(initialIsSaved || false);
     const [isApplying, setIsApplying] = useState(false);
+    const [showApplyModal, setShowApplyModal] = useState(false);
     const [currentUserId, setCurrentUserId] = useState<string | null>(null);
     const [isJobPoster, setIsJobPoster] = useState(false);
-    const [parsedData, setParsedData] = useState<any>({
-        description: '',
-        contactMethod: '',
-        perks: [],
-        requirements: []
-    });
-    const [showApplyModal, setShowApplyModal] = useState(false);
+    const [parsedData, setParsedData] = useState<{
+        description: string;
+        contactMethod: string;
+        perks: string[];
+        requirements: string[];
+    }>({ description: '', contactMethod: '', perks: [], requirements: [] });
 
     // Auto open apply modal if redirected back after auth creation
     useEffect(() => {
@@ -102,11 +104,28 @@ const JobDetailsScreen: React.FC = () => {
     if (!job) return null;
 
     const handleSave = async () => {
+        if (!isAuthenticated) {
+            Alert.alert(
+                "Authentication Required",
+                "Please sign up or log in to save jobs.",
+                [
+                    { text: "Cancel", style: "cancel" },
+                    { text: "Sign Up", onPress: () => navigation.navigate('Signup', { redirectJob: job }) },
+                    { text: "Log In", onPress: () => navigation.navigate('Login', { redirectJob: job }) }
+                ]
+            );
+            return;
+        }
+        const wasSaved = isSaved;
         try {
-            setIsSaved(!isSaved);
-            await jobService.saveJob(job.id);
+            setIsSaved(!wasSaved); // Optimistic UI
+            if (wasSaved) {
+                await jobService.unsaveJob(job.id, user?.id);
+            } else {
+                await jobService.saveJob(job, user?.id);
+            }
         } catch (error) {
-            setIsSaved(!isSaved);
+            setIsSaved(wasSaved);
             Alert.alert("Error", "Failed to update saved jobs.");
         }
     };
@@ -134,36 +153,19 @@ const JobDetailsScreen: React.FC = () => {
             Alert.alert("Action Not Allowed", "You cannot apply for a job that you posted.");
             return;
         }
+        if (alreadyApplied) {
+            return;
+        }
         setShowApplyModal(true);
     };
 
-    const handleApply = async (data: { intro_text: string; application_type: 'professional' | 'apprentice' }) => {
-        if (isJobPoster) {
-            Alert.alert(
-                "Cannot Apply",
-                "You cannot apply for this job because you posted it. You are the job poster."
-            );
-            return;
-        }
-        
+    const handleApply = async (data: { application_type: 'professional' | 'apprentice' }) => {
         try {
             setIsApplying(true);
             await jobService.applyToJob(job.id, data);
-            setShowApplyModal(false);
-            Alert.alert("Success", "Your application has been sent successfully!");
+            Alert.alert("Success", "Application sent successfully!");
         } catch (error: any) {
-            let errorMessage = typeof error === 'string' ? error : (error?.message || "Failed to apply.");
-            
-            // Format raw backend errors to be user-friendly
-            if (errorMessage.toLowerCase().includes('duplicate') || errorMessage.toLowerCase().includes('already')) {
-                errorMessage = "You have already submitted an application for this position.";
-            } else if (errorMessage.toLowerCase().includes('network') || errorMessage.toLowerCase().includes('fetch')) {
-                errorMessage = "Please check your internet connection and try again.";
-            } else if (errorMessage.includes('HTTP')) {
-                errorMessage = "We couldn't process your application at this time. Please try again later.";
-            }
-            
-            Alert.alert("Application Notice", errorMessage);
+            Alert.alert("Error", error || "Failed to apply for the job.");
         } finally {
             setIsApplying(false);
         }
@@ -171,195 +173,127 @@ const JobDetailsScreen: React.FC = () => {
 
     return (
         <View style={styles.container}>
-            <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
-            
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-                {/* Image Header Section */}
-                <View style={styles.imageHeader}>
-                    <Image 
-                        source={{ uri: job.imageUrl || job.image_url || 'https://via.placeholder.com/800x400' }} 
-                        style={styles.headerImage} 
-                    />
-                    <View style={styles.imageOverlay} />
-                    
-                    {/* Header Controls */}
-                    <View style={styles.headerControls}>
-                        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconCircle}>
-                            <Ionicons name="chevron-back" size={24} color="#FFF" />
-                        </TouchableOpacity>
-                        <TouchableOpacity onPress={handleSave} style={styles.iconCircle}>
-                            <Ionicons name={isSaved ? "bookmark" : "bookmark-outline"} size={22} color={isSaved ? "#FFD700" : "#FFF"} />
-                        </TouchableOpacity>
-                    </View>
-
-                    {/* Job Info Overlay */}
-                    <View style={styles.overlayContent}>
-                        <View style={styles.badgeRow}>
-                            {(job.job_type || job.type) && (
-                                <View style={[styles.badge, { backgroundColor: '#4ADE80' }]}>
-                                    <Text style={styles.badgeText}>{job.job_type?.toUpperCase() || job.type?.toUpperCase()}</Text>
-                                </View>
-                            )}
-                            {job.category && (
-                                <View style={[styles.badge, { backgroundColor: '#A78BFA' }]}>
-                                    <Text style={styles.badgeText}>{job.category?.toUpperCase()}</Text>
-                                </View>
-                            )}
-                        </View>
-                        <Text style={styles.titleText}>{job.title}</Text>
-                        <View style={styles.metaRow}>
-                            {job.location && (
-                                <View style={styles.metaItem}>
-                                    <Ionicons name="location" size={16} color="#FFF" opacity={0.8} />
-                                    <Text style={styles.metaText}>{job.location}</Text>
-                                </View>
-                            )}
-                            {job.salary && (
-                                <View style={styles.metaItem}>
-                                    <Ionicons name="wallet" size={16} color="#FFF" opacity={0.8} />
-                                    <Text style={styles.metaText}>{job.salary}</Text>
-                                </View>
-                            )}
-                        </View>
-                    </View>
+                <StatusBar style="light" />
+                <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
+                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+                        <Ionicons name="chevron-back" size={22} color="#FFFFFF" />
+                    </TouchableOpacity>
+                    <Text style={styles.headerTitle}>Job Details</Text>
+                    <TouchableOpacity style={styles.bookmarkButton} onPress={handleSave}>
+                        <Ionicons
+                            name={isSaved ? "bookmark" : "bookmark-outline"}
+                            size={22}
+                            color={isSaved ? "#FBBF24" : "#FFFFFF"}
+                        />
+                    </TouchableOpacity>
                 </View>
 
-                {/* Main Content Area */}
-                <View style={styles.mainContent}>
-                    {/* Job Description Card */}
-                    <Text style={styles.sectionHeading}>Job Description</Text>
-                    <View style={styles.descCard}>
-                        <Text style={styles.descParagraph}>{parsedData.description}</Text>
-                        
-                        {/* Dynamic Description Bullets if any */}
-                        {parsedData.requirements.slice(0, 3).map((req: string, idx: number) => (
-                            <View key={idx} style={styles.bulletRow}>
-                                <Ionicons name="checkmark-circle" size={20} color="#10B981" />
-                                <Text style={styles.bulletText}>{req}</Text>
-                            </View>
-                        ))}
-                    </View>
-
-                    {/* Requirements Section */}
-                    <Text style={styles.sectionHeading}>Requirements</Text>
-                    <View style={styles.reqGrid}>
-                        {parsedData.requirements.map((req: string, idx: number) => {
-                            let icon = "school-outline";
-                            let label = "Experience";
-                            
-                            if (req.toLowerCase().includes('year') || req.toLowerCase().includes('exp')) {
-                                icon = "time-outline";
-                                label = "Experience";
-                            } else if (req.toLowerCase().includes('tool') || req.toLowerCase().includes('brush') || req.toLowerCase().includes('equipment')) {
-                                icon = "construct-outline";
-                                label = "Equipment";
-                            } else if (req.toLowerCase().includes('ref') || req.toLowerCase().includes('vet')) {
-                                icon = "shield-checkmark-outline";
-                                label = "Vetting";
-                            } else {
-                                icon = "star-outline";
-                                label = "Expertise";
-                            }
-
-                            return (
-                                <View key={idx} style={styles.reqCard}>
-                                    <View style={styles.reqIconWrapper}>
-                                        <Ionicons name={icon as any} size={22} color="#1972ca" />
+                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+                    {(job.imageUrl || job.image_url) ? (
+                        <View style={styles.bannerContainer}>
+                            <Image
+                                source={{ uri: job.imageUrl || job.image_url }}
+                                style={styles.bannerImage}
+                            />
+                            <View style={styles.bannerOverlay} />
+                            <View style={styles.bannerInfoContainer}>
+                                <Text style={styles.bannerTitleText}>{job.title}</Text>
+                                <Text style={styles.bannerCompanyText}>{job.company}</Text>
+                                <View style={styles.bannerTagsContainer}>
+                                    <View style={[styles.tag, styles.bannerTagOrange]}>
+                                        <Text style={styles.bannerTagText}>{job.type}</Text>
                                     </View>
-                                    <View style={styles.reqTextWrapper}>
-                                        <Text style={styles.reqLabel}>{label}</Text>
-                                        <Text style={styles.reqValue} numberOfLines={2}>{req}</Text>
+                                    <View style={[styles.tag, styles.bannerTagGreen]}>
+                                        <Text style={styles.bannerTagText}>{job.category}</Text>
                                     </View>
                                 </View>
-                            );
-                        })}
+                            </View>
+                        </View>
+                    ) : null}
+
+                    {!(job.imageUrl || job.image_url) && (
+                        <View style={styles.companySection}>
+                            <View style={styles.logoContainer}>
+                                <Ionicons name="briefcase" size={40} color="#1972ca" />
+                            </View>
+                            <Text style={styles.jobTitleText}>{job.title}</Text>
+                            <Text style={styles.companyNameText}>{job.company}</Text>
+
+                            <View style={styles.tagsContainer}>
+                                <View style={styles.tag}>
+                                    <Text style={styles.tagText}>{job.type}</Text>
+                                </View>
+                                <View style={[styles.tag, { backgroundColor: '#E8F2FB' }]}>
+                                    <Text style={[styles.tagText, { color: '#1972ca' }]}>{job.category}</Text>
+                                </View>
+                            </View>
+                        </View>
+                    )}
+
+                    <View style={styles.detailsGrid}>
+                        <View style={styles.detailItem}>
+                            <Ionicons name="location-outline" size={20} color="#666" />
+                            <View>
+                                <Text style={styles.detailLabel}>Location</Text>
+                                <Text style={styles.detailValue}>{job.location}</Text>
+                            </View>
+                        </View>
+                        <View style={styles.detailItem}>
+                            <Ionicons name="wallet-outline" size={20} color="#666" />
+                            <View>
+                                <Text style={styles.detailLabel}>Salary</Text>
+                                <Text style={styles.detailValue}>{job.salary}</Text>
+                            </View>
+                        </View>
                     </View>
 
-                    {/* Perks Section */}
-                    {parsedData.perks.length > 0 && (
-                        <>
-                            <Text style={styles.sectionHeading}>Perks</Text>
-                            <View style={styles.perksCard}>
-                                {parsedData.perks.map((perk: string, idx: number) => (
-                                    <View key={idx} style={styles.perkItem}>
-                                        <View style={styles.perkIconBg}>
-                                            <Ionicons 
-                                                name={perk === 'meals' ? 'restaurant' : perk === 'transport' ? 'bus' : 'umbrella'} 
-                                                size={18} 
-                                                color="#059669" 
-                                            />
-                                        </View>
-                                        <View style={{ flex: 1 }}>
-                                            <Text style={styles.perkTitle}>
-                                                {perk === 'meals' ? 'Daily Meals' : perk === 'transport' ? 'Transport' : perk === 'housing' ? 'Housing' : perk.charAt(0).toUpperCase() + perk.slice(1)}
-                                            </Text>
-                                            <Text style={styles.perkSub}>{`Provided to all staff members during the project.`}</Text>
-                                        </View>
-                                    </View>
-                                ))}
-                            </View>
-                        </>
-                    )}
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Description</Text>
+                        <Text style={styles.descriptionText}>{job.description}</Text>
+                    </View>
 
-                    {/* Application Requirements */}
-                    {(job.requires_cv === 'true' || job.requires_cv === true || job.requires_cover_letter === 'true' || job.requires_cover_letter === true) && (
-                        <>
-                            <Text style={styles.sectionHeading}>Application Requirements</Text>
-                            <View style={styles.appReqCard}>
-                                {(job.requires_cv === 'true' || job.requires_cv === true) && (
-                                    <View style={styles.appReqRow}>
-                                        <Text style={styles.appReqLabel}>CV / Resume</Text>
-                                        <View style={[styles.statusBadge, { backgroundColor: '#059669' }]}>
-                                            <Text style={styles.statusText}>REQUIRED</Text>
-                                        </View>
-                                    </View>
-                                )}
-                                {(job.requires_cover_letter === 'true' || job.requires_cover_letter === true) && (
-                                    <View style={[styles.appReqRow, { borderTopWidth: job.requires_cv === 'true' || job.requires_cv === true ? 1 : 0, borderTopColor: '#E2E8F0', paddingTop: (job.requires_cv === 'true' || job.requires_cv === true) ? 12 : 0 }]}>
-                                        <Text style={styles.appReqLabel}>Cover Letter</Text>
-                                        <View style={[styles.statusBadge, { backgroundColor: '#059669' }]}>
-                                            <Text style={styles.statusText}>REQUIRED</Text>
-                                        </View>
-                                    </View>
-                                )}
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Contact Information</Text>
+                        <View style={styles.contactCard}>
+                            <View style={styles.contactRow}>
+                                <Ionicons name="mail-outline" size={18} color="#1972ca" />
+                                <Text style={styles.contactValue}>{job.email}</Text>
                             </View>
-                        </>
-                    )}
-                    {!(job.requires_cv === 'true' || job.requires_cv === true) && !(job.requires_cover_letter === 'true' || job.requires_cover_letter === true) && (
-                        <>
-                            <Text style={styles.sectionHeading}>Application Requirements</Text>
-                            <View style={styles.appReqCard}>
-                                <Text style={styles.appReqLabel}>No specific requirements for this job</Text>
+                            <View style={styles.contactRow}>
+                                <Ionicons name="call-outline" size={18} color="#1972ca" />
+                                <Text style={styles.contactValue}>{job.phone}</Text>
                             </View>
-                        </>
-                    )}
-                </View>
-            </ScrollView>
+                        </View>
+                    </View>
+                </ScrollView>
 
             {/* Footer Buttons */}
-            <View style={styles.footer}>
-                <TouchableOpacity 
-                    style={[styles.applyBtn, { flex: 1 }, isApplying && { opacity: 0.7 }, isJobPoster && { opacity: 0.5 }]} 
+            <View style={[styles.footer, { paddingBottom: 40 + insets.bottom }]}>
+                <TouchableOpacity
+                    style={[styles.applyButton, { flex: 1 }, (isApplying || isJobPoster || alreadyApplied) && styles.applyButtonDisabled]}
                     onPress={handleApplyPress}
-                    disabled={isApplying || isJobPoster}
+                    disabled={isApplying || isJobPoster || alreadyApplied}
                 >
                     {isJobPoster ? (
-                        <Text style={styles.applyBtnText}>Cannot Apply - Your Job</Text>
+                        <Text style={styles.applyButtonText}>Cannot Apply - Your Job</Text>
+                    ) : alreadyApplied ? (
+                        <Text style={styles.applyButtonText}>Already Applied</Text>
                     ) : isApplying ? (
                         <ActivityIndicator color="#FFF" />
                     ) : (
-                        <Text style={styles.applyBtnText}>Apply Now</Text>
+                        <Text style={styles.applyButtonText}>Apply Now</Text>
                     )}
                 </TouchableOpacity>
             </View>
 
-            <ApplyModal 
-                visible={showApplyModal}
-                onClose={() => setShowApplyModal(false)}
-                onApply={handleApply}
-                jobTitle={job.title || job.position_vacant || 'Position'}
-                requiresCv={job.requires_cv === 'true' || job.requires_cv === true}
-            />
+            {!alreadyApplied && (
+                <ApplyModal
+                    visible={showApplyModal}
+                    onClose={() => setShowApplyModal(false)}
+                    onApply={handleApply}
+                    jobTitle={job.title || job.position_vacant || 'Position'}
+                />
+            )}
         </View>
     );
 };
@@ -367,239 +301,218 @@ const JobDetailsScreen: React.FC = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F8FAFC',
+        backgroundColor: '#FFFFFF',
     },
-    scrollContent: {
-        paddingBottom: 120,
-    },
-    imageHeader: {
-        height: 300,
-        width: SCREEN_WIDTH,
-        position: 'relative',
-    },
-    headerImage: {
-        width: '100%',
-        height: '100%',
-        resizeMode: 'cover',
-    },
-    imageOverlay: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0,0,0,0.4)',
-    },
-    headerControls: {
-        position: 'absolute',
-        top: 50,
-        left: 20,
-        right: 20,
+    header: {
         flexDirection: 'row',
+        alignItems: 'center',
         justifyContent: 'space-between',
+        paddingHorizontal: 20,
+        paddingTop: 14,
+        paddingBottom: 14,
+        backgroundColor: '#1972ca',
     },
-    iconCircle: {
-        width: 45,
-        height: 45,
-        borderRadius: 23,
-        backgroundColor: 'rgba(0,0,0,0.3)',
+    backButton: {
+        width: 34,
+        height: 34,
+        borderRadius: 17,
+        backgroundColor: 'rgba(255, 255, 255, 0.15)',
         justifyContent: 'center',
         alignItems: 'center',
     },
-    overlayContent: {
-        position: 'absolute',
-        bottom: 25,
-        left: 20,
-        right: 20,
+    headerTitle: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: '#FFFFFF',
     },
-    badgeRow: {
-        flexDirection: 'row',
-        gap: 8,
-        marginBottom: 12,
-    },
-    badge: {
-        paddingHorizontal: 12,
-        paddingVertical: 4,
-        borderRadius: 6,
-    },
-    badgeText: {
-        color: '#FFF',
-        fontSize: 10,
-        fontWeight: '900',
-    },
-    titleText: {
-        fontSize: 26,
-        fontWeight: '800',
-        color: '#FFF',
-        marginBottom: 8,
-    },
-    metaRow: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 15,
-    },
-    metaItem: {
-        flexDirection: 'row',
+    bookmarkButton: {
+        width: 34,
+        height: 34,
+        borderRadius: 17,
+        backgroundColor: 'rgba(255, 255, 255, 0.15)',
+        justifyContent: 'center',
         alignItems: 'center',
-        gap: 5,
     },
-    metaText: {
-        color: '#FFF',
-        fontSize: 14,
-        fontWeight: '500',
+    scrollContent: {
+        paddingBottom: 100,
     },
-    mainContent: {
+    companySection: {
+        alignItems: 'center',
+        paddingVertical: 30,
         paddingHorizontal: 20,
-        paddingTop: 25,
     },
-    sectionHeading: {
-        fontSize: 18,
-        fontWeight: '800',
-        color: '#1E293B',
-        marginBottom: 15,
-        marginTop: 10,
-    },
-    descCard: {
-        backgroundColor: '#FFF',
+    logoContainer: {
+        width: 80,
+        height: 80,
         borderRadius: 20,
-        padding: 20,
-        marginBottom: 20,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 10,
-        elevation: 2,
-    },
-    descParagraph: {
-        fontSize: 15,
-        color: '#475569',
-        lineHeight: 24,
-        marginBottom: 15,
-    },
-    bulletRow: {
-        flexDirection: 'row',
+        backgroundColor: '#f1f7ff',
+        justifyContent: 'center',
         alignItems: 'center',
-        gap: 10,
+        marginBottom: 20,
+        overflow: 'hidden',
+    },
+    bannerContainer: {
+        width: '100%',
+        position: 'relative',
+    },
+    bannerImage: {
+        width: '100%',
+        height: 220,
+        resizeMode: 'cover',
+    },
+    bannerOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    },
+    bannerInfoContainer: {
+        position: 'absolute',
+        bottom: 16,
+        left: 16,
+        right: 16,
+    },
+    bannerTitleText: {
+        fontSize: 26,
+        fontWeight: 'bold',
+        color: '#FFFFFF',
+        textAlign: 'left',
+    },
+    bannerCompanyText: {
+        fontSize: 16,
+        color: '#FFFFFF',
+        marginTop: 4,
         marginBottom: 10,
     },
-    bulletText: {
+    bannerTagsContainer: {
+        flexDirection: 'row',
+        gap: 10,
+    },
+    bannerTagOrange: {
+        backgroundColor: '#F97316',
+    },
+    bannerTagGreen: {
+        backgroundColor: '#16A34A',
+    },
+    bannerTagText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#FFFFFF',
+    },
+    jobTitleText: {
+        fontSize: 22,
+        fontWeight: 'bold',
+        color: '#1A1A1A',
+        textAlign: 'center',
+    },
+    companyNameText: {
+        fontSize: 16,
+        color: '#666',
+        marginTop: 5,
+        marginBottom: 15,
+    },
+    tagsContainer: {
+        flexDirection: 'row',
+        gap: 10,
+    },
+    tag: {
+        backgroundColor: '#F1F5F9',
+        paddingHorizontal: 15,
+        paddingVertical: 6,
+        borderRadius: 20,
+    },
+    tagText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#666',
+    },
+    detailsGrid: {
+        flexDirection: 'row',
+        paddingHorizontal: 20,
+        marginBottom: 25,
+        gap: 15,
+    },
+    detailItem: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#F8FAFC',
+        padding: 15,
+        borderRadius: 16,
+        gap: 12,
+    },
+    detailLabel: {
+        fontSize: 10,
+        color: '#94A3B8',
+        fontWeight: '600',
+        textTransform: 'uppercase',
+    },
+    detailValue: {
+        fontSize: 13,
+        fontWeight: 'bold',
+        color: '#334155',
+    },
+    section: {
+        paddingHorizontal: 20,
+        marginBottom: 25,
+    },
+    sectionTitle: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: '#333',
+        marginBottom: 12,
+    },
+    descriptionText: {
+        fontSize: 14,
+        color: '#64748B',
+        lineHeight: 24,
+    },
+    contactCard: {
+        backgroundColor: '#FFFFFF',
+        borderWidth: 1,
+        borderColor: '#F1F5F9',
+        borderRadius: 16,
+        padding: 15,
+        gap: 15,
+    },
+    contactRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    contactValue: {
         fontSize: 14,
         color: '#334155',
         fontWeight: '500',
-    },
-    reqGrid: {
-        gap: 12,
-        marginBottom: 20,
-    },
-    reqCard: {
-        flexDirection: 'row',
-        backgroundColor: '#EFF6FF',
-        borderRadius: 16,
-        padding: 15,
-        alignItems: 'center',
-        gap: 15,
-    },
-    reqIconWrapper: {
-        width: 45,
-        height: 45,
-        borderRadius: 12,
-        backgroundColor: '#DBEAFE',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    reqTextWrapper: {
-        flex: 1,
-    },
-    reqLabel: {
-        fontSize: 12,
-        color: '#64748B',
-        fontWeight: '500',
-        marginBottom: 2,
-    },
-    reqValue: {
-        fontSize: 15,
-        fontWeight: '700',
-        color: '#1E293B',
-    },
-    perksCard: {
-        backgroundColor: '#ECFDF5',
-        borderRadius: 20,
-        padding: 20,
-        gap: 20,
-        marginBottom: 20,
-    },
-    perkItem: {
-        flexDirection: 'row',
-        gap: 15,
-        alignItems: 'flex-start',
-    },
-    perkIconBg: {
-        width: 36,
-        height: 36,
-        borderRadius: 10,
-        backgroundColor: '#D1FAE5',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    perkTitle: {
-        fontSize: 15,
-        fontWeight: '700',
-        color: '#065F46',
-        marginBottom: 2,
-    },
-    perkSub: {
-        fontSize: 12,
-        color: '#059669',
-        lineHeight: 18,
-    },
-    appReqCard: {
-        backgroundColor: '#EEF2FF',
-        borderRadius: 20,
-        padding: 20,
-        marginBottom: 30,
-    },
-    appReqRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 12,
-    },
-    appReqLabel: {
-        fontSize: 15,
-        fontWeight: '600',
-        color: '#3730A3',
-    },
-    statusBadge: {
-        paddingHorizontal: 12,
-        paddingVertical: 4,
-        borderRadius: 6,
-    },
-    statusText: {
-        color: '#FFF',
-        fontSize: 11,
-        fontWeight: '900',
     },
     footer: {
         position: 'absolute',
         bottom: 0,
         left: 0,
         right: 0,
-        paddingHorizontal: 20,
-        paddingVertical: 20,
-        paddingBottom: 35,
-        backgroundColor: '#FFF',
-        flexDirection: 'row',
-        gap: 12,
+        padding: 20,
+        paddingBottom: 40,
+        backgroundColor: '#FFFFFF',
         borderTopWidth: 1,
         borderTopColor: '#F1F5F9',
     },
-    applyBtn: {
-        backgroundColor: '#03045E',
-        height: 60,
-        borderRadius: 12,
+    applyButton: {
+        backgroundColor: '#1972ca',
+        height: 55,
+        borderRadius: 15,
         justifyContent: 'center',
         alignItems: 'center',
+        shadowColor: '#1972ca',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 10,
+        elevation: 8,
     },
-    applyBtnText: {
-        color: '#FFF',
+    applyButtonText: {
+        color: '#FFFFFF',
         fontSize: 16,
-        fontWeight: '700',
+        fontWeight: 'bold',
+    },
+    applyButtonDisabled: {
+        opacity: 0.7,
     },
 });
 

@@ -24,7 +24,8 @@
       "predictiveBackGestureEnabled": false,
       "softwareKeyboardLayoutMode": "pan",
       "allowBackup": false,
-      "usesCleartextTraffic": true
+      "usesCleartextTraffic": true,
+      "package": "com.tamanjong.wakajobApp"
     },
     "web": {
       "favicon": "./assets/favicon.png"

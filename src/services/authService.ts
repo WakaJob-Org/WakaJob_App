@@ -271,7 +271,10 @@ const authService = {
       if (!refresh) return false;
       
       console.log('--- ATTEMPTING TOKEN REFRESH ---');
-      const response = await authApi.post('/auth/refresh-token', { refresh_token: refresh });
+      // Short timeout here - this must not block app startup for the full
+      // cold-start allowance. If it's slow, fail fast and fall back to
+      // treating the user as logged out rather than hanging the whole app.
+      const response = await authApi.post('/auth/refresh-token', { refresh_token: refresh }, { timeout: 20000 });
       
       const newToken = response.data.token ||
         response.data.data?.session?.access_token ||
@@ -348,18 +351,7 @@ const authService = {
       }
 
       console.log(`getUser: Fetching ${forceRefresh ? 'LIVE' : 'profile'} data via main API...`);
-      // Try /auth/profile first, then /auth/me as common synonyms
-      let response;
-      try {
-        response = await api.get('/auth/profile');
-      } catch (err: any) {
-        if (err.response?.status === 404) {
-          console.log('getUser: /auth/profile 404, trying /auth/me...');
-          response = await api.get('/auth/me');
-        } else {
-          throw err;
-        }
-      }
+      const response = await api.get('/auth/me');
 
       console.log('getUser RAW RESPONSE:', JSON.stringify(response.data));
 

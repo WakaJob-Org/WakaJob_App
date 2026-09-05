@@ -1,11 +1,13 @@
 import React from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import Skeleton from './SkeletonLoader';
 
 const ProfileSkeleton = () => {
     return (
         <View style={styles.container}>
+            <StatusBar style="light" />
             {/* Header Skeleton */}
             <View style={styles.header}>
                 <SafeAreaView>
