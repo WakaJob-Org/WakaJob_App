@@ -6,7 +6,6 @@
     "orientation": "portrait",
     "icon": "./assets/app-icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true
     },
@@ -15,11 +14,9 @@
         "foregroundImage": "./assets/adaptive-icon-foreground.png",
         "backgroundColor": "#1972ca"
       },
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "softwareKeyboardLayoutMode": "pan",
       "allowBackup": false,
-      "usesCleartextTraffic": true,
       "package": "com.tamanjong.wakajobApp"
     },
     "web": {
@@ -46,7 +43,16 @@
           "enableBackgroundRemoteNotifications": true
         }
       ],
-      "expo-task-manager"
+      "expo-task-manager",
+      "expo-status-bar",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ]
     ],
     "extra": {
       "eas": {

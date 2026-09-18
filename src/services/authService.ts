@@ -1,18 +1,14 @@
-import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { jwtDecode } from 'jwt-decode';
 import CONFIG from '../config';
 import api from './api';
+import { fetchJson, HttpConfig, isFormDataBody } from './httpClient';
 
-// Dedicated instance for Auth and Public routes (No interceptors, no tokens)
-const authApi = axios.create({
-  baseURL: CONFIG.API_BASE_URL,
-  timeout: CONFIG.TIMEOUT,
-  headers: {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json'
-  }
-});
+// Dedicated client for Auth and Public routes (no token injection, no 401 retry)
+const authApi = {
+  get: <T = any>(url: string, config?: HttpConfig) => fetchJson<T>(CONFIG.API_BASE_URL, 'GET', url, undefined, config || {}, CONFIG.TIMEOUT),
+  post: <T = any>(url: string, data?: any, config?: HttpConfig) => fetchJson<T>(CONFIG.API_BASE_URL, 'POST', url, data, config || {}, CONFIG.TIMEOUT),
+};
 
 let currentToken: string | null = null;
 
@@ -43,21 +39,11 @@ const parseError = (error: any): string => {
       return 'Request timed out. The server might be waking up (Render cold start). Please try again.';
   }
 
-  if (!error.response && error.message === 'Network Error') {
+  if (!error.response && (error.message === 'Network Error' || error.code === 'ERR_NETWORK')) {
       return 'Network connection error. Please check if your device has internet access and try again.';
   }
 
   return error.message || 'An unexpected error occurred';
-};
-
-/**
- * Robust FormData detection for React Native
- */
-const isFormData = (data: any): boolean => {
-    return data && (
-        data instanceof FormData || 
-        (typeof data === 'object' && data !== null && (data.constructor?.name === 'FormData' || '_parts' in data))
-    );
 };
 
 const authService = {
@@ -407,7 +393,7 @@ const authService = {
   },
 
   async updateProfile(userId: string, data: any): Promise<any> {
-    const dataIsFormData = isFormData(data);
+    const dataIsFormData = isFormDataBody(data);
     
     try {
       let activeUserId = userId;

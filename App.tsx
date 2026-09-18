@@ -63,7 +63,7 @@ export default function App() {
       <SafeAreaProvider>
         <AuthProvider>
           <ChatProvider>
-              <StatusBar style="dark" hidden={false} translucent={false} />
+              <StatusBar style="dark" hidden={false} />
               <MainApp />
             </ChatProvider>
         </AuthProvider>
