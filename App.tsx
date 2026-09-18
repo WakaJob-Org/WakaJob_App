@@ -9,12 +9,19 @@ import { ChatProvider } from './src/context/ChatContext';
 import RootNavigator from './src/navigation/RootNavigator';
 import 'react-native-gesture-handler';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { registerBackgroundNotificationTask, registerChatNotificationTapHandler } from './src/services/pushNotificationService';
+import { isExpoGo } from './src/utils/isExpoGo';
 
-// Registers the badge-increment background task with the OS. Importing
-// pushNotificationService.ts also defines the task itself (TaskManager
-// requires task definitions at module scope), so this just has to run once.
-registerBackgroundNotificationTask();
+// pushNotificationService.ts (and expo-notifications itself) must not be
+// required at all under Expo Go - touching expo-notifications' remote-push
+// APIs there throws during module evaluation, before any of our own
+// try/catch can run. A static top-level import would load it unconditionally,
+// so it's required lazily and only outside Expo Go.
+if (!isExpoGo) {
+  // Registers the badge-increment background task with the OS. Requiring
+  // pushNotificationService.ts also defines the task itself (TaskManager
+  // requires task definitions at module scope), so this just has to run once.
+  require('./src/services/pushNotificationService').registerBackgroundNotificationTask();
+}
 
 // Original Auth Screens
 import SplashScreenUI from './src/screens/Splash/SplashScreen';
@@ -42,7 +49,8 @@ const MainApp = () => {
   }, [fontsLoaded, isLoading]);
 
   useEffect(() => {
-    const unsubscribe = registerChatNotificationTapHandler();
+    if (isExpoGo) return;
+    const unsubscribe = require('./src/services/pushNotificationService').registerChatNotificationTapHandler();
     return unsubscribe;
   }, []);
 

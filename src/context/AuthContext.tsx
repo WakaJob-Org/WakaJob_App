@@ -9,7 +9,14 @@ import * as SecureStore from 'expo-secure-store';
 
 import authService from '../services/authService';
 import chatService from '../services/chatService';
-import { registerPushTokenAfterLogin } from '../services/pushNotificationService';
+import { isExpoGo } from '../utils/isExpoGo';
+
+// Lazy: pushNotificationService.ts pulls in expo-notifications, which throws
+// during module evaluation under Expo Go (SDK 53+) - see src/utils/isExpoGo.ts.
+const registerPushTokenAfterLogin = () => {
+    if (isExpoGo) return;
+    require('../services/pushNotificationService').registerPushTokenAfterLogin();
+};
 
 interface User {
     id?: string;
