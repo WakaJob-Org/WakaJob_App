@@ -116,14 +116,37 @@ const jobService = {
         }
     },
 
-    updateApplicationStatus: async (applicationId: string, status: 'ACCEPTED' | 'REJECTED' | 'INTERVIEWING' | 'UNDER REVIEW') => {
-        try {
-            const response = await api.put(`/applications/${applicationId}/status`, { status });
-            return response.data;
-        } catch (error: any) {
-            throw error.response?.data?.message || 'Failed to update application status';
-        }
-    },
+  updateApplicationStatus: async (
+    applicationId: string,
+    status:
+        | 'accepted'
+        | 'rejected'
+        | 'interviewing'
+        | 'under review'
+) => {
+    try {
+        const response = await api.put(
+            `/applications/${applicationId}/status`,
+            {
+                status,
+            }
+        );
+
+        return response.data;
+    } catch (error: any) {
+        console.error(
+            '[APPLICATION STATUS] Backend error:',
+            error?.response?.status,
+            error?.response?.data
+        );
+
+        throw (
+            error?.response?.data?.message ||
+            error?.response?.data?.detail ||
+            'Failed to update application status'
+        );
+    }
+},
 
     // Saved jobs are stored locally on-device (per user), not synced to the backend.
     saveJob: async (job: any, userId?: string) => {
@@ -199,6 +222,55 @@ const jobService = {
         } catch (error: any) {
             console.error('Failed to fetch applications:', error.response?.data?.message || error?.message);
             return [];
+        }
+    },
+
+    // Applicants for a job an employer posted. Verified against the live
+    // backend with a real logged-in session: each item is
+    // { id, job_id, worker_id, cover_letter, status, created_at, updated_at,
+    //   cv_url, users: { id, email, full_name, profiles: { phone_number,
+    //   profile_image_url } } } - status is lowercase ("pending" etc), and
+    // the applicant's own profile fields (bio, skills, location) are NOT
+    // included here, only email/full_name/phone/photo via the nested
+    // `users` object. Use getUserProfile(worker_id) to get the rest.
+    getJobApplicants: async (jobId: string) => {
+        const unwrap = (raw: any): any[] => {
+            if (Array.isArray(raw)) return raw;
+            if (Array.isArray(raw?.applications)) return raw.applications;
+            if (Array.isArray(raw?.data)) return raw.data;
+            if (Array.isArray(raw?.results)) return raw.results;
+            return [];
+        };
+
+        try {
+            const response = await api.get(`/applications/job/${jobId}`);
+            return unwrap(response.data);
+        } catch (error: any) {
+            if (error.response?.status === 404) {
+                return [];
+            }
+            console.error(`Failed to fetch applicants for job ${jobId}:`, error.response?.data?.message || error?.message);
+            return [];
+        }
+    },
+
+    // A worker's full profile (bio, skills, phone, dob, photo) by user id.
+    // Verified against the live backend: GET /profiles/:id -> 200 with
+    // { status, data: { id, full_name, email, role, created_at, bio, skills,
+    //   phone_number, date_of_birth, profile_image_url } }. Any of the
+    // profile fields (bio, skills, phone_number, profile_image_url) can be
+    // null if the worker never filled them in. No `location` field exists
+    // anywhere in this response.
+    getUserProfile: async (userId: string) => {
+        try {
+            const response = await api.get(`/profiles/${userId}`);
+            return response.data?.data || response.data || null;
+        } catch (error: any) {
+            if (error.response?.status === 404) {
+                return null;
+            }
+            console.error(`Failed to fetch profile for user ${userId}:`, error.response?.data?.message || error?.message);
+            return null;
         }
     },
 

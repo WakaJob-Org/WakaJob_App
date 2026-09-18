@@ -12,6 +12,8 @@ interface HeaderProps {
     showBackButton?: boolean;
     onBackPress?: () => void;
     showSettings?: boolean;
+    showNotification?: boolean;
+    rightElement?: React.ReactNode;
 }
 
 const Header: React.FC<HeaderProps> = ({
@@ -21,7 +23,9 @@ const Header: React.FC<HeaderProps> = ({
     onNotificationPress,
     showBackButton,
     onBackPress,
-    showSettings = true
+    showSettings = true,
+    showNotification = true,
+    rightElement
 }) => {
     const insets = useSafeAreaInsets();
 
@@ -43,9 +47,11 @@ const Header: React.FC<HeaderProps> = ({
                 </View>
 
                 <View style={styles.rightSection}>
-                    <TouchableOpacity style={styles.iconButton} onPress={onNotificationPress}>
-                        <Ionicons name="notifications-outline" size={24} color="#FFFFFF" />
-                    </TouchableOpacity>
+                    {showNotification && (
+                        <TouchableOpacity style={styles.iconButton} onPress={onNotificationPress}>
+                            <Ionicons name="notifications-outline" size={24} color="#FFFFFF" />
+                        </TouchableOpacity>
+                    )}
                     {showSettings && (
                         <TouchableOpacity onPress={onSettingsPress} style={styles.iconButton}>
                             <View style={styles.profileIndicator}>
@@ -53,6 +59,7 @@ const Header: React.FC<HeaderProps> = ({
                             </View>
                         </TouchableOpacity>
                     )}
+                    {rightElement}
                 </View>
             </View>
         </View>
