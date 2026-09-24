@@ -9,6 +9,7 @@ import {
     ScrollView,
     TextInput,
     Image,
+    Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,72 +17,16 @@ import jobService from '../../services/jobService';
 import ApplicationsSkeleton from '../../components/ApplicationsSkeleton';
 import type { Applicant } from './ApplicantProfileScreen';
 
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
+import { useChat } from '../../context/ChatContext';
+import chatService from '../../services/chatService';
 
 type StatusKey = 'NEW' | 'UNDER REVIEW' | 'INTERVIEWING' | 'ACCEPTED' | 'REJECTED';
 
 const FILTER_TABS = ['All', 'New', 'Reviewing', 'Interview', 'Accepted', 'Rejected'];
 
-const MOCK_APPLICANTS: Applicant[] = [
-    {
-        id: '1',
-        name: 'Samuel Adebayo',
-        role: 'Master Carpenter',
-        location: 'Lagos, Nigeria',
-        status: 'NEW',
-        photo: null,
-        initials: 'SA',
-        isVerified: true,
-        bio: 'Dedicated and detail-oriented Master Carpenter with over 12 years of experience in residential and commercial construction. Specialized in bespoke cabinetry, structural framing, and intricate wood finishing.',
-        skills: ['Custom Cabinetry', 'Roof Framing', 'Wood Finishing', 'Blueprint Reading', 'Team Leadership'],
-        startDate: 'Oct 24, 2023',
-        jobDuration: '2 Weeks',
-        agreedRate: '₦150,000',
-    },
-    {
-        id: '2',
-        name: 'Chioma Okafor',
-        role: 'Senior Hair Stylist',
-        location: 'Abuja, Nigeria',
-        status: 'UNDER REVIEW',
-        photo: null,
-        initials: 'CO',
-        isVerified: true,
-        skills: ['Braiding', 'Coloring', 'Keratin Treatments', 'Styling'],
-        startDate: 'Nov 01, 2023',
-        jobDuration: '3 Days/Week',
-        agreedRate: '₦80,000',
-    },
-    {
-        id: '3',
-        name: 'Kofi Mensah',
-        role: 'Professional Barber',
-        location: 'Accra, Ghana',
-        status: 'INTERVIEWING',
-        photo: null,
-        initials: 'KM',
-        isVerified: false,
-        skills: ['Fades', 'Line-ups', 'Beard Grooming', 'Skin Tapers'],
-        startDate: 'Oct 30, 2023',
-        jobDuration: '1 Month',
-        agreedRate: '₦60,000',
-    },
-    {
-        id: '4',
-        name: 'Emeka Musa',
-        role: 'Apprentice Carpenter',
-        location: 'Kano, Nigeria',
-        status: 'ACCEPTED',
-        photo: null,
-        initials: 'EM',
-        isVerified: false,
-        skills: ['Sanding', 'Assembly', 'Wood Cutting'],
-        startDate: 'Oct 20, 2023',
-        jobDuration: '6 Months',
-        agreedRate: '₦40,000',
-    },
-];
+
 
 const STATUS_CONFIG: Record<StatusKey, { label: string; bg: string; text: string; borderColor: string }> = {
     'NEW': {
@@ -149,7 +94,8 @@ const mapRawJobToJob = (rawJob: any, jobId?: string | null) => ({
 
 const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ onViewApplicant }) => {
     const navigation = useNavigation<any>();
-    const { isAuthenticated } = useAuth();
+    const { isAuthenticated, user } = useAuth();
+    const { openConversation } = useChat();
     const [activeTab, setActiveTab] = useState('All');
     const [searchQuery, setSearchQuery] = useState('');
     const [applicants, setApplicants] = useState<Applicant[]>([]);
@@ -251,13 +197,19 @@ const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ onViewApplicant
         }
     };
 
-    React.useEffect(() => {
-        if (!isAuthenticated) {
-            setLoading(false);
-            return;
-        }
-        fetchApplications();
-    }, [isAuthenticated]);
+    // Refetch every time this tab regains focus (not just on mount) so a
+    // status change made by an employer while the applicant was elsewhere
+    // in the app (New -> Under Review/Accepted/Rejected) shows up without
+    // requiring a manual pull-to-refresh.
+    useFocusEffect(
+        React.useCallback(() => {
+            if (!isAuthenticated) {
+                setLoading(false);
+                return;
+            }
+            fetchApplications();
+        }, [isAuthenticated])
+    );
 
     const onRefresh = React.useCallback(() => {
         setRefreshing(true);
@@ -310,6 +262,54 @@ const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ onViewApplicant
         }
 
         navigation.navigate('JobDetails', { job, alreadyApplied: true });
+    };
+
+    // Worker -> employer entry point, mirroring handleMessageApplicant on the
+    // employer side of JobApplicantsScreen. Same client-derived conversation
+    // id scheme so both sides land in the same thread with no backend call.
+    const handleMessageEmployer = async (item: Applicant) => {
+        const anyItem = item as any;
+        const jobId = anyItem.jobId;
+        const employerId = anyItem.job?.employerId;
+        if (!user?.id || !employerId || !jobId) {
+            Alert.alert('Unable to start chat', 'Missing employer or job id.');
+            return;
+        }
+
+        let conversationId = '';
+        try {
+            const conv = await chatService.createConversation({
+                job_id: jobId,
+                job_title: anyItem.jobTitle || item.name,
+                job_status: 'active',
+                employer_id: employerId,
+                worker_id: user.id,
+            });
+            conversationId = conv?._id || conv?.id || '';
+        } catch (e) {
+            console.warn('Failed to create conversation on server, falling back to client id:', e);
+            conversationId = chatService.buildConversationId(jobId, user.id, employerId);
+        }
+
+        if (!conversationId) conversationId = chatService.buildConversationId(jobId, user.id, employerId);
+
+        const otherUserName = anyItem.company || anyItem.jobTitle || 'Employer';
+        openConversation({
+            id: conversationId,
+            jobId,
+            jobTitle: anyItem.jobTitle || item.name,
+            otherUserId: employerId,
+            otherUserName,
+            otherUserPhoto: null,
+        });
+        navigation.navigate('ChatConversation', {
+            conversationId,
+            jobId,
+            jobTitle: anyItem.jobTitle || item.name,
+            otherUserId: employerId,
+            otherUserName,
+            otherUserPhoto: null,
+        });
     };
 
     const renderApplicantCard = ({ item }: { item: Applicant }) => {
@@ -369,9 +369,18 @@ const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ onViewApplicant
                             {item.location || 'Location not specified'}
                         </Text>
                     </View>
-                    <TouchableOpacity activeOpacity={0.7} onPress={() => handleViewDetails(item)}>
-                        <Text style={styles.viewDetails}>View Details</Text>
-                    </TouchableOpacity>
+                    <View style={styles.cardActions}>
+                        <TouchableOpacity
+                            style={styles.messageIconBtn}
+                            activeOpacity={0.7}
+                            onPress={() => handleMessageEmployer(item)}
+                        >
+                            <Ionicons name="chatbubble-outline" size={16} color="#1972ca" />
+                        </TouchableOpacity>
+                        <TouchableOpacity activeOpacity={0.7} onPress={() => handleViewDetails(item)}>
+                            <Text style={styles.viewDetails}>View Details</Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
             </TouchableOpacity>
         );
@@ -674,6 +683,19 @@ const styles = StyleSheet.create({
         fontSize: 13,
         fontWeight: '700',
         color: '#1972ca',
+    },
+    cardActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 14,
+    },
+    messageIconBtn: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        backgroundColor: '#EBF5FF',
+        alignItems: 'center',
+        justifyContent: 'center',
     },
 
     // ── Empty State ──

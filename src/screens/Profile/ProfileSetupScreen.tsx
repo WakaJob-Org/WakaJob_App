@@ -162,7 +162,7 @@ const ProfileSetupScreen: React.FC = () => {
         <View style={styles.container}>
             {/* Minimal Centered Header */}
             <View style={[styles.miniHeader, { paddingTop: Math.max(insets.top, 20) }]}>
-                 <TouchableOpacity onPress={() => onComplete()} style={styles.backButton}>
+                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color="#333" />
                 </TouchableOpacity>
                 <View style={styles.titleContainer}>

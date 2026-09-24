@@ -15,73 +15,26 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import jobService from '../../services/jobService';
 import { useAuth } from '../../context/AuthContext';
-
-interface SavedJob {
-    id: string;
-    title?: string;
-    position_vacant?: string;
-    company?: string;
-    location?: string;
-    salary?: string;
-    type?: string;
-    job_type?: string;
-    category?: string;
-    description?: string;
-    email?: string;
-    phone?: string;
-    imageUrl?: string;
-    postedAt?: string;
-    employerId?: string;
-    created_at?: string;
-}
-
-const CATEGORY_COLORS: Record<string, { bg: string; icon: string }> = {
-    technology: { bg: '#EFF6FF', icon: '#1972ca' },
-    design: { bg: '#FDF4FF', icon: '#9333EA' },
-    finance: { bg: '#F0FDF4', icon: '#16A34A' },
-    marketing: { bg: '#FFF7ED', icon: '#EA580C' },
-    default: { bg: '#F1F5F9', icon: '#64748B' },
-};
-
-const getCategoryStyle = (category = '') => {
-    return CATEGORY_COLORS[category.toLowerCase()] ?? CATEGORY_COLORS.default;
-};
+import JobCard, { JobType } from '../../components/JobCard';
+import ApplyModal from '../../components/ApplyModal';
 
 const SavedScreen: React.FC = () => {
     const insets = useSafeAreaInsets();
     const navigation = useNavigation<any>();
     const { user, isAuthenticated } = useAuth();
-    const [savedJobs, setSavedJobs] = useState<SavedJob[]>([]);
+    const [savedJobs, setSavedJobs] = useState<JobType[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [showApplyModal, setShowApplyModal] = useState(false);
+    const [applyingJob, setApplyingJob] = useState<JobType | null>(null);
+    const [defaultAppType, setDefaultAppType] = useState<'professional' | 'apprentice'>('professional');
 
     const fetchSaved = async (isRefreshing = false) => {
         try {
             if (!isRefreshing) setLoading(true);
             const data = await jobService.getSavedJobs(user?.id);
-            
-            const mapped: SavedJob[] = (data || []).map((item: any) => {
-                const job = item.job || item;
-                return {
-                    id: job.id || job._id || item.id || item._id,
-                    title: job.title || job.position_vacant || 'Untitled Position',
-                    position_vacant: job.position_vacant || job.title || 'Untitled Position',
-                    company: job.users?.full_name || job.company || job.company_name || 'WakaJob Partner',
-                    location: job.location || 'Remote',
-                    salary: job.salary || job.payment_rate || '',
-                    type: job.type || job.job_type || 'Full-time',
-                    job_type: job.job_type || job.type || 'Full-time',
-                    category: job.category || 'default',
-                    description: job.description || '',
-                    email: job.email || job.users?.email || '',
-                    phone: job.phone || job.users?.profiles?.phone_number || '',
-                    imageUrl: job.imageUrl || job.image_url || job.job_image,
-                    postedAt: job.postedAt || job.created_at || item.created_at || '',
-                    employerId: job.employerId || job.employer_id,
-                    created_at: job.created_at || item.created_at || '',
-                };
-            });
-            setSavedJobs(mapped);
+            // Since jobs are saved locally as JobType objects, we can just use them directly
+            setSavedJobs(data || []);
         } catch (error) {
             console.error('Error fetching saved jobs:', error);
             setSavedJobs([]);
@@ -91,7 +44,6 @@ const SavedScreen: React.FC = () => {
         }
     };
 
-    // Refresh whenever the tab comes into focus
     useFocusEffect(
         useCallback(() => {
             if (!isAuthenticated) {
@@ -107,104 +59,26 @@ const SavedScreen: React.FC = () => {
         fetchSaved(true);
     }, []);
 
-    const handleRemove = (jobId: string) => {
+    const handleUnsave = async (job: JobType) => {
+        const jobId = job.id;
         Alert.alert('Remove Job', 'Remove this job from saved?', [
             { text: 'Cancel', style: 'cancel' },
             {
                 text: 'Remove',
                 style: 'destructive',
                 onPress: async () => {
+                    // Optimistic UI update
                     setSavedJobs(prev => prev.filter(j => j.id !== jobId));
                     try {
                         await jobService.unsaveJob(jobId, user?.id);
                     } catch (error) {
                         console.error('Error unsaving job:', error);
+                        // Re-fetch to restore correct state if API call fails
                         fetchSaved();
                     }
                 },
             },
         ]);
-    };
-
-    const renderItem = ({ item }: { item: SavedJob }) => {
-        const title = item.title || item.position_vacant || 'Untitled Position';
-        const jobType = item.type || item.job_type || 'Full-time';
-        const { bg, icon } = getCategoryStyle(item.category);
-
-        return (
-            <TouchableOpacity
-                style={styles.card}
-                activeOpacity={0.8}
-                onPress={() => {
-                    navigation.navigate('JobDetails', {
-                        job: {
-                            id: item.id,
-                            title,
-                            company: item.company,
-                            location: item.location,
-                            salary: item.salary,
-                            type: jobType,
-                            category: item.category,
-                            description: item.description,
-                            email: item.email,
-                            phone: item.phone,
-                            imageUrl: item.imageUrl,
-                            postedAt: item.postedAt,
-                            employerId: item.employerId,
-                        },
-                        isSaved: true
-                    });
-                }}
-            >
-                <View style={styles.cardLeft}>
-                    {item.imageUrl ? (
-                        <Image source={{ uri: item.imageUrl }} style={styles.thumbnail} />
-                    ) : (
-                        <View style={[styles.iconBox, { backgroundColor: bg }]}>
-                            <Ionicons
-                                name={
-                                    (item.category?.toLowerCase() ?? '') === 'technology'
-                                        ? 'code-working'
-                                        : 'briefcase'
-                                }
-                                size={22}
-                                color={icon}
-                            />
-                        </View>
-                    )}
-                    <View style={styles.cardInfo}>
-                        <Text style={styles.jobTitle} numberOfLines={1}>{title}</Text>
-                        <Text style={styles.company} numberOfLines={1}>
-                            {item.company ?? 'WakaJob Partner'}
-                        </Text>
-                        <View style={styles.metaRow}>
-                            <View style={styles.metaItem}>
-                                <Ionicons name="location-outline" size={12} color="#9BA4B1" />
-                                <Text style={styles.metaText} numberOfLines={1}>
-                                    {item.location ?? 'Remote'}
-                                </Text>
-                            </View>
-                            <View style={styles.metaItem}>
-                                <Ionicons name="time-outline" size={12} color="#9BA4B1" />
-                                <Text style={styles.metaText}>{jobType}</Text>
-                            </View>
-                        </View>
-                    </View>
-                </View>
-                <View style={styles.cardRight}>
-                    <TouchableOpacity
-                        style={styles.removeBtn}
-                        onPress={() => handleRemove(item.id)}
-                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                    >
-                        <Ionicons name="bookmark" size={22} color="#1972ca" />
-                    </TouchableOpacity>
-                    {item.salary ? (
-                        <Text style={styles.salary}>{item.salary}</Text>
-                    ) : null}
-                </View>
-            </TouchableOpacity>
-        );
     };
 
     if (!isAuthenticated) {
@@ -246,12 +120,11 @@ const SavedScreen: React.FC = () => {
             </View>
 
             {loading ? (
-                // Skeleton placeholders
                 <View style={styles.skeletonWrap}>
-                    {[1, 2, 3, 4].map(i => (
+                    {[1, 2, 3].map(i => (
                         <View key={i} style={styles.skeletonCard}>
-                            <View style={styles.skeletonIcon} />
-                            <View style={styles.skeletonLines}>
+                            <View style={styles.skeletonBanner} />
+                            <View style={styles.skeletonBody}>
                                 <View style={styles.skeletonLine1} />
                                 <View style={styles.skeletonLine2} />
                                 <View style={styles.skeletonLine3} />
@@ -263,7 +136,19 @@ const SavedScreen: React.FC = () => {
                 <FlatList
                     data={savedJobs}
                     keyExtractor={item => item.id}
-                    renderItem={renderItem}
+                    renderItem={({ item }) => (
+                        <JobCard
+                            job={item}
+                            isSaved={true}
+                            onToggleSave={handleUnsave}
+                            onPress={(job) => navigation.navigate('JobDetails', { job, isSaved: true })}
+                            onApplyRequest={(job, type) => {
+                                setApplyingJob(job);
+                                setDefaultAppType(type);
+                                setShowApplyModal(true);
+                            }}
+                        />
+                    )}
                     contentContainerStyle={styles.listContent}
                     showsVerticalScrollIndicator={false}
                     refreshControl={
@@ -285,6 +170,23 @@ const SavedScreen: React.FC = () => {
                             </Text>
                         </View>
                     }
+                />
+            )}
+
+            {applyingJob && (
+                <ApplyModal
+                    visible={showApplyModal}
+                    onClose={() => setShowApplyModal(false)}
+                    initialApplicationType={defaultAppType}
+                    onApply={async (data) => {
+                        try {
+                            await jobService.applyToJob(applyingJob.id, data);
+                            Alert.alert('Success', 'Application sent successfully!');
+                        } catch (error: any) {
+                            Alert.alert('Error', error || 'Failed to apply.');
+                        }
+                    }}
+                    jobTitle={applyingJob.title || applyingJob.position_vacant || 'Position'}
                 />
             )}
         </View>
@@ -319,83 +221,7 @@ const styles = StyleSheet.create({
         paddingTop: 16,
         paddingBottom: 100,
     },
-    card: {
-        backgroundColor: '#FFFFFF',
-        borderRadius: 16,
-        padding: 16,
-        marginBottom: 12,
-        flexDirection: 'row',
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: '#F3F4F6',
-        elevation: 2,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.04,
-        shadowRadius: 6,
-    },
-    cardLeft: {
-        flexDirection: 'row',
-        flex: 1,
-        alignItems: 'center',
-    },
-    iconBox: {
-        width: 48,
-        height: 48,
-        borderRadius: 12,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: 12,
-    },
-    thumbnail: {
-        width: 48,
-        height: 48,
-        borderRadius: 12,
-        marginRight: 12,
-        backgroundColor: '#F1F5F9',
-    },
-    cardInfo: {
-        flex: 1,
-    },
-    jobTitle: {
-        fontSize: 15,
-        fontWeight: '700',
-        color: '#111827',
-        marginBottom: 2,
-    },
-    company: {
-        fontSize: 13,
-        color: '#6B7280',
-        marginBottom: 6,
-    },
-    metaRow: {
-        flexDirection: 'row',
-        gap: 10,
-    },
-    metaItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 3,
-    },
-    metaText: {
-        fontSize: 11,
-        color: '#9BA4B1',
-        fontWeight: '500',
-    },
-    cardRight: {
-        alignItems: 'flex-end',
-        gap: 8,
-        marginLeft: 8,
-    },
-    removeBtn: {
-        padding: 4,
-    },
-    salary: {
-        fontSize: 11,
-        fontWeight: '700',
-        color: '#1972ca',
-        textAlign: 'right',
-    },
+
     // Empty state
     emptyState: {
         alignItems: 'center',
@@ -426,46 +252,43 @@ const styles = StyleSheet.create({
     // Skeleton
     skeletonWrap: {
         padding: 20,
-        gap: 12,
+        gap: 20,
     },
     skeletonCard: {
         backgroundColor: '#FFFFFF',
-        borderRadius: 16,
-        padding: 16,
-        flexDirection: 'row',
-        alignItems: 'center',
+        borderRadius: 24,
+        overflow: 'hidden',
         borderWidth: 1,
-        borderColor: '#F3F4F6',
+        borderColor: '#F1F5F9',
     },
-    skeletonIcon: {
-        width: 48,
-        height: 48,
-        borderRadius: 12,
+    skeletonBanner: {
+        width: '100%',
+        height: 160,
         backgroundColor: '#F1F5F9',
-        marginRight: 12,
     },
-    skeletonLines: {
-        flex: 1,
-        gap: 8,
+    skeletonBody: {
+        padding: 16,
+        gap: 10,
     },
     skeletonLine1: {
-        height: 14,
+        height: 18,
         width: '70%',
         backgroundColor: '#F1F5F9',
         borderRadius: 6,
     },
     skeletonLine2: {
-        height: 11,
+        height: 13,
         width: '50%',
         backgroundColor: '#F1F5F9',
         borderRadius: 6,
     },
     skeletonLine3: {
-        height: 10,
+        height: 11,
         width: '40%',
         backgroundColor: '#F1F5F9',
         borderRadius: 6,
     },
+    // Unauthenticated
     unauthenticatedContainer: {
         flex: 1,
         backgroundColor: '#FFFFFF',

@@ -11,7 +11,8 @@ import {
     Linking,
     Dimensions,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -168,6 +169,137 @@ const HireSheet = ({
 };
 
 /* ─────────────────────────────
+   Modal Body (rendered inside its own SafeAreaProvider - Modal opens a
+   separate native window on both platforms, so it does not inherit safe
+   area insets measured for the app's main window; without a fresh
+   provider here, insets.top/bottom read as 0 and the header collides
+   with the status bar)
+───────────────────────────────*/
+const ApplicantProfileBody = ({
+    applicant,
+    photoUri,
+    avatarColor,
+    displayInitials,
+    activeTab,
+    setActiveTab,
+    handleClose,
+    handleMessage,
+    handleCall,
+    handleDecline,
+    onHirePress,
+    renderBioTab,
+    renderExperienceTab,
+    renderPortfolioTab,
+}: {
+    applicant: Applicant;
+    photoUri: string | null;
+    avatarColor: string;
+    displayInitials: string;
+    activeTab: string;
+    setActiveTab: (tab: string) => void;
+    handleClose: () => void;
+    handleMessage: () => void;
+    handleCall: () => void;
+    handleDecline: () => void;
+    onHirePress: () => void;
+    renderBioTab: () => React.ReactElement;
+    renderExperienceTab: () => React.ReactElement;
+    renderPortfolioTab: () => React.ReactElement;
+}) => {
+    const insets = useSafeAreaInsets();
+
+    return (
+        <SafeAreaView style={styles.container}>
+            <StatusBar style="dark" />
+            {/* ── Header ── */}
+            <View style={[styles.header, { paddingTop: insets.top > 0 ? 6 : 16 }]}>
+                <TouchableOpacity onPress={handleClose} style={styles.headerBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                    <Ionicons name="arrow-back" size={22} color="#1F2937" />
+                </TouchableOpacity>
+                <Text style={styles.headerTitle}>Applicant Profile</Text>
+                <TouchableOpacity style={styles.headerBtn}>
+                    <Ionicons name="ellipsis-vertical" size={22} color="#1F2937" />
+                </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+                {/* ── Avatar ── */}
+                <View style={styles.avatarSection}>
+                    <View style={styles.avatarContainer}>
+                        {photoUri ? (
+                            <Image source={{ uri: photoUri }} style={styles.profilePhoto} />
+                        ) : (
+                            <View style={[styles.profilePhoto, styles.avatarFallback, { backgroundColor: avatarColor }]}>
+                                <Text style={styles.avatarBigInitials}>{displayInitials}</Text>
+                            </View>
+                        )}
+                        <View style={styles.onlineBadge} />
+                    </View>
+
+                    <Text style={styles.profileName}>{applicant.name}</Text>
+                    <Text style={styles.profileRole}>{applicant.role}</Text>
+                    <View style={styles.locationRow}>
+                        <Ionicons name="location-outline" size={14} color="#9CA3AF" />
+                        <Text style={styles.profileLocation}>{applicant.location}</Text>
+                    </View>
+                </View>
+
+                {/* ── Action Buttons ── */}
+                <View style={styles.actionRow}>
+                    <TouchableOpacity style={styles.messageBtn} onPress={handleMessage} activeOpacity={0.8}>
+                        <Ionicons name="chatbubble-outline" size={16} color="#1972ca" />
+                        <Text style={styles.messageBtnText}>Message</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.callBtn} onPress={handleCall} activeOpacity={0.8}>
+                        <Ionicons name="call-outline" size={16} color="#FFFFFF" />
+                        <Text style={styles.callBtnText}>Call</Text>
+                    </TouchableOpacity>
+                </View>
+
+                {/* ── Verified Badge ── */}
+                {(applicant.isVerified !== false) && (
+                    <View style={styles.verifiedBadge}>
+                        <Ionicons name="checkmark-circle" size={16} color="#16A34A" />
+                        <Text style={styles.verifiedText}>VERIFIED PROFESSIONAL</Text>
+                    </View>
+                )}
+
+                {/* ── Tab Bar ── */}
+                <View style={styles.tabBar}>
+                    {BIO_TABS.map((tab) => (
+                        <TouchableOpacity
+                            key={tab}
+                            style={[styles.tabItem, activeTab === tab && styles.activeTabItem]}
+                            onPress={() => setActiveTab(tab)}
+                            activeOpacity={0.7}
+                        >
+                            <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>
+                                {tab}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+
+                {/* ── Tab Content ── */}
+                {activeTab === 'Bio' && renderBioTab()}
+                {activeTab === 'Experience' && renderExperienceTab()}
+                {activeTab === 'Portfolio' && renderPortfolioTab()}
+            </ScrollView>
+
+            {/* ── Bottom Actions ── */}
+            <View style={[styles.bottomBar, { paddingBottom: insets.bottom > 0 ? insets.bottom : 16 }]}>
+                <TouchableOpacity style={styles.declineBtn} activeOpacity={0.8} onPress={handleDecline}>
+                    <Text style={styles.declineBtnText}>Decline</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.hireBtn} activeOpacity={0.85} onPress={onHirePress}>
+                    <Text style={styles.hireBtnText}>Hire Now</Text>
+                </TouchableOpacity>
+            </View>
+        </SafeAreaView>
+    );
+};
+
+/* ─────────────────────────────
    Main Applicant Profile Screen
 ───────────────────────────────*/
 const ApplicantProfileScreen: React.FC<ApplicantProfileScreenProps> = ({
@@ -182,7 +314,6 @@ const ApplicantProfileScreen: React.FC<ApplicantProfileScreenProps> = ({
     onDecline,
     onHire,
 }) => {
-    const insets = useSafeAreaInsets();
     const [activeTab, setActiveTab] = useState('Bio');
     const [hireSheetVisible, setHireSheetVisible] = useState(false);
 
@@ -319,93 +450,25 @@ const ApplicantProfileScreen: React.FC<ApplicantProfileScreenProps> = ({
     };
 
     return (
-        <Modal visible={isOpen} animationType="slide" onRequestClose={handleClose}>
-            <SafeAreaView style={styles.container}>
-                {/* ── Header ── */}
-                <View style={[styles.header, { paddingTop: insets.top > 0 ? 6 : 16 }]}>
-                    <TouchableOpacity onPress={handleClose} style={styles.headerBtn}>
-                        <Ionicons name="arrow-back" size={22} color="#1F2937" />
-                    </TouchableOpacity>
-                    <Text style={styles.headerTitle}>Applicant Profile</Text>
-                    <TouchableOpacity style={styles.headerBtn}>
-                        <Ionicons name="ellipsis-vertical" size={22} color="#1F2937" />
-                    </TouchableOpacity>
-                </View>
-
-                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-                    {/* ── Avatar ── */}
-                    <View style={styles.avatarSection}>
-                        <View style={styles.avatarContainer}>
-                            {photoUri ? (
-                                <Image source={{ uri: photoUri }} style={styles.profilePhoto} />
-                            ) : (
-                                <View style={[styles.profilePhoto, styles.avatarFallback, { backgroundColor: avatarColor }]}>
-                                    <Text style={styles.avatarBigInitials}>{displayInitials}</Text>
-                                </View>
-                            )}
-                            <View style={styles.onlineBadge} />
-                        </View>
-
-                        <Text style={styles.profileName}>{applicant.name}</Text>
-                        <Text style={styles.profileRole}>{applicant.role}</Text>
-                        <View style={styles.locationRow}>
-                            <Ionicons name="location-outline" size={14} color="#9CA3AF" />
-                            <Text style={styles.profileLocation}>{applicant.location}</Text>
-                        </View>
-                    </View>
-
-                    {/* ── Action Buttons ── */}
-                    <View style={styles.actionRow}>
-                        <TouchableOpacity style={styles.messageBtn} onPress={handleMessage} activeOpacity={0.8}>
-                            <Ionicons name="chatbubble-outline" size={16} color="#1972ca" />
-                            <Text style={styles.messageBtnText}>Message</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.callBtn} onPress={handleCall} activeOpacity={0.8}>
-                            <Ionicons name="call-outline" size={16} color="#FFFFFF" />
-                            <Text style={styles.callBtnText}>Call</Text>
-                        </TouchableOpacity>
-                    </View>
-
-                    {/* ── Verified Badge ── */}
-                    {(applicant.isVerified !== false) && (
-                        <View style={styles.verifiedBadge}>
-                            <Ionicons name="checkmark-circle" size={16} color="#16A34A" />
-                            <Text style={styles.verifiedText}>VERIFIED PROFESSIONAL</Text>
-                        </View>
-                    )}
-
-                    {/* ── Tab Bar ── */}
-                    <View style={styles.tabBar}>
-                        {BIO_TABS.map((tab) => (
-                            <TouchableOpacity
-                                key={tab}
-                                style={[styles.tabItem, activeTab === tab && styles.activeTabItem]}
-                                onPress={() => setActiveTab(tab)}
-                                activeOpacity={0.7}
-                            >
-                                <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>
-                                    {tab}
-                                </Text>
-                            </TouchableOpacity>
-                        ))}
-                    </View>
-
-                    {/* ── Tab Content ── */}
-                    {activeTab === 'Bio' && renderBioTab()}
-                    {activeTab === 'Experience' && renderExperienceTab()}
-                    {activeTab === 'Portfolio' && renderPortfolioTab()}
-                </ScrollView>
-
-                {/* ── Bottom Actions ── */}
-                <View style={[styles.bottomBar, { paddingBottom: insets.bottom > 0 ? insets.bottom : 16 }]}>
-                    <TouchableOpacity style={styles.declineBtn} activeOpacity={0.8} onPress={handleDecline}>
-                        <Text style={styles.declineBtnText}>Decline</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.hireBtn} activeOpacity={0.85} onPress={() => setHireSheetVisible(true)}>
-                        <Text style={styles.hireBtnText}>Hire Now</Text>
-                    </TouchableOpacity>
-                </View>
-            </SafeAreaView>
+        <Modal visible={isOpen} animationType="slide" onRequestClose={handleClose} statusBarTranslucent>
+            <SafeAreaProvider>
+                <ApplicantProfileBody
+                    applicant={applicant}
+                    photoUri={photoUri}
+                    avatarColor={avatarColor}
+                    displayInitials={displayInitials}
+                    activeTab={activeTab}
+                    setActiveTab={setActiveTab}
+                    handleClose={handleClose}
+                    handleMessage={handleMessage}
+                    handleCall={handleCall}
+                    handleDecline={handleDecline}
+                    onHirePress={() => setHireSheetVisible(true)}
+                    renderBioTab={renderBioTab}
+                    renderExperienceTab={renderExperienceTab}
+                    renderPortfolioTab={renderPortfolioTab}
+                />
+            </SafeAreaProvider>
 
             {/* ── Hire Sheet ── */}
             <HireSheet

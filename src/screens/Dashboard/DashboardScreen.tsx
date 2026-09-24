@@ -14,8 +14,10 @@ import {
     RefreshControl,
     Image,
     ImageSourcePropType,
+    ActivityIndicator
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -26,34 +28,30 @@ import authService from '../../services/authService';
 import { useAuth } from '../../context/AuthContext';
 import { AppStackParamList, MainTabParamList } from '../../navigation/types';
 import ApplyModal from '../../components/ApplyModal';
+import JobCard, { JobType } from '../../components/JobCard';
+import DashboardSkeleton from '../../components/DashboardSkeleton';
 
 type DashboardNavigationProp = CompositeNavigationProp<
     BottomTabNavigationProp<MainTabParamList, 'Jobs'>,
     StackNavigationProp<AppStackParamList>
 >;
 
-interface JobType {
-    id: string;
-    title: string;
-    company: string;
-    location: string;
-    salary: string;
-    type: string;
-    description: string;
-    category: string;
-    email: string;
-    phone: string;
-    postedAt: string;
-    imageUrl?: string;
-    tags?: string[];
-    hasApprentice?: boolean;
-    requirements?: string[];
-    employerId?: string;
-}
-
-import DashboardSkeleton from '../../components/DashboardSkeleton';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+// Shown under the search bar to guests only - short WakaJob-focused tips.
+const DASHBOARD_TIPS = [
+    {
+        title: 'Find the perfect job for you',
+        description: 'Search and apply to trusted local jobs across every trade, right from your phone.',
+        icon: 'briefcase' as const,
+    },
+    {
+        title: 'Get noticed by employers',
+        description: 'Create a free account and complete your profile to get matched with the right opportunities faster.',
+        icon: 'bulb' as const,
+    },
+];
 
 const DashboardScreen: React.FC = () => {
     const { user, logout, refreshUser, isAuthenticated } = useAuth();
@@ -76,6 +74,10 @@ const DashboardScreen: React.FC = () => {
             navigation.navigate('CreateJob');
         } else if (status === 'pending') {
             navigation.navigate('VerificationPending');
+        } else if (status === 'rejected' || status === 'denied' || status === 'failed') {
+            // Show them why before sending them back into the resubmission form —
+            // matches the same branching ProfileScreen already uses.
+            navigation.navigate('VerificationFailed', { reason: user?.rejection_reason });
         } else {
             navigation.navigate('EmployerVerification');
         }
@@ -88,6 +90,10 @@ const DashboardScreen: React.FC = () => {
     const [filteredJobs, setFilteredJobs] = useState<JobType[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [hasMore, setHasMore] = useState(true);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+    const PAGE_LIMIT = 10;
     const [profile, setProfile] = useState<any>(null);
     const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
     const [showFilterDropdown, setShowFilterDropdown] = useState(false);
@@ -96,6 +102,7 @@ const DashboardScreen: React.FC = () => {
     const [showApplyModal, setShowApplyModal] = useState(false);
     const [applyingJob, setApplyingJob] = useState<JobType | null>(null);
     const [defaultAppType, setDefaultAppType] = useState<'professional' | 'apprentice'>('professional');
+    const [tipPageIndex, setTipPageIndex] = useState(0);
     
     // Debounced search and location (500ms delay)
     const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -157,15 +164,19 @@ const DashboardScreen: React.FC = () => {
     const displayName = profile?.full_name || user?.full_name || 'User';
     const avatarInitials = getInitials(displayName);
 
-    const fetchJobs = async (isRefreshing = false, showSkeleton = false) => {
+    const fetchJobs = async (isRefreshing = false, showSkeleton = false, pageNumber = 1) => {
         try {
             if (showSkeleton) setLoading(true);
             
             // Prepare Query Params
-            const apiParams: any = {};
+            const apiParams: any = { page: pageNumber, limit: PAGE_LIMIT };
             if (debouncedSearch.trim()) apiParams.search = debouncedSearch;
-            
-            const locationToUse = selectedLocation === 'Custom' ? debouncedLocation : selectedLocation;
+
+            // Prefer the tapped preset chip; fall back to freehand-typed text.
+            // (Previously checked `selectedLocation === 'Custom'`, but nothing
+            // ever set that literal sentinel, so typed locations never made
+            // it into the request.)
+            const locationToUse = selectedLocation || debouncedLocation;
             if (locationToUse.trim()) apiParams.location = locationToUse;
 
             const fetchedJobs = await jobService.getJobs(apiParams);
@@ -189,21 +200,35 @@ const DashboardScreen: React.FC = () => {
                     imageUrl: job.image_url || job.job_image,
                     requirements: job.qualifications ? job.qualifications.split(',') : [],
                     employerId: job.employer_id,
+                    is_active: job.is_active !== false,
+                    disabled_reason: (job as any).disabled_reason || (job as any).disable_reason || '',
                 };
             });
 
-            // Filter: only show jobs that have an uploaded image, and never show the
-            // current user their own postings - the browse feed is for applying to
-            // other people's jobs, not for seeing your own listings.
-            const jobsWithImages = mappedJobs.filter(job => !!job.imageUrl && job.employerId !== user?.id);
+            // Filter: only show jobs that have an uploaded image, are active (not disabled by admin),
+            // and never show the current user their own postings.
+            const jobsWithImages = mappedJobs.filter(job => !!job.imageUrl && job.employerId !== user?.id && job.is_active !== false);
 
-            setAllJobs(jobsWithImages);
-            setFilteredJobs(jobsWithImages);
+            setHasMore(fetchedJobs.length === PAGE_LIMIT);
+
+            if (pageNumber === 1) {
+                setAllJobs(jobsWithImages);
+                setFilteredJobs(jobsWithImages);
+            } else {
+                setAllJobs(prev => {
+                    // Prevent duplicates
+                    const newJobs = jobsWithImages.filter(nj => !prev.some(pj => pj.id === nj.id));
+                    const combined = [...prev, ...newJobs];
+                    setFilteredJobs(combined);
+                    return combined;
+                });
+            }
         } catch (error) {
             console.error('Error fetching jobs:', error);
-            if (!isRefreshing) {
+            if (!isRefreshing && pageNumber === 1) {
                 setAllJobs([]);
                 setFilteredJobs([]);
+                setHasMore(false);
             }
         } finally {
             setLoading(false);
@@ -212,9 +237,12 @@ const DashboardScreen: React.FC = () => {
     };
 
     useEffect(() => {
+        // Reset pagination when search/filter changes
+        setCurrentPage(1);
+        setHasMore(true);
         // Initial load shows skeleton, subsequent filter updates don't (smoother UX)
         const isInitialLoad = allJobs.length === 0 && !debouncedSearch && !selectedLocation && !debouncedLocation;
-        fetchJobs(false, isInitialLoad);
+        fetchJobs(false, isInitialLoad, 1);
     }, [debouncedSearch, selectedLocation, debouncedLocation]);
 
     const loadSavedJobs = React.useCallback(() => {
@@ -242,9 +270,11 @@ const DashboardScreen: React.FC = () => {
 
     const onRefresh = React.useCallback(async () => {
         setRefreshing(true);
+        setCurrentPage(1);
+        setHasMore(true);
         try {
             await Promise.all([
-                fetchJobs(true),
+                fetchJobs(true, false, 1),
                 refreshUser()
             ]);
         } catch (error) {
@@ -254,19 +284,42 @@ const DashboardScreen: React.FC = () => {
         }
     }, [debouncedSearch, selectedLocation, customLocation, refreshUser]);
 
+    const handleLoadMore = async () => {
+        if (!hasMore || isLoadingMore || loading || refreshing) return;
+        setIsLoadingMore(true);
+        try {
+            const nextPage = currentPage + 1;
+            await fetchJobs(false, false, nextPage);
+            setCurrentPage(nextPage);
+        } finally {
+            setIsLoadingMore(false);
+        }
+    };
+
+    // Re-narrows the already-fetched job list on-device for both search and
+    // location, rather than trusting the backend's /jobs query params alone -
+    // the backend doesn't currently filter by `location` at all, so without
+    // this the location chips/custom input had no visible effect.
     useEffect(() => {
+        let result = allJobs;
+
         if (searchQuery.trim()) {
             const query = searchQuery.toLowerCase();
-            const filtered = allJobs.filter(job =>
+            result = result.filter(job =>
                 job.title.toLowerCase().includes(query) ||
                 job.company.toLowerCase().includes(query) ||
                 job.description.toLowerCase().includes(query)
             );
-            setFilteredJobs(filtered);
-        } else {
-            setFilteredJobs(allJobs);
         }
-    }, [searchQuery, allJobs]);
+
+        const activeLocation = selectedLocation || customLocation;
+        if (activeLocation.trim()) {
+            const loc = activeLocation.toLowerCase();
+            result = result.filter(job => job.location.toLowerCase().includes(loc));
+        }
+
+        setFilteredJobs(result);
+    }, [searchQuery, allJobs, selectedLocation, customLocation]);
 
     if (loading) return <DashboardSkeleton />;
 
@@ -284,10 +337,11 @@ const DashboardScreen: React.FC = () => {
             return;
         }
         try {
-            if (savedJobsList.includes(job.id)) {
-                setSavedJobsList(prev => prev.filter(id => id !== job.id));
+            const jobId = job.id;
+            if (savedJobsList.includes(jobId)) {
+                setSavedJobsList(prev => prev.filter(id => id !== jobId));
                 showToast("Job removed from saved");
-                await jobService.unsaveJob(job.id, user?.id);
+                await jobService.unsaveJob(jobId, user?.id);
             } else {
                 setSavedJobsList(prev => [...prev, job.id]);
                 showToast("Job saved successfully");
@@ -312,109 +366,89 @@ const DashboardScreen: React.FC = () => {
         return colors[charCode % colors.length];
     };
 
-    const renderJobItem = ({ item }: { item: JobType }) => {
-        const isExpanded = expandedJobId === item.id;
+    const tipCardWidth = SCREEN_WIDTH - 40;
 
-        return (
-            <TouchableOpacity 
-                style={styles.jobCard} 
-                activeOpacity={0.9} 
-                onPress={() => navigation.navigate('JobDetails', { job: item, isSaved: isJobSaved(item.id) })}
+    const renderTipsSection = () => (
+        <View style={styles.tipsSection}>
+            <View style={styles.tipsSectionHeader}>
+                <Text style={styles.tipsSectionTitle}>Tips for you</Text>
+            </View>
+            <ScrollView
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                onMomentumScrollEnd={(e) => {
+                    const index = Math.round(e.nativeEvent.contentOffset.x / tipCardWidth);
+                    setTipPageIndex(index);
+                }}
             >
-                <View style={styles.imageContainer}>
-                    {item.imageUrl ? (
-                        <Image source={{ uri: item.imageUrl }} style={styles.jobImage} />
-                    ) : (
-                        <View style={[styles.jobImage, styles.placeholderImage]}>
-                            <Ionicons name="image-outline" size={40} color="#9BA4B1" />
-                        </View>
-                    )}
-                    
-                    {/* Save Button Overlay */}
-                    <TouchableOpacity 
-                        style={styles.saveBadgeSmall} 
-                        onPress={() => handleSaveJob(item)}
-                        activeOpacity={0.8}
+                {DASHBOARD_TIPS.map((tip, idx) => (
+                    <LinearGradient
+                        key={idx}
+                        colors={['#1972ca', '#0F5A9E']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={[styles.tipCard, { width: tipCardWidth }]}
                     >
-                        <Ionicons 
-                            name={isJobSaved(item.id) ? "bookmark" : "bookmark-outline"} 
-                            size={18} 
-                            color={isJobSaved(item.id) ? "#1972ca" : "#FFFFFF"} 
-                        />
-                    </TouchableOpacity>
-                </View>
-
-                {/* Content Section */}
-                <View style={styles.cardBody}>
-                    <Text style={styles.jobTitleText} numberOfLines={1}>{item.title}</Text>
-                    <Text style={styles.companySubText} numberOfLines={1}>{item.company}</Text>
-                    
-                    <View style={styles.cardDetailsRow}>
-                        <View style={styles.cardDetailItem}>
-                            <Ionicons name="location-outline" size={14} color="#64748B" />
-                            <Text style={styles.cardDetailText} numberOfLines={1}>{item.location}</Text>
-                        </View>
-                        <View style={styles.cardDetailItem}>
-                            <Ionicons name="wallet-outline" size={14} color="#64748B" />
-                            <Text style={styles.cardDetailText} numberOfLines={1}>{item.salary}</Text>
-                        </View>
-                    </View>
-
-                    {/* Tags */}
-                    <View style={styles.tagRow}>
-                        {[item.type, item.category, ...(item.tags || [])].filter(Boolean).map((tag, idx) => (
-                            <View key={idx} style={[styles.tag, idx === 0 ? styles.activeTag : null]}>
-                                <Text style={[styles.tagText, idx === 0 ? styles.activeTagText : null]}>{tag}</Text>
-                            </View>
-                        ))}
-                    </View>
-
-                    {/* Action Row */}
-                    <View style={styles.actionRow}>
-                        <View style={styles.mainApplyBtn}>
-                            <Text style={styles.mainApplyBtnText}>View Details</Text>
-                        </View>
-                        <TouchableOpacity 
-                            style={styles.dropdownBtn}
-                            onPress={() => setExpandedJobId(isExpanded ? null : item.id)}
-                        >
-                            <Ionicons name={isExpanded ? "chevron-up" : "chevron-down"} size={22} color="#1972ca" />
-                        </TouchableOpacity>
-                    </View>
-
-                    {/* Dropdown Content */}
-                    {isExpanded && (
-                        <View style={styles.expandedContent}>
+                        <View style={styles.tipCardTextWrap}>
+                            <Text style={styles.tipCardTitle}>{tip.title}</Text>
+                            <Text style={styles.tipCardDesc}>{tip.description}</Text>
                             <TouchableOpacity
-                                style={styles.apprenticeOption}
-                                onPress={() => {
-                                    setExpandedJobId(null);
-                                    if (user?.id && item.employerId && user.id === item.employerId) {
-                                        Alert.alert("Action Not Allowed", "You cannot apply for a job that you posted.");
-                                        return;
-                                    }
-                                    setApplyingJob(item);
-                                    setDefaultAppType('apprentice');
-                                    setShowApplyModal(true);
-                                }}
+                                style={styles.tipReadMoreBtn}
+                                activeOpacity={0.8}
+                                onPress={() => navigation.navigate('Signup')}
                             >
-                                <Ionicons name="school-outline" size={18} color="#1972ca" />
-                                <Text style={styles.apprenticeText}>Apply as Apprentice</Text>
+                                <Text style={styles.tipReadMoreText}>Get Started</Text>
                             </TouchableOpacity>
                         </View>
-                    )}
-                </View>
-            </TouchableOpacity>
-        );
-    };
+                        <View style={styles.tipCardIconWrap}>
+                            <Ionicons name={tip.icon} size={54} color="rgba(255,255,255,0.25)" />
+                        </View>
+                    </LinearGradient>
+                ))}
+            </ScrollView>
+            <View style={styles.tipDotsRow}>
+                {DASHBOARD_TIPS.map((_, idx) => (
+                    <View key={idx} style={[styles.tipDot, tipPageIndex === idx && styles.tipDotActive]} />
+                ))}
+            </View>
+        </View>
+    );
+
+    const renderJobItem = ({ item }: { item: JobType }) => (
+        <JobCard
+            job={item}
+            isSaved={isJobSaved(item.id)}
+            onToggleSave={handleSaveJob}
+            onPress={(job) => navigation.navigate('JobDetails', { job })}
+            onApplyRequest={(job, type) => {
+                if (user?.id && (job as any).employerId && user.id === (job as any).employerId) {
+                    Alert.alert("Action Not Allowed", "You cannot apply for a job that you posted.");
+                    return;
+                }
+                setApplyingJob(job);
+                setDefaultAppType(type);
+                setShowApplyModal(true);
+            }}
+        />
+    );
 
     return (
         <View style={styles.container}>
             <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
                 <View style={styles.headerTop}>
                     <View style={styles.logoRow}>
-                        <Text style={styles.logoText}>WakaJob</Text>
-                        <View style={styles.pinkDot} />
+                        <Image
+                            source={require('../../../assets/icon-mark.png')}
+                            style={styles.iconCropImage}
+                            resizeMode="contain"
+                        />
+                        <View style={styles.textCrop}>
+                            <Image
+                                source={require('../../../assets/logo-removebg-preview.png')}
+                                style={styles.textCropImage}
+                            />
+                        </View>
                     </View>
                     <View style={styles.headerActions}>
                         {isAuthenticated && (
@@ -441,18 +475,7 @@ const DashboardScreen: React.FC = () => {
                     </View>
                 </View>
 
-                {/* Welcome Message - Before Search Bar */}
-                <View style={styles.headerWelcome}>
-                    <Text style={styles.welcomeSub}>{isAuthenticated ? `Welcome, ${displayName}` : 'Welcome'}</Text>
-                    <View style={styles.welcomeHeaderRow}>
-                        <View style={{ flex: 1 }}>
-                            <Text style={styles.welcomeTitle}>Available Jobs</Text>
-                            {isAuthenticated && (
-                                <Text style={styles.welcomeDesc}>Based on your location and preferences</Text>
-                            )}
-                        </View>
-                    </View>
-                </View>
+                <Text style={styles.availableJobsLabel}>Available Jobs</Text>
 
                 <View style={styles.searchRow}>
                     <View style={styles.searchInputWrapper}>
@@ -485,17 +508,17 @@ const DashboardScreen: React.FC = () => {
 
                         {/* Location preset chips */}
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.locationScroll}>
-                            <TouchableOpacity 
+                            <TouchableOpacity
                                 style={[styles.locationChip, (selectedLocation === '' && !customLocation) && styles.locationChipActive]}
-                                onPress={() => { setSelectedLocation(''); setCustomLocation(''); }}
+                                onPress={() => { setSelectedLocation(''); setCustomLocation(''); setShowFilterDropdown(false); }}
                             >
                                 <Text style={[styles.locationChipText, (selectedLocation === '' && !customLocation) && styles.locationChipTextActive]}>All</Text>
                             </TouchableOpacity>
                             {BAMENDA_LOCATIONS.map(loc => (
-                                <TouchableOpacity 
-                                    key={loc} 
+                                <TouchableOpacity
+                                    key={loc}
                                     style={[styles.locationChip, selectedLocation === loc && styles.locationChipActive]}
-                                    onPress={() => { setSelectedLocation(loc); setCustomLocation(''); }}
+                                    onPress={() => { setSelectedLocation(loc); setCustomLocation(''); setShowFilterDropdown(false); }}
                                 >
                                     <Text style={[styles.locationChipText, selectedLocation === loc && styles.locationChipTextActive]}>{loc}</Text>
                                 </TouchableOpacity>
@@ -539,7 +562,21 @@ const DashboardScreen: React.FC = () => {
                         tintColor="#1972ca"
                     />
                 }
-                ListHeaderComponent={<View style={{ height: 10 }} />}
+                onEndReached={handleLoadMore}
+                onEndReachedThreshold={0.5}
+                ListFooterComponent={
+                    isLoadingMore ? (
+                        <View style={{ paddingVertical: 20 }}>
+                            <ActivityIndicator size="small" color="#1972ca" />
+                        </View>
+                    ) : null
+                }
+                ListHeaderComponent={
+                    <>
+                        {!isAuthenticated && renderTipsSection()}
+                        <View style={{ height: 10 }} />
+                    </>
+                }
                 ListEmptyComponent={
                     <View style={styles.empty}>
                         <Ionicons 
@@ -599,8 +636,16 @@ const styles = StyleSheet.create({
     safeArea: { backgroundColor: '#FFFFFF' },
     header: { paddingHorizontal: 20, paddingBottom: 15, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
     headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 },
-    logoRow: { flexDirection: 'row', alignItems: 'flex-start' },
+    logoRow: { flexDirection: 'row', alignItems: 'center' },
+    iconCropImage: { width: 36, height: 32, marginRight: 3, tintColor: '#1972ca', transform: [{ translateX: -5 }, { translateY: -1 }] },
     logoText: { fontSize: 24, fontWeight: 'bold', color: '#1972ca' },
+    logoImage: { width: 202, height: 32, tintColor: '#1972ca' },
+    // logo-removebg-preview.png (480x76) has a large transparent margin around
+    // the actual "wakajob" glyphs (opaque bbox roughly x[133,367] y[10,63]) -
+    // crop tightly to that region so no blank padding sits between the icon
+    // and the visible text.
+    textCrop: { width: 106, height: 26, overflow: 'hidden' },
+    textCropImage: { width: 212, height: 33, left: -57, top: -3, tintColor: '#1972ca' },
     pinkDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: '#E91E63', marginTop: 6, marginLeft: 2 },
     headerActions: { flexDirection: 'row', alignItems: 'center', gap: 15 },
     iconButton: { position: 'relative' },
@@ -611,7 +656,8 @@ const styles = StyleSheet.create({
     avatarChar: { color: '#FFFFFF', fontWeight: '600', fontSize: 16 },
     loginButton: { height: 40, paddingHorizontal: 18, borderRadius: 20, backgroundColor: '#1972ca', justifyContent: 'center', alignItems: 'center' },
     loginButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
-    searchRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 15 },
+    availableJobsLabel: { fontSize: 13, fontWeight: '600', color: '#374151', marginTop: 12 },
+    searchRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8 },
     searchInputWrapper: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', borderRadius: 12, paddingHorizontal: 15, height: 48 },
     input: { fontSize: 15, color: '#1F2937' },
     filterBtn: { width: 48, height: 48, backgroundColor: '#1972ca', borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
@@ -681,6 +727,33 @@ const styles = StyleSheet.create({
         fontWeight: '500',
     },
     listContent: { paddingHorizontal: 20, paddingBottom: 100 },
+    tipsSection: { marginTop: 14 },
+    tipsSectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+    tipsSectionTitle: { fontSize: 16, fontWeight: '700', color: '#111827' },
+    tipsSeeAll: { fontSize: 13, fontWeight: '600', color: '#1972ca' },
+    tipCard: {
+        borderRadius: 20,
+        padding: 20,
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        justifyContent: 'space-between',
+        overflow: 'hidden',
+    },
+    tipCardTextWrap: { flex: 1, paddingRight: 10 },
+    tipCardTitle: { fontSize: 17, fontWeight: '700', color: '#FFFFFF', marginBottom: 6 },
+    tipCardDesc: { fontSize: 13, color: 'rgba(255,255,255,0.85)', lineHeight: 19, marginBottom: 14 },
+    tipReadMoreBtn: {
+        alignSelf: 'flex-start',
+        backgroundColor: '#FBBF24',
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 10,
+    },
+    tipReadMoreText: { fontSize: 12, fontWeight: '700', color: '#78350F' },
+    tipCardIconWrap: { justifyContent: 'center', alignItems: 'center' },
+    tipDotsRow: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: 12 },
+    tipDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#D1D5DB' },
+    tipDotActive: { width: 16, backgroundColor: '#1972ca' },
     headerWelcome: { marginTop: 10, marginBottom: 5 },
     welcomeSub: { fontSize: 14, color: '#1972ca', fontWeight: '600', marginBottom: 4 },
     welcomeTitle: { fontSize: 22, fontWeight: 'bold', color: '#111827', marginBottom: 2 },
@@ -691,140 +764,7 @@ const styles = StyleSheet.create({
     actionBtnOutline: { backgroundColor: '#F0F7FF', borderWidth: 1, borderColor: '#1972ca' },
     actionBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: 'bold' },
     actionBtnTextOutline: { color: '#1972ca' },
-    jobCard: {
-        backgroundColor: '#FFFFFF',
-        borderRadius: 24,
-        marginBottom: 20,
-        overflow: 'hidden',
-        borderWidth: 1,
-        borderColor: '#F1F5F9',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.05,
-        shadowRadius: 12,
-        elevation: 3,
-    },
-    imageContainer: {
-        width: '100%',
-        height: 160,
-        position: 'relative',
-    },
-    saveBadgeSmall: {
-        position: 'absolute',
-        top: 12,
-        right: 12,
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        backgroundColor: 'rgba(0,0,0,0.3)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    jobImage: {
-        width: '100%',
-        height: '100%',
-        resizeMode: 'cover',
-    },
-    placeholderImage: {
-        backgroundColor: '#F1F5F9',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    cardBody: {
-        padding: 16,
-    },
-    jobTitleText: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#111827',
-        marginBottom: 2,
-    },
-    companySubText: {
-        fontSize: 14,
-        color: '#9BA4B1',
-        marginBottom: 10,
-    },
-    cardDetailsRow: {
-        flexDirection: 'row',
-        gap: 15,
-        marginBottom: 16,
-    },
-    cardDetailItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-        flex: 1,
-    },
-    cardDetailText: {
-        fontSize: 13,
-        color: '#64748B',
-    },
-    tagRow: {
-        flexDirection: 'row',
-        gap: 8,
-        marginBottom: 20,
-    },
-    tag: {
-        backgroundColor: '#F8FAFC',
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 10,
-    },
-    activeTag: {
-        backgroundColor: '#EBF4FF',
-    },
-    tagText: {
-        fontSize: 12,
-        fontWeight: '600',
-        color: '#64748B',
-    },
-    activeTagText: {
-        color: '#1972ca',
-    },
-    actionRow: {
-        flexDirection: 'row',
-        gap: 12,
-    },
-    mainApplyBtn: {
-        flex: 1,
-        backgroundColor: '#1972ca',
-        height: 50,
-        borderRadius: 12,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    mainApplyBtnText: {
-        color: '#FFFFFF',
-        fontSize: 16,
-        fontWeight: '700',
-    },
-    dropdownBtn: {
-        width: 50,
-        height: 50,
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: '#E2E8F0',
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: '#F8FAFC',
-    },
-    expandedContent: {
-        marginTop: 12,
-        paddingTop: 12,
-        borderTopWidth: 1,
-        borderTopColor: '#F1F5F9',
-    },
-    apprenticeOption: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 10,
-        paddingVertical: 10,
-    },
-    apprenticeText: {
-        fontSize: 15,
-        fontWeight: '600',
-        color: '#1972ca',
-    },
+    // Card styles moved to JobCard.tsx
     modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
     modalContent: { flex: 1, backgroundColor: '#FFFFFF', marginTop: 50, borderTopLeftRadius: 25, borderTopRightRadius: 25 },
     modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
@@ -880,7 +820,7 @@ const styles = StyleSheet.create({
     },
     fab: {
         position: 'absolute',
-        bottom: 100,
+        bottom: 130,
         right: 20,
         width: 60,
         height: 60,

@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
-import { StyleSheet, Image } from 'react-native';
+import { StyleSheet, Image, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
     useSharedValue,
@@ -18,6 +19,8 @@ const SplashScreen = ({
 }: {
     navigation: SplashScreenNavigationProp;
 }) => {
+    const insets = useSafeAreaInsets();
+
     // Animation values
     const logoOpacity = useSharedValue(0);
     const logoTranslateY = useSharedValue(20);
@@ -49,10 +52,21 @@ const SplashScreen = ({
 
             <Animated.View style={[styles.content, logoStyle]}>
                 <Image
-                    source={require('../../../assets/logo.png')}
-                    style={styles.logoImage}
+                    source={require('../../../assets/icon-mark.png')}
+                    style={styles.iconCropImage}
                     resizeMode="contain"
                 />
+            </Animated.View>
+
+            <Animated.View style={[styles.bottomTextWrap, { paddingBottom: insets.bottom + 30 }, logoStyle]}>
+                {/* Same source image, cropped to just the wordmark region so the
+                    bottom text matches the logo's exact font/art. */}
+                <View style={styles.textCrop}>
+                    <Image
+                        source={require('../../../assets/logo.png')}
+                        style={styles.textCropImage}
+                    />
+                </View>
             </Animated.View>
         </LinearGradient>
     );
@@ -63,14 +77,53 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'space-between',
     },
+    // Absolutely positioned over the full screen (independent of the bottom
+    // text below) so the icon is centered relative to the whole screen -
+    // equal margins left/right and top/bottom - rather than the space left
+    // over above the bottom text.
     content: {
-        flex: 1,
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
         justifyContent: 'center',
         alignItems: 'center',
     },
     logoImage: {
         width: 280,
         height: 280,
+    },
+    // icon-mark.png's glyph has more visual weight right/down of its own
+    // bounding box (measured center of mass), so plain centering looks
+    // lopsided - nudge it back for true optical centering.
+    iconCropImage: {
+        width: 180,
+        height: 160,
+        transform: [{ translateX: -24 }, { translateY: -7 }],
+    },
+    // logo.png is 1254x1254; the wordmark sits at roughly x[323,931] y[904,1057].
+    // This crop renders the full image at a fixed scale inside an
+    // overflow:hidden box, shifted so only that region is visible.
+    // Independently pinned to the bottom edge (rather than relying on flex
+    // distribution against the now-absolutely-positioned icon above).
+    bottomTextWrap: {
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        bottom: 0,
+        alignItems: 'center',
+    },
+    textCrop: {
+        width: 143,
+        height: 36,
+        overflow: 'hidden',
+    },
+    textCropImage: {
+        width: 295,
+        height: 295,
+        left: -76,
+        top: -213,
     },
 });
 

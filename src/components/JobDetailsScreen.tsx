@@ -103,6 +103,9 @@ const JobDetailsScreen: React.FC = () => {
 
     if (!job) return null;
 
+    const isJobDisabled = job.is_active === false;
+    const jobDisabledReason = (job as any).disabled_reason || (job as any).disable_reason || '';
+
     const handleSave = async () => {
         if (!isAuthenticated) {
             Alert.alert(
@@ -189,6 +192,27 @@ const JobDetailsScreen: React.FC = () => {
                 </View>
 
                 <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+                    {/* ─── MODERATION NOTICE BANNER ────────────────────── */}
+                    {isJobDisabled && (
+                        <View style={styles.moderationBanner}>
+                            <View style={styles.moderationBannerIconRow}>
+                                <Ionicons name="ban" size={18} color="#DC2626" />
+                                <Text style={styles.moderationBannerTitle}>Job Post Disabled by Admin</Text>
+                            </View>
+                            {jobDisabledReason ? (
+                                <View style={styles.moderationReasonBox}>
+                                    <Text style={styles.moderationReasonLabel}>Reason:</Text>
+                                    <Text style={styles.moderationReasonText}>{jobDisabledReason}</Text>
+                                </View>
+                            ) : null}
+                            <Text style={styles.moderationBannerSub}>
+                                {isJobPoster
+                                    ? 'This post is hidden from the marketplace feed. You can edit the listing to resolve any policy issues.'
+                                    : 'This job posting has been disabled by an administrator and is no longer accepting applications.'}
+                            </Text>
+                        </View>
+                    )}
+
                     {(job.imageUrl || job.image_url) ? (
                         <View style={styles.bannerContainer}>
                             <Image
@@ -196,6 +220,29 @@ const JobDetailsScreen: React.FC = () => {
                                 style={styles.bannerImage}
                             />
                             <View style={styles.bannerOverlay} />
+                            {isJobPoster && (
+                                <View style={styles.ownerActionsRow}>
+                                    <TouchableOpacity
+                                        style={styles.editJobButton}
+                                        activeOpacity={0.8}
+                                        onPress={() => navigation.navigate('CreateJob', { jobToEdit: job })}
+                                    >
+                                        <Ionicons name="create-outline" size={16} color="#FFFFFF" />
+                                        <Text style={styles.editJobButtonText}>Edit Job</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={styles.applicantsButton}
+                                        activeOpacity={0.8}
+                                        onPress={() => navigation.navigate('JobApplicants', {
+                                            jobId: job.id,
+                                            jobTitle: job.title || job.position_vacant || 'Job',
+                                        })}
+                                    >
+                                        <Ionicons name="people-outline" size={16} color="#FFFFFF" />
+                                        <Text style={styles.applicantsButtonText}>Applicants</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            )}
                             <View style={styles.bannerInfoContainer}>
                                 <Text style={styles.bannerTitleText}>{job.title}</Text>
                                 <Text style={styles.bannerCompanyText}>{job.company}</Text>
@@ -210,6 +257,32 @@ const JobDetailsScreen: React.FC = () => {
                             </View>
                         </View>
                     ) : null}
+
+                    {/* No image to overlay onto here, so the owner actions stay
+                        as a plain row instead of floating on a photo */}
+                    {isJobPoster && !(job.imageUrl || job.image_url) && (
+                        <View style={styles.ownerActionsRowPlain}>
+                            <TouchableOpacity
+                                style={styles.editJobButtonPlain}
+                                activeOpacity={0.8}
+                                onPress={() => navigation.navigate('CreateJob', { jobToEdit: job })}
+                            >
+                                <Ionicons name="create-outline" size={16} color="#1972ca" />
+                                <Text style={styles.editJobButtonTextPlain}>Edit Job</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={styles.applicantsButton}
+                                activeOpacity={0.8}
+                                onPress={() => navigation.navigate('JobApplicants', {
+                                    jobId: job.id,
+                                    jobTitle: job.title || job.position_vacant || 'Job',
+                                })}
+                            >
+                                <Ionicons name="people-outline" size={16} color="#FFFFFF" />
+                                <Text style={styles.applicantsButtonText}>Applicants</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
 
                     {!(job.imageUrl || job.image_url) && (
                         <View style={styles.companySection}>
@@ -267,24 +340,27 @@ const JobDetailsScreen: React.FC = () => {
                     </View>
                 </ScrollView>
 
-            {/* Footer Buttons */}
-            <View style={[styles.footer, { paddingBottom: 40 + insets.bottom }]}>
-                <TouchableOpacity
-                    style={[styles.applyButton, { flex: 1 }, (isApplying || isJobPoster || alreadyApplied) && styles.applyButtonDisabled]}
-                    onPress={handleApplyPress}
-                    disabled={isApplying || isJobPoster || alreadyApplied}
-                >
-                    {isJobPoster ? (
-                        <Text style={styles.applyButtonText}>Cannot Apply - Your Job</Text>
-                    ) : alreadyApplied ? (
-                        <Text style={styles.applyButtonText}>Already Applied</Text>
-                    ) : isApplying ? (
-                        <ActivityIndicator color="#FFF" />
-                    ) : (
-                        <Text style={styles.applyButtonText}>Apply Now</Text>
-                    )}
-                </TouchableOpacity>
-            </View>
+            {/* Footer Buttons - not shown to the job's own poster, who already
+                has Edit Job / Applicants actions at the top of the page instead */}
+            {!isJobPoster && (
+                <View style={[styles.footer, { paddingBottom: 40 + insets.bottom }]}>
+                    <TouchableOpacity
+                        style={[styles.applyButton, { flex: 1 }, (isApplying || alreadyApplied || isJobDisabled) && styles.applyButtonDisabled]}
+                        onPress={handleApplyPress}
+                        disabled={isApplying || alreadyApplied || isJobDisabled}
+                    >
+                        {isJobDisabled ? (
+                            <Text style={styles.applyButtonText}>Listing Unavailable</Text>
+                        ) : alreadyApplied ? (
+                            <Text style={styles.applyButtonText}>Already Applied</Text>
+                        ) : isApplying ? (
+                            <ActivityIndicator color="#FFF" />
+                        ) : (
+                            <Text style={styles.applyButtonText}>Apply Now</Text>
+                        )}
+                    </TouchableOpacity>
+                </View>
+            )}
 
             {!alreadyApplied && (
                 <ApplyModal
@@ -336,6 +412,73 @@ const styles = StyleSheet.create({
     scrollContent: {
         paddingBottom: 100,
     },
+    // Floats directly on top of the banner image (bannerContainer is the
+    // positioned ancestor) - glassy semi-transparent buttons since they sit
+    // over a photo, not a plain background.
+    ownerActionsRow: {
+        position: 'absolute',
+        top: 16,
+        left: 16,
+        right: 16,
+        flexDirection: 'row',
+        gap: 10,
+        zIndex: 2,
+    },
+    editJobButton: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        height: 44,
+        borderRadius: 12,
+        backgroundColor: '#F97316',
+    },
+    editJobButtonText: {
+        color: '#FFFFFF',
+        fontSize: 13,
+        fontWeight: '700',
+    },
+    applicantsButton: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        height: 44,
+        borderRadius: 12,
+        backgroundColor: '#1972ca',
+    },
+    applicantsButtonText: {
+        color: '#FFFFFF',
+        fontSize: 13,
+        fontWeight: '700',
+    },
+    // Fallback for jobs with no image - nothing to overlay onto, so this
+    // renders as a plain row instead (same look the overlay row used to have).
+    ownerActionsRowPlain: {
+        flexDirection: 'row',
+        gap: 12,
+        paddingHorizontal: 20,
+        paddingTop: 16,
+    },
+    editJobButtonPlain: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        height: 48,
+        borderRadius: 12,
+        backgroundColor: '#F0F7FF',
+        borderWidth: 1,
+        borderColor: '#1972ca',
+    },
+    editJobButtonTextPlain: {
+        color: '#1972ca',
+        fontSize: 14,
+        fontWeight: '700',
+    },
     companySection: {
         alignItems: 'center',
         paddingVertical: 30,
@@ -361,7 +504,7 @@ const styles = StyleSheet.create({
         resizeMode: 'cover',
     },
     bannerOverlay: {
-        ...StyleSheet.absoluteFillObject,
+        ...(StyleSheet.absoluteFill as object),
         backgroundColor: 'rgba(0, 0, 0, 0.35)',
     },
     bannerInfoContainer: {
@@ -513,6 +656,55 @@ const styles = StyleSheet.create({
     },
     applyButtonDisabled: {
         opacity: 0.7,
+    },
+    moderationBanner: {
+        marginHorizontal: 16,
+        marginTop: 14,
+        marginBottom: 8,
+        backgroundColor: '#FEF2F2',
+        borderRadius: 14,
+        borderWidth: 1.5,
+        borderColor: '#FECACA',
+        padding: 14,
+    },
+    moderationBannerIconRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 8,
+    },
+    moderationBannerTitle: {
+        fontSize: 14,
+        fontWeight: '800',
+        color: '#DC2626',
+    },
+    moderationReasonBox: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 10,
+        borderLeftWidth: 4,
+        borderLeftColor: '#F87171',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        marginBottom: 8,
+    },
+    moderationReasonLabel: {
+        fontSize: 10,
+        fontWeight: '700',
+        color: '#B91C1C',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+        marginBottom: 2,
+    },
+    moderationReasonText: {
+        fontSize: 13,
+        color: '#7F1D1D',
+        lineHeight: 18,
+        fontWeight: '600',
+    },
+    moderationBannerSub: {
+        fontSize: 12,
+        color: '#B91C1C',
+        lineHeight: 16,
     },
 });
 

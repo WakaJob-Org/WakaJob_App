@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Alert, ActivityIndicator, View, Text, TextInput, TouchableOpacity, Dimensions, KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from 'react-native';
+import { Alert, ActivityIndicator, View, Text, TextInput, TouchableOpacity, Dimensions, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Image, Pressable } from 'react-native';
 import GoogleIcon from '../../../components/GoogleIcon';
 import Animated from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
@@ -119,7 +119,11 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
     };
 
     return (
-        <View style={styles.container}>
+        <View style={styles.modalWrapper}>
+            {/* Tapping the dimmed area above the sheet dismisses it, same as swiping down */}
+            <Pressable style={styles.backdropSpacer} onPress={() => navigation.goBack()} />
+
+            <View style={styles.container}>
             <View style={styles.handleContainer}>
                 <View style={styles.handle} />
             </View>
@@ -136,7 +140,11 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
                 >
                     <View style={styles.header}>
                         <View style={styles.iconContainer}>
-                            <Ionicons name="briefcase" size={32} color="#FFFFFF" />
+                            <Image
+                                source={require('../../../../assets/icon-mark.png')}
+                                style={styles.brandIconCropImage}
+                                resizeMode="contain"
+                            />
                         </View>
                         <Text style={styles.title}>Wakajob</Text>
                         <Text style={styles.subtitle}>Create an Account</Text>
@@ -249,11 +257,21 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
                     </View>
                 </ScrollView>
             </KeyboardAvoidingView>
+            </View>
         </View>
     );
 };
 
 const styles = StyleSheet.create({
+    modalWrapper: {
+        flex: 1,
+    },
+    // The modal card now fills the full screen (see AppStack.tsx) - this
+    // transparent spacer stands in for the old marginTop, and is tappable so
+    // tapping the dimmed area above the sheet dismisses it like swiping down.
+    backdropSpacer: {
+        height: SCREEN_HEIGHT * 0.2,
+    },
     container: {
         flex: 1,
         backgroundColor: '#FFFFFF',
@@ -287,6 +305,16 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         marginBottom: 16,
+    },
+    // icon-mark.png is natively white, which reads correctly against this
+    // circle's blue background with no tint needed. The glyph's visual
+    // weight sits right/down of its own bounding box (measured center of
+    // mass, not just geometry), so a plain centered box looks lopsided -
+    // nudge it back to compensate for true optical centering.
+    brandIconCropImage: {
+        width: 36,
+        height: 32,
+        transform: [{ translateX: -5 }, { translateY: -1 }],
     },
     title: {
         fontSize: 24,
