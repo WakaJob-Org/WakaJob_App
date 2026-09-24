@@ -12,6 +12,8 @@ import {
     Platform,
     Image,
     Pressable,
+    Modal,
+    Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Animated from 'react-native-reanimated';
@@ -68,6 +70,19 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
     });
     const [formError, setFormError] = useState('');
 
+    // Account block modal state (admin suspended / disabled)
+    const [blockModal, setBlockModal] = useState<{
+        visible: boolean;
+        blockType: 'frozen' | 'disabled';
+        message: string;
+        reason: string;
+    }>({
+        visible: false,
+        blockType: 'frozen',
+        message: '',
+        reason: '',
+    });
+
     const handleLogin = async () => {
         // Reset and check errors
         const newErrors = {
@@ -114,6 +129,20 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
             }
         } catch (error: any) {
             console.error('Login error detail:', error);
+            try {
+                const parsed = JSON.parse(error?.message || '');
+                if (parsed?.isAccountBlock) {
+                    setBlockModal({
+                        visible: true,
+                        blockType: parsed.blockType || 'frozen',
+                        message: parsed.message,
+                        reason: parsed.reason,
+                    });
+                    return;
+                }
+            } catch {
+                // Not a JSON block error, continue to standard friendly error
+            }
             setFormError(getFriendlyLoginError(error?.message));
         } finally {
             setLoading(false);
@@ -229,6 +258,69 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
             </KeyboardAvoidingView>
             </View>
         </View>
+
+        {/* ─── ACCOUNT BLOCK MODAL ─────────────────────────────────────── */}
+        <Modal
+            visible={blockModal.visible}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setBlockModal(b => ({ ...b, visible: false }))}
+        >
+            <View style={styles.blockModalOverlay}>
+                <View style={styles.blockModalCard}>
+                    {/* Icon */}
+                    <View style={[
+                        styles.blockModalIconCircle,
+                        { backgroundColor: blockModal.blockType === 'disabled' ? '#FEE2E2' : '#FEF3C7' }
+                    ]}>
+                        <Ionicons
+                            name={blockModal.blockType === 'disabled' ? 'ban' : 'alert-circle'}
+                            size={32}
+                            color={blockModal.blockType === 'disabled' ? '#DC2626' : '#D97706'}
+                        />
+                    </View>
+
+                    {/* Title */}
+                    <Text style={styles.blockModalTitle}>
+                        {blockModal.blockType === 'disabled' ? 'Account Disabled' : 'Account Suspended'}
+                    </Text>
+
+                    {/* Message */}
+                    <Text style={styles.blockModalMessage}>
+                        {blockModal.message || (
+                            blockModal.blockType === 'disabled'
+                                ? 'Your account has been deactivated by an administrator.'
+                                : 'Your account has been temporarily suspended by an administrator.'
+                        )}
+                    </Text>
+
+                    {/* Reason Box */}
+                    {blockModal.reason ? (
+                        <View style={styles.blockModalReasonBox}>
+                            <Text style={styles.blockModalReasonLabel}>Reason provided by admin:</Text>
+                            <Text style={styles.blockModalReasonText}>{blockModal.reason}</Text>
+                        </View>
+                    ) : null}
+
+                    {/* Actions */}
+                    <TouchableOpacity
+                        style={styles.blockModalContactBtn}
+                        activeOpacity={0.8}
+                        onPress={() => Linking.openURL('mailto:support@wakajob.com?subject=Account+Appeal')}
+                    >
+                        <Text style={styles.blockModalContactBtnText}>Contact Support</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={styles.blockModalCloseBtn}
+                        activeOpacity={0.8}
+                        onPress={() => setBlockModal(b => ({ ...b, visible: false }))}
+                    >
+                        <Text style={styles.blockModalCloseBtnText}>Close</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        </Modal>
     );
 };
 
@@ -413,6 +505,96 @@ const styles = StyleSheet.create({
     inputError: {
         borderColor: '#FF3B30',
         backgroundColor: '#FFF9F9',
+    },
+    blockModalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(15, 23, 42, 0.65)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 24,
+    },
+    blockModalCard: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 24,
+        padding: 24,
+        width: '100%',
+        maxWidth: 380,
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.15,
+        shadowRadius: 24,
+        elevation: 16,
+    },
+    blockModalIconCircle: {
+        width: 60,
+        height: 60,
+        borderRadius: 30,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 14,
+    },
+    blockModalTitle: {
+        fontSize: 19,
+        fontWeight: '800',
+        color: '#0F172A',
+        marginBottom: 6,
+        textAlign: 'center',
+    },
+    blockModalMessage: {
+        fontSize: 13,
+        color: '#64748B',
+        textAlign: 'center',
+        lineHeight: 18,
+        marginBottom: 14,
+    },
+    blockModalReasonBox: {
+        width: '100%',
+        backgroundColor: '#FFF7ED',
+        borderRadius: 12,
+        borderLeftWidth: 4,
+        borderLeftColor: '#F59E0B',
+        padding: 12,
+        marginBottom: 18,
+    },
+    blockModalReasonLabel: {
+        fontSize: 10,
+        fontWeight: '700',
+        color: '#92400E',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+        marginBottom: 3,
+    },
+    blockModalReasonText: {
+        fontSize: 13,
+        color: '#78350F',
+        lineHeight: 18,
+        fontWeight: '600',
+    },
+    blockModalContactBtn: {
+        width: '100%',
+        backgroundColor: '#1972ca',
+        borderRadius: 12,
+        paddingVertical: 13,
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    blockModalContactBtnText: {
+        color: '#FFFFFF',
+        fontSize: 14,
+        fontWeight: '700',
+    },
+    blockModalCloseBtn: {
+        width: '100%',
+        borderRadius: 12,
+        paddingVertical: 11,
+        alignItems: 'center',
+        backgroundColor: '#F1F5F9',
+    },
+    blockModalCloseBtnText: {
+        color: '#64748B',
+        fontSize: 13,
+        fontWeight: '600',
     },
 });
 

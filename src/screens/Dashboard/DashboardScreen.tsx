@@ -200,13 +200,14 @@ const DashboardScreen: React.FC = () => {
                     imageUrl: job.image_url || job.job_image,
                     requirements: job.qualifications ? job.qualifications.split(',') : [],
                     employerId: job.employer_id,
+                    is_active: job.is_active !== false,
+                    disabled_reason: (job as any).disabled_reason || (job as any).disable_reason || '',
                 };
             });
 
-            // Filter: only show jobs that have an uploaded image, and never show the
-            // current user their own postings - the browse feed is for applying to
-            // other people's jobs, not for seeing your own listings.
-            const jobsWithImages = mappedJobs.filter(job => !!job.imageUrl && job.employerId !== user?.id);
+            // Filter: only show jobs that have an uploaded image, are active (not disabled by admin),
+            // and never show the current user their own postings.
+            const jobsWithImages = mappedJobs.filter(job => !!job.imageUrl && job.employerId !== user?.id && job.is_active !== false);
 
             setHasMore(fetchedJobs.length === PAGE_LIMIT);
 

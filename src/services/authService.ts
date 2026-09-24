@@ -126,6 +126,37 @@ const authService = {
       }
       return response.data;
     } catch (error: any) {
+      const status = error?.response?.status;
+      const data = error?.response?.data;
+      const rawMsg = data?.message || data?.data?.message || (typeof data === 'string' ? data : '') || error?.message || '';
+      const isBlocked = status === 403 || 
+        rawMsg.toLowerCase().includes('frozen') || 
+        rawMsg.toLowerCase().includes('suspended') || 
+        rawMsg.toLowerCase().includes('disabled');
+
+      if (isBlocked) {
+        const reason = data?.reason || data?.data?.reason || '';
+        const accountStatus = data?.account_status || data?.data?.account_status || 
+          (rawMsg.toLowerCase().includes('disabled') ? 'disabled' : 'frozen');
+        const blockType = accountStatus === 'disabled' ? 'disabled' : 'frozen';
+
+        let finalReason = reason;
+        if (!finalReason) {
+          const match = rawMsg.match(/reason:\s*([^.\n]+)/i);
+          if (match && match[1]) {
+            finalReason = match[1].trim();
+          }
+        }
+
+        const combined = JSON.stringify({
+          isAccountBlock: true,
+          blockType,
+          message: rawMsg || 'Your account has been restricted by an administrator.',
+          reason: finalReason,
+        });
+        throw new Error(combined);
+      }
+
       const msg = parseError(error);
       console.error('Signin failure:', msg);
       throw new Error(msg);

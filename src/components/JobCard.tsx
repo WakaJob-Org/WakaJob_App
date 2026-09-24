@@ -37,6 +37,8 @@ export interface JobType {
     created_at?: string;
     job_image?: string;
     employerId?: string;
+    is_active?: boolean;
+    disabled_reason?: string;
 }
 
 interface JobCardProps {

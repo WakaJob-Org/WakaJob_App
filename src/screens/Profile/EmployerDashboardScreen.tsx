@@ -164,31 +164,52 @@ const EmployerDashboardScreen: React.FC = () => {
         requirements: job.qualifications ? job.qualifications.split(',') : [],
         employerId: job.employer_id,
         employer_id: job.employer_id,
+        is_active: (job as any).is_active !== false,
+        disabled_reason: (job as any).disabled_reason || (job as any).disable_reason || '',
     });
 
     const renderJobItem = ({ item }: { item: Job }) => {
         const mapped = mapJobForDetails(item);
         const applicants = applicantsByJob[item.id] || [];
+        const isDisabled = (item as any).is_active === false;
+        const disabledReason = (item as any).disabled_reason || (item as any).disable_reason || '';
 
         return (
             <TouchableOpacity
-                style={styles.jobCard}
+                style={[styles.jobCard, isDisabled && styles.jobCardDisabled]}
                 activeOpacity={0.9}
                 onPress={() => navigation.navigate('JobDetails', { job: mapped })}
             >
                 <View style={styles.imageContainer}>
                     {mapped.imageUrl ? (
-                        <Image source={{ uri: mapped.imageUrl }} style={styles.jobImage} />
+                        <Image source={{ uri: mapped.imageUrl }} style={[styles.jobImage, isDisabled && styles.jobImageDisabled]} />
                     ) : (
-                        <View style={[styles.jobImage, styles.placeholderImage]}>
-                            <Ionicons name="image-outline" size={26} color="#9BA4B1" />
+                        <View style={[styles.jobImage, styles.placeholderImage, isDisabled && styles.jobImageDisabled]}>
+                            <Ionicons name="image-outline" size={26} color={isDisabled ? '#CBD5E1' : '#9BA4B1'} />
+                        </View>
+                    )}
+                    {isDisabled && (
+                        <View style={styles.disabledBadge}>
+                            <Ionicons name="ban-outline" size={10} color="#FFF" />
+                            <Text style={styles.disabledBadgeText}>Disabled by Admin</Text>
                         </View>
                     )}
                 </View>
 
                 <View style={styles.cardBody}>
+                    {isDisabled && (
+                        <View style={styles.disabledReasonBanner}>
+                            <Ionicons name="alert-circle" size={13} color="#DC2626" />
+                            <Text style={styles.disabledReasonText} numberOfLines={2}>
+                                {disabledReason
+                                    ? `Disabled: ${disabledReason}`
+                                    : 'This post was taken down by an administrator. Tap to review.'}
+                            </Text>
+                        </View>
+                    )}
+
                     <View style={styles.cardBodyTopRow}>
-                        <Text style={styles.jobTitle} numberOfLines={1}>{mapped.title}</Text>
+                        <Text style={[styles.jobTitle, isDisabled && styles.jobTitleDisabled]} numberOfLines={1}>{mapped.title}</Text>
                         <TouchableOpacity onPress={() => handleJobOptions(item)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                             <Ionicons name="ellipsis-vertical" size={14} color="#9CA3AF" />
                         </TouchableOpacity>
@@ -506,6 +527,59 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontSize: 15,
         fontWeight: '700',
+    },
+    jobCardDisabled: {
+        borderWidth: 1.5,
+        borderColor: '#FCA5A5',
+        backgroundColor: '#FFFDFD',
+    },
+    jobImageDisabled: {
+        opacity: 0.6,
+    },
+    disabledBadge: {
+        position: 'absolute',
+        top: 8,
+        left: 8,
+        backgroundColor: '#DC2626',
+        borderRadius: 6,
+        paddingHorizontal: 7,
+        paddingVertical: 3,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 3,
+        elevation: 3,
+    },
+    disabledBadgeText: {
+        color: '#FFFFFF',
+        fontSize: 9,
+        fontWeight: '800',
+        letterSpacing: 0.3,
+    },
+    disabledReasonBanner: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: 6,
+        backgroundColor: '#FEF2F2',
+        borderRadius: 8,
+        borderLeftWidth: 3,
+        borderLeftColor: '#DC2626',
+        paddingHorizontal: 9,
+        paddingVertical: 6,
+        marginBottom: 6,
+    },
+    disabledReasonText: {
+        fontSize: 11,
+        color: '#991B1B',
+        fontWeight: '600',
+        flex: 1,
+        lineHeight: 15,
+    },
+    jobTitleDisabled: {
+        color: '#94A3B8',
     },
 });
 
