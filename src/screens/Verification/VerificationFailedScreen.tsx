@@ -235,7 +235,17 @@ const VerificationFailedScreen: React.FC = () => {
                         <Ionicons name="arrow-back" size={24} color="#1972ca" />
                     </TouchableOpacity>
                     <View style={styles.logoRow}>
-                        <Text style={styles.logoText}>WakaJob</Text>
+                        <Image
+                            source={require('../../../assets/icon-mark.png')}
+                            style={styles.iconCropImage}
+                            resizeMode="contain"
+                        />
+                        <View style={styles.textCrop}>
+                            <Image
+                                source={require('../../../assets/logo-removebg-preview.png')}
+                                style={styles.textCropImage}
+                            />
+                        </View>
                     </View>
                     <View style={{ width: 40 }} />
                 </View>
@@ -287,12 +297,36 @@ const styles = StyleSheet.create({
     },
     logoRow: {
         flexDirection: 'row',
-        alignItems: 'flex-start',
+        alignItems: 'center',
+    },
+    textCrop: {
+        width: 130,
+        height: 32,
+        overflow: 'hidden',
+    },
+    textCropImage: {
+        width: 260,
+        height: 41,
+        left: -71,
+        top: -4,
+        tintColor: '#1972ca',
+    },
+    iconCropImage: {
+        width: 36,
+        height: 32,
+        marginRight: 3,
+        tintColor: '#1972ca',
+        transform: [{ translateX: -5 }, { translateY: -1 }],
     },
     logoText: {
         fontSize: 24,
         fontWeight: 'bold',
         color: '#1972ca',
+    },
+    logoImage: {
+        width: 202,
+        height: 32,
+        tintColor: '#1972ca',
     },
     centerContent: {
         flex: 1,

@@ -12,6 +12,7 @@ import VerificationFailedScreen from '../screens/Verification/VerificationFailed
 import ProfileSetupScreen from '../screens/Profile/ProfileSetupScreen';
 
 import { RootStackParamList, EmployerVerificationParamList } from './types';
+import { navigationRef } from './navigationRef';
 
 const RootStack = createStackNavigator<RootStackParamList>();
 const VerificationStack = createStackNavigator<EmployerVerificationParamList>();
@@ -28,7 +29,7 @@ const RootNavigator = () => {
     }
 
     return (
-        <NavigationContainer>
+        <NavigationContainer ref={navigationRef}>
             <RootStack.Navigator screenOptions={{ headerShown: false }}>
                 <RootStack.Screen name="App" component={AppStack} />
             </RootStack.Navigator>

@@ -599,7 +599,10 @@ const ProfileScreen: React.FC = () => {
 
     return (
         <View style={styles.container}>
-            {isFocused && <StatusBar style="light" />}
+            {/* This view's header is white, unlike the blue edit-mode headers
+                above which use style="light" - dark icons are needed here for
+                the status bar (clock/battery) to actually be visible. */}
+            {isFocused && <StatusBar style="dark" />}
             <View style={[styles.viewHeader, { paddingTop: insets.top + 10 }]}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerIconButton}>
                     <Ionicons name="chevron-back" size={24} color="#1F2937" />
@@ -646,11 +649,11 @@ const ProfileScreen: React.FC = () => {
                             <Text style={styles.statValue}>{role === 'employer' ? 'Employer' : 'Job Seeker'}</Text>
                         </View>
                         <View style={styles.statDivider} />
-                        <View style={styles.statItem}>
+                        <TouchableOpacity style={styles.statItem} onPress={handleVerificationPress} activeOpacity={0.7}>
                             <Ionicons name={verificationDisplay.icon} size={20} color={verificationDisplay.color} />
                             <Text style={styles.statLabel}>Status</Text>
                             <Text style={[styles.statValue, { color: verificationDisplay.color }]}>{verificationDisplay.label}</Text>
-                        </View>
+                        </TouchableOpacity>
                         <View style={styles.statDivider} />
                         <View style={styles.statItem}>
                             <Ionicons name="ribbon-outline" size={20} color="#1972ca" />

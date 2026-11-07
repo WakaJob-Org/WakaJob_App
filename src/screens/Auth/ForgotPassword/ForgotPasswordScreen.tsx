@@ -11,6 +11,9 @@ import {
     ScrollView,
     Alert,
     ActivityIndicator,
+    Pressable,
+    Image,
+    TextInputInstance,
 } from 'react-native';
 import Animated, {
     useSharedValue,
@@ -35,7 +38,7 @@ const ForgotPasswordScreen: React.FC = () => {
 
     // Reset State
     const [otp, setOtp] = useState(['', '', '', '', '', '']);
-    const otpRefs = useRef<Array<TextInput | null>>([]);
+    const otpRefs = useRef<Array<TextInputInstance | null>>([]);
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
@@ -185,7 +188,11 @@ const ForgotPasswordScreen: React.FC = () => {
     }
 
     return (
-        <View style={styles.container}>
+        <View style={styles.modalWrapper}>
+            {/* Tapping the dimmed area above the sheet dismisses it, same as swiping down */}
+            <Pressable style={styles.backdropSpacer} onPress={() => navigation.goBack()} />
+
+            <View style={styles.container}>
             <View style={styles.handleContainer}>
                 <View style={styles.handle} />
             </View>
@@ -205,6 +212,13 @@ const ForgotPasswordScreen: React.FC = () => {
                 </View>
 
                 <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                    <View style={styles.iconContainer}>
+                        <Image
+                            source={require('../../../../assets/icon-mark.png')}
+                            style={styles.brandIconCropImage}
+                            resizeMode="contain"
+                        />
+                    </View>
                     <Text style={styles.topTitle}>{renderHeaderTitle()}</Text>
                     {step === 'request' && (
                         <View style={styles.form}>
@@ -233,7 +247,7 @@ const ForgotPasswordScreen: React.FC = () => {
                             </View>
 
                             <TouchableOpacity
-                                style={styles.actionButton}
+                                style={[styles.actionButton, styles.sendCodeButton]}
                                 activeOpacity={0.8}
                                 onPress={handleSendCode}
                                 disabled={loading}
@@ -255,7 +269,9 @@ const ForgotPasswordScreen: React.FC = () => {
                                     {otp.map((digit, index) => (
                                         <TextInput
                                             key={index}
-                                            ref={(el) => (otpRefs.current[index] = el)}
+                                            ref={(el) => {
+                                                otpRefs.current[index] = el;
+                                            }}
                                             style={[
                                                 styles.otpInput,
                                                 errors.otp && styles.otpInputError,
@@ -354,11 +370,21 @@ const ForgotPasswordScreen: React.FC = () => {
                     )}
                 </ScrollView>
             </KeyboardAvoidingView>
+            </View>
         </View>
     );
 };
 
 const styles = StyleSheet.create({
+    modalWrapper: {
+        flex: 1,
+    },
+    // The modal card now fills the full screen (see AppStack.tsx) - this
+    // transparent spacer stands in for the old marginTop, and is tappable so
+    // tapping the dimmed area above the sheet dismisses it like swiping down.
+    backdropSpacer: {
+        height: SCREEN_HEIGHT * 0.2,
+    },
     container: {
         flex: 1,
         backgroundColor: '#FFFFFF',
@@ -381,13 +407,33 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 20,
-        marginBottom: 20,
+        marginBottom: 4,
     },
     backButton: {
         width: 40,
         height: 40,
         justifyContent: 'center',
         alignItems: 'flex-start',
+    },
+    iconContainer: {
+        width: 60,
+        height: 60,
+        borderRadius: 30,
+        backgroundColor: '#1972ca',
+        justifyContent: 'center',
+        alignItems: 'center',
+        alignSelf: 'center',
+        marginBottom: 16,
+    },
+    // icon-mark.png is natively white, which reads correctly against this
+    // circle's blue background with no tint needed. The glyph's visual
+    // weight sits right/down of its own bounding box (measured center of
+    // mass, not just geometry), so a plain centered box looks lopsided -
+    // nudge it back to compensate for true optical centering.
+    brandIconCropImage: {
+        width: 36,
+        height: 32,
+        transform: [{ translateX: -5 }, { translateY: -1 }],
     },
     topTitle: {
         fontSize: 18,
@@ -398,7 +444,6 @@ const styles = StyleSheet.create({
     },
     scrollContent: {
         flexGrow: 1,
-        justifyContent: 'center',
         paddingHorizontal: 24,
         paddingBottom: 40,
     },
@@ -462,6 +507,10 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.3,
         shadowRadius: 8,
         elevation: 5,
+    },
+    sendCodeButton: {
+        alignSelf: 'center',
+        width: '60%',
     },
     actionButtonText: {
         color: '#FFFFFF',

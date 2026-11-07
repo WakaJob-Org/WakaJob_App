@@ -12,6 +12,8 @@ import SettingsScreen from '../screens/Settings/SettingsScreen';
 
 import CreateJobScreen from '../screens/Dashboard/CreateJobScreen';
 import JobDetailsScreen from '../components/JobDetailsScreen';
+import JobApplicantsScreen from '../screens/Applications/JobApplicantsScreen';
+import ChatScreen from '../screens/Chat/ChatScreen';
 import ProfileSetupScreen from '../screens/Profile/ProfileSetupScreen';
 import EmployerVerificationScreen from '../screens/Auth/Verification/EmployerVerificationScreen';
 import VerificationPendingScreen from '../screens/Verification/VerificationPendingScreen';
@@ -29,7 +31,6 @@ import ForgotPasswordScreen from '../screens/Auth/ForgotPassword/ForgotPasswordS
 const Stack = createStackNavigator<AppStackParamList>();
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
-const MODAL_HEIGHT = SCREEN_HEIGHT * 0.8;
 
 // Same vertical slide as forVerticalIOS, plus an animated dark overlay behind the
 // sheet so the screen peeking through the top 20% is visibly dimmed/differentiated.
@@ -73,6 +74,8 @@ const AppStack = () => {
             <Stack.Screen name="Settings" component={SettingsScreen} />
             <Stack.Screen name="CreateJob" component={CreateJobScreen} />
             <Stack.Screen name="JobDetails" component={JobDetailsScreen} />
+            <Stack.Screen name="JobApplicants" component={JobApplicantsScreen} />
+            <Stack.Screen name="ChatConversation" component={ChatScreen} />
             <Stack.Screen name="ProfileSetup" component={ProfileSetupScreen} />
             <Stack.Screen name="EmployerVerification" component={EmployerVerificationScreen} />
             <Stack.Screen name="VerificationPending" component={VerificationPendingScreen} />
@@ -92,8 +95,12 @@ const AppStack = () => {
                             cardOverlayEnabled: true,
                             // No overflow/borderRadius here - shadow needs to render unclipped.
                             // Each screen clips its own rounded corners on its root container.
+                            // No marginTop here (unlike a typical bottom sheet) - the card now
+                            // fills the full screen, and each screen renders its own transparent,
+                            // tappable backdrop spacer above its visible sheet content. That way
+                            // both the swipe-to-dismiss gesture and a tap-to-dismiss handler work
+                            // from anywhere on screen, not just the visible sheet area.
                             cardStyle: {
-                                marginTop: SCREEN_HEIGHT - MODAL_HEIGHT,
                                 backgroundColor: 'transparent',
                                 shadowColor: '#000',
                                 shadowOffset: { width: 0, height: -6 },
@@ -108,8 +115,9 @@ const AppStack = () => {
                             gestureEnabled: true,
                             gestureDirection: 'vertical',
                             // Allow the swipe-to-dismiss gesture to start from anywhere on the
-                            // sheet, not just a thin strip near the top edge (the library default).
-                            gestureResponseDistance: MODAL_HEIGHT,
+                            // full screen (including the backdrop spacer above the sheet), not
+                            // just a thin strip near the top edge (the library default).
+                            gestureResponseDistance: SCREEN_HEIGHT,
                         }}
                     >
                         <Stack.Screen name="Login" component={LoginScreen} />
