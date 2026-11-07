@@ -101,111 +101,8 @@ const registryKey = (
 ) =>
     `wakajob_chat_conversations_${userId}`;
 
-const messagesKey = (
-    userId: string,
-    conversationId: string
-) =>
-    `wakajob_chat_messages_${userId}_${conversationId}`;
-
 const MAX_BACKOFF_MS = 30000;
 const SEND_TIMEOUT_MS = 45000;
-
-const MAX_LOCAL_MESSAGES = 500;
-
-const getMessageId = (
-    message: Partial<ClientChatMessage>
-) =>
-    message.id ||
-    message._id ||
-    message.clientId;
-
-const dedupeMessages = (
-    messages: ClientChatMessage[]
-): ClientChatMessage[] => {
-    const result: ClientChatMessage[] = [];
-    const seen = new Set<string>();
-
-    for (const message of messages) {
-        const id = getMessageId(message);
-
-        if (!id) {
-            result.push(message);
-            continue;
-        }
-
-        if (seen.has(id)) {
-            continue;
-        }
-
-        seen.add(id);
-        result.push(message);
-    }
-
-    return result;
-};
-
-const areLikelySameMessage = (
-    a: ClientChatMessage,
-    b: ClientChatMessage
-) => {
-    if (
-        a.id &&
-        b.id &&
-        a.id === b.id
-    ) {
-        return true;
-    }
-
-    if (
-        a._id &&
-        b._id &&
-        a._id === b._id
-    ) {
-        return true;
-    }
-
-    if (
-        a.clientId &&
-        b.clientId &&
-        a.clientId === b.clientId
-    ) {
-        return true;
-    }
-
-    if (
-        a.sender_id !==
-        b.sender_id
-    ) {
-        return false;
-    }
-
-    if (
-        a.content !==
-        b.content
-    ) {
-        return false;
-    }
-
-    const aTime = new Date(
-        a.created_at || ''
-    ).getTime();
-
-    const bTime = new Date(
-        b.created_at || ''
-    ).getTime();
-
-    if (
-        !Number.isFinite(aTime) ||
-        !Number.isFinite(bTime)
-    ) {
-        return false;
-    }
-
-    return (
-        Math.abs(aTime - bTime) <=
-        2 * 60 * 1000
-    );
-};
 
 export const ChatProvider: React.FC<{
     children: ReactNode;
@@ -301,6 +198,7 @@ export const ChatProvider: React.FC<{
                     conversation_id: string;
                     recipient_id: string;
                     content: string;
+                    client_id: string;
                 }
             >
         >(new Map());
@@ -350,222 +248,6 @@ export const ChatProvider: React.FC<{
         },
         [userId]
     );
-
-    /**
-     * =====================================================
-     * LOCAL MESSAGE STORAGE
-     * =====================================================
-     */
-
-    const persistMessages =
-        useCallback(
-            async (
-                conversationId: string,
-                messages: ClientChatMessage[]
-            ) => {
-                if (
-                    !userId ||
-                    !conversationId
-                ) {
-                    return;
-                }
-
-                try {
-                    const cleaned =
-                        dedupeMessages(
-                            messages
-                        );
-
-                    const limited =
-                        cleaned
-                            .sort(
-                                (
-                                    a,
-                                    b
-                                ) =>
-                                    new Date(
-                                        a.created_at ||
-                                            ''
-                                    ).getTime() -
-                                    new Date(
-                                        b.created_at ||
-                                            ''
-                                    ).getTime()
-                            )
-                            .slice(
-                                -MAX_LOCAL_MESSAGES
-                            );
-
-                    await AsyncStorage.setItem(
-                        messagesKey(
-                            userId,
-                            conversationId
-                        ),
-                        JSON.stringify(
-                            limited
-                        )
-                    );
-                } catch (error) {
-                    console.error(
-                        'Failed to save local chat messages:',
-                        error
-                    );
-                }
-            },
-            [userId]
-        );
-
-    const loadLocalMessages =
-        useCallback(
-            async (
-                conversationId: string
-            ): Promise<ClientChatMessage[]> => {
-                if (
-                    !userId ||
-                    !conversationId
-                ) {
-                    return [];
-                }
-
-                try {
-                    const raw =
-                        await AsyncStorage.getItem(
-                            messagesKey(
-                                userId,
-                                conversationId
-                            )
-                        );
-
-                    if (!raw) {
-                        return [];
-                    }
-
-                    const parsed =
-                        JSON.parse(
-                            raw
-                        );
-
-                    if (
-                        !Array.isArray(
-                            parsed
-                        )
-                    ) {
-                        return [];
-                    }
-
-                    return dedupeMessages(
-                        parsed
-                    );
-                } catch (error) {
-                    console.error(
-                        'Failed to load local chat messages:',
-                        error
-                    );
-
-                    return [];
-                }
-            },
-            [userId]
-        );
-
-    const deleteLocalMessages =
-        useCallback(
-            async (
-                conversationId: string
-            ) => {
-                if (!userId) return;
-
-                try {
-                    await AsyncStorage.removeItem(
-                        messagesKey(
-                            userId,
-                            conversationId
-                        )
-                    );
-                } catch (error) {
-                    console.error(
-                        'Failed to delete local chat messages:',
-                        error
-                    );
-                }
-            },
-            [userId]
-        );
-
-    const mergeMessages =
-        useCallback(
-            (
-                localMessages: ClientChatMessage[],
-                serverMessages: ClientChatMessage[]
-            ) => {
-                const merged =
-                    [...localMessages];
-
-                for (
-                    const serverMessage of serverMessages
-                ) {
-                    const alreadyExists =
-                        merged.some(
-                            (
-                                localMessage
-                            ) =>
-                                areLikelySameMessage(
-                                    localMessage,
-                                    serverMessage
-                                )
-                        );
-
-                    if (
-                        !alreadyExists
-                    ) {
-                        merged.push(
-                            serverMessage
-                        );
-                    } else {
-                        const index =
-                            merged.findIndex(
-                                (
-                                    localMessage
-                                ) =>
-                                    areLikelySameMessage(
-                                        localMessage,
-                                        serverMessage
-                                    )
-                            );
-
-                        if (
-                            index >=
-                            0
-                        ) {
-                            merged[
-                                index
-                            ] =
-                                serverMessage;
-                        }
-                    }
-                }
-
-                merged.sort(
-                    (
-                        a,
-                        b
-                    ) =>
-                        new Date(
-                            a.created_at ||
-                                ''
-                        ).getTime() -
-                        new Date(
-                            b.created_at ||
-                                ''
-                        ).getTime()
-                );
-
-                return dedupeMessages(
-                    merged
-                );
-            },
-            []
-        );
 
     /**
      * =====================================================
@@ -723,23 +405,44 @@ export const ChatProvider: React.FC<{
                     incoming.sender_id ===
                     userId
                 ) {
-                    for (
-                        const [
-                            clientId,
-                            pending,
-                        ] of pendingOptimistic.current.entries()
+                    /**
+                     * If the server echoes back the client_id we sent
+                     * (see attemptSend), that is an exact match — use it
+                     * regardless of the pending message's current status.
+                     * This is what lets a late ack still resolve a bubble
+                     * that the 45s send-timeout already marked "failed",
+                     * instead of spawning a duplicate "sent" bubble and
+                     * leaving the original stuck on "tap to retry".
+                     */
+                    const incomingClientId =
+                        (incoming as any)
+                            .client_id;
+
+                    if (
+                        incomingClientId &&
+                        pendingOptimistic.current.has(
+                            incomingClientId
+                        )
                     ) {
-                        if (
-                            pending.conversation_id ===
-                                incoming.conversation_id &&
-                            pending.content ===
-                                incoming.content &&
-                            pending.status !==
-                                'failed'
+                        reconciledClientId =
+                            incomingClientId;
+                    } else {
+                        for (
+                            const [
+                                clientId,
+                                pending,
+                            ] of pendingOptimistic.current.entries()
                         ) {
-                            reconciledClientId =
-                                clientId;
-                            break;
+                            if (
+                                pending.conversation_id ===
+                                    incoming.conversation_id &&
+                                pending.content ===
+                                    incoming.content
+                            ) {
+                                reconciledClientId =
+                                    clientId;
+                                break;
+                            }
                         }
                     }
                 }
@@ -789,24 +492,6 @@ export const ChatProvider: React.FC<{
                         reconciledClientId
                     );
                 }
-
-                const localMessages =
-                    await loadLocalMessages(
-                        incoming.conversation_id
-                    );
-
-                const merged =
-                    mergeMessages(
-                        localMessages,
-                        [
-                            clientMessage,
-                        ]
-                    );
-
-                await persistMessages(
-                    incoming.conversation_id,
-                    merged
-                );
 
                 notifyListeners(
                     incoming.conversation_id,
@@ -877,9 +562,6 @@ export const ChatProvider: React.FC<{
                 userId,
                 notifyListeners,
                 upsertConversation,
-                loadLocalMessages,
-                mergeMessages,
-                persistMessages,
             ]
         );
 
@@ -1162,23 +844,6 @@ export const ChatProvider: React.FC<{
                                 payload.conversation_id,
                                 failed
                             );
-
-                            loadLocalMessages(
-                                payload.conversation_id
-                            ).then(
-                                (
-                                    local
-                                ) =>
-                                    persistMessages(
-                                        payload.conversation_id,
-                                        mergeMessages(
-                                            local,
-                                            [
-                                                failed,
-                                            ]
-                                        )
-                                    )
-                            );
                         }
                     }
                 }
@@ -1332,9 +997,6 @@ export const ChatProvider: React.FC<{
             clearReconnectTimer,
             handleInboundFrame,
             notifyListeners,
-            loadLocalMessages,
-            persistMessages,
-            mergeMessages,
             getValidChatToken,
         ]);
 
@@ -1749,10 +1411,6 @@ export const ChatProvider: React.FC<{
                     }
                 );
 
-                await deleteLocalMessages(
-                    conversationId
-                );
-
                 try {
                     await chatService.deleteConversation(
                         conversationId
@@ -1766,10 +1424,7 @@ export const ChatProvider: React.FC<{
                     );
                 }
             },
-            [
-                persist,
-                deleteLocalMessages,
-            ]
+            [persist]
         );
 
     /**
@@ -1785,73 +1440,57 @@ export const ChatProvider: React.FC<{
             ): Promise<
                 ClientChatMessage[]
             > => {
-                const localMessages =
-                    await loadLocalMessages(
+                const history =
+                    await chatService.getConversationMessages(
                         conversationId
                     );
 
-                try {
-                    const history =
-                        await chatService.getConversationMessages(
-                            conversationId
-                        );
+                const serverMessages: ClientChatMessage[] =
+                    history.map(
+                        (
+                            message
+                        ) => ({
+                            ...message,
 
-                    const serverMessages =
-                        history.map(
-                            (
-                                message
-                            ) => ({
-                                ...message,
+                            status:
+                                'sent' as MessageStatus,
 
-                                status:
-                                    'sent' as MessageStatus,
+                            clientId:
+                                message.id ||
+                                message._id ||
+                                `history_${Date.now()}_${Math.random()
+                                    .toString(
+                                        36
+                                    )
+                                    .slice(
+                                        2
+                                    )}`,
 
-                                clientId:
-                                    message.id ||
-                                    message._id ||
-                                    `history_${Date.now()}_${Math.random()
-                                        .toString(
-                                            36
-                                        )
-                                        .slice(
-                                            2
-                                        )}`,
-
-                                created_at:
-                                    message.timestamp ||
-                                    message.created_at ||
-                                    new Date().toISOString(),
-                            })
-                        );
-
-                    const merged =
-                        mergeMessages(
-                            localMessages,
-                            serverMessages
-                        );
-
-                    await persistMessages(
-                        conversationId,
-                        merged
+                            created_at:
+                                message.timestamp ||
+                                message.created_at ||
+                                new Date().toISOString(),
+                        })
                     );
 
-                    return merged;
-                } catch (
-                    error
-                ) {
-                    console.warn(
-                        'Server history unavailable. Using local chat history:',
-                        error
-                    );
+                serverMessages.sort(
+                    (
+                        a,
+                        b
+                    ) =>
+                        new Date(
+                            a.created_at ||
+                                ''
+                        ).getTime() -
+                        new Date(
+                            b.created_at ||
+                                ''
+                        ).getTime()
+                );
 
-                    return localMessages;
-                }
+                return serverMessages;
             },
-            [
-                loadLocalMessages,
-                mergeMessages,
-                persistMessages,
-            ]
+            []
         );
 
     /**
@@ -1864,12 +1503,24 @@ export const ChatProvider: React.FC<{
         useCallback(
             (
                 clientId: string,
-                payload: {
+                rawPayload: {
                     conversation_id: string;
                     recipient_id: string;
                     content: string;
                 }
             ) => {
+                /**
+                 * Include our client-generated id on the wire so that if
+                 * the backend echoes it back in the broadcast/ack, we can
+                 * reconcile the exact bubble deterministically instead of
+                 * guessing by content — see handleInboundFrame. Servers
+                 * that don't recognize this field simply ignore it.
+                 */
+                const payload = {
+                    ...rawPayload,
+                    client_id: clientId,
+                };
+
                 const oldTimeout =
                     sendTimeouts.current.get(
                         clientId
@@ -1962,23 +1613,6 @@ export const ChatProvider: React.FC<{
                                 payload.conversation_id,
                                 failed
                             );
-
-                            loadLocalMessages(
-                                payload.conversation_id
-                            ).then(
-                                (
-                                    local
-                                ) =>
-                                    persistMessages(
-                                        payload.conversation_id,
-                                        mergeMessages(
-                                            local,
-                                            [
-                                                failed,
-                                            ]
-                                        )
-                                    )
-                            );
                         }
 
                         return;
@@ -2034,23 +1668,6 @@ export const ChatProvider: React.FC<{
                                     payload.conversation_id,
                                     failed
                                 );
-
-                                loadLocalMessages(
-                                    payload.conversation_id
-                                ).then(
-                                    (
-                                        local
-                                    ) =>
-                                        persistMessages(
-                                            payload.conversation_id,
-                                            mergeMessages(
-                                                local,
-                                                [
-                                                    failed,
-                                                ]
-                                            )
-                                        )
-                                );
                             }
                         },
                         SEND_TIMEOUT_MS
@@ -2064,9 +1681,6 @@ export const ChatProvider: React.FC<{
             [
                 ensureConnecting,
                 notifyListeners,
-                loadLocalMessages,
-                persistMessages,
-                mergeMessages,
             ]
         );
 
@@ -2113,27 +1727,6 @@ export const ChatProvider: React.FC<{
                 pendingOptimistic.current.set(
                     clientId,
                     optimistic
-                );
-
-                loadLocalMessages(
-                    conversationId
-                ).then(
-                    (
-                        local
-                    ) => {
-                        const merged =
-                            mergeMessages(
-                                local,
-                                [
-                                    optimistic,
-                                ]
-                            );
-
-                        return persistMessages(
-                            conversationId,
-                            merged
-                        );
-                    }
                 );
 
                 notifyListeners(
@@ -2203,9 +1796,6 @@ export const ChatProvider: React.FC<{
                 attemptSend,
                 upsertConversation,
                 notifyListeners,
-                loadLocalMessages,
-                persistMessages,
-                mergeMessages,
             ]
         );
 
@@ -2234,23 +1824,6 @@ export const ChatProvider: React.FC<{
                     pending
                 );
 
-                loadLocalMessages(
-                    conversationId
-                ).then(
-                    (
-                        local
-                    ) =>
-                        persistMessages(
-                            conversationId,
-                            mergeMessages(
-                                local,
-                                [
-                                    pending,
-                                ]
-                            )
-                        )
-                );
-
                 notifyListeners(
                     conversationId,
                     pending
@@ -2274,9 +1847,6 @@ export const ChatProvider: React.FC<{
             [
                 notifyListeners,
                 attemptSend,
-                loadLocalMessages,
-                persistMessages,
-                mergeMessages,
             ]
         );
 

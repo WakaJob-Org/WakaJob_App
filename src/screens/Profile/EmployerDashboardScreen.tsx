@@ -278,7 +278,7 @@ const EmployerDashboardScreen: React.FC = () => {
                         ListHeaderComponent={
                             filteredJobs.length > 0 ? (
                                 <Text style={styles.sectionTitle}>Recent Postings</Text>
-                            ) : null
+                            ) : undefined
                         }
                         refreshControl={
                             <RefreshControl

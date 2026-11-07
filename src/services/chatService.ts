@@ -33,6 +33,20 @@ interface ApiResponse<T> {
     error?: any;
 }
 
+/**
+ * Deterministic client-side fallback conversation id, used only when the
+ * server's createConversation call fails. Sorting the participant ids keeps
+ * it stable regardless of which side (employer/worker) initiates the chat.
+ */
+export const buildConversationId = (
+    jobId: string,
+    userIdA: string,
+    userIdB: string
+): string => {
+    const [first, second] = [userIdA, userIdB].sort();
+    return `job_${jobId}_${first}_${second}`;
+};
+
 const getToken = async (): Promise<string | null> => {
     return await SecureStore.getItemAsync('auth_token');
 };
@@ -515,18 +529,13 @@ const chatService = {
     },
 
     async getConversationMessages(conversationId: string, page = 1, limit = 100): Promise<ChatMessage[]> {
-        try {
-            if (limit > 100) limit = 100;
-            const data = await request<{ messages: ChatMessage[]; page: number; limit: number; total: number }>(
-                `/conversations/${encodeURIComponent(conversationId)}/messages?page=${page}&limit=${limit}`,
-                { method: 'GET' }
-            );
-            if (!data || !Array.isArray(data.messages)) return [];
-            return data.messages;
-        } catch (error) {
-            console.warn('[CHAT] Failed to fetch conversation messages:', error);
-            return [];
-        }
+        if (limit > 100) limit = 100;
+        const data = await request<{ messages: ChatMessage[]; page: number; limit: number; total: number }>(
+            `/conversations/${encodeURIComponent(conversationId)}/messages?page=${page}&limit=${limit}`,
+            { method: 'GET' }
+        );
+        if (!data || !Array.isArray(data.messages)) return [];
+        return data.messages;
     },
 
     async deleteConversation(conversationId: string) {

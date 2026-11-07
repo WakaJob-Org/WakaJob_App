@@ -11,6 +11,7 @@ import {
     ActivityIndicator,
     StatusBar,
     Alert,
+    TextInputInstance,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -38,7 +39,7 @@ const OTPScreen: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [timer, setTimer] = useState(0);
 
-    const inputRefs = useRef<Array<TextInput | null>>([]);
+    const inputRefs = useRef<Array<TextInputInstance | null>>([]);
 
     useEffect(() => {
         const timeout = setTimeout(() => {
@@ -49,7 +50,7 @@ const OTPScreen: React.FC = () => {
 
     // Timer logic
     useEffect(() => {
-        let interval: NodeJS.Timeout;
+        let interval: ReturnType<typeof setInterval>;
         if (timer > 0) {
             interval = setInterval(() => {
                 setTimer((prev) => prev - 1);

@@ -13,6 +13,7 @@ import {
     ActivityIndicator,
     Pressable,
     Image,
+    TextInputInstance,
 } from 'react-native';
 import Animated, {
     useSharedValue,
@@ -37,7 +38,7 @@ const ForgotPasswordScreen: React.FC = () => {
 
     // Reset State
     const [otp, setOtp] = useState(['', '', '', '', '', '']);
-    const otpRefs = useRef<Array<TextInput | null>>([]);
+    const otpRefs = useRef<Array<TextInputInstance | null>>([]);
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
@@ -268,7 +269,9 @@ const ForgotPasswordScreen: React.FC = () => {
                                     {otp.map((digit, index) => (
                                         <TextInput
                                             key={index}
-                                            ref={(el) => (otpRefs.current[index] = el)}
+                                            ref={(el) => {
+                                                otpRefs.current[index] = el;
+                                            }}
                                             style={[
                                                 styles.otpInput,
                                                 errors.otp && styles.otpInputError,

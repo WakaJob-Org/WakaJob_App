@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Alert, ActivityIndicator, View, Text, TextInput, TouchableOpacity, Dimensions, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Image, Pressable } from 'react-native';
-import GoogleIcon from '../../../components/GoogleIcon';
+import SocialAuthButtons from '../../../components/SocialAuthButtons';
 import Animated from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -150,6 +150,8 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
                         <Text style={styles.subtitle}>Create an Account</Text>
                         <Text style={styles.description}>Join thousands of professionals finding their dream jobs</Text>
                     </View>
+
+                    <SocialAuthButtons />
 
                     <View style={styles.form}>
 

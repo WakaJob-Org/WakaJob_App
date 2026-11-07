@@ -18,6 +18,7 @@ import Animated from 'react-native-reanimated';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { AppStackParamList } from '../../../navigation/types';
 import { useAuth } from '../../../context/AuthContext';
+import SocialAuthButtons from '../../../components/SocialAuthButtons';
 
 import { useRoute } from '@react-navigation/native';
 
@@ -155,6 +156,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                             <Text style={styles.loginSubtitle}>Enter your credentials to access your account</Text>
                         </View>
                     </View>
+
+                    <SocialAuthButtons />
 
                     <View style={styles.form}>
                         <View style={styles.inputWrapper}>
