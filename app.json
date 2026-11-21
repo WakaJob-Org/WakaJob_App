@@ -3,7 +3,7 @@
     "name": "wakajob",
     "slug": "wakajob-App",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/app-icon.png",
     "userInterfaceStyle": "light",
     "ios": {
