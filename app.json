@@ -15,7 +15,7 @@
         "backgroundColor": "#1972ca"
       },
       "predictiveBackGestureEnabled": false,
-      "softwareKeyboardLayoutMode": "pan",
+      "softwareKeyboardLayoutMode": "resize",
       "allowBackup": false,
       "package": "com.tamanjong.wakajobApp"
     },
