@@ -6,9 +6,7 @@ import {
     TextInput,
     TouchableOpacity,
     Dimensions,
-    ScrollView,
     ActivityIndicator,
-    KeyboardAvoidingView,
     Platform,
     Image,
     Pressable,
@@ -19,6 +17,8 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { AppStackParamList } from '../../../navigation/types';
 import { useAuth } from '../../../context/AuthContext';
 import SocialAuthButtons from '../../../components/SocialAuthButtons';
+import { moderateScale, verticalScale, scale, isLandscape } from '../../../utils/responsive';
+import KeyboardScreen from '../../../components/KeyboardScreen';
 
 import { useRoute } from '@react-navigation/native';
 
@@ -124,22 +124,17 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
     return (
         <View style={styles.modalWrapper}>
             {/* Tapping the dimmed area above the sheet dismisses it, same as swiping down */}
-            <Pressable style={styles.backdropSpacer} onPress={() => navigation.goBack()} />
+            <Pressable style={[styles.backdropSpacer, isLandscape() && styles.backdropSpacerLandscape]} onPress={() => navigation.goBack()} />
 
-            <View style={styles.container}>
+            <View style={[styles.container, isLandscape() && styles.containerLandscape]}>
             <View style={styles.handleContainer}>
                 <View style={styles.handle} />
             </View>
 
-            <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                style={styles.container}
+            <KeyboardScreen
+                contentContainerStyle={styles.scrollContent}
             >
-                <ScrollView
-                    contentContainerStyle={styles.scrollContent}
-                    showsVerticalScrollIndicator={false}
-                    keyboardShouldPersistTaps="handled"
-                >
+
                     <View style={styles.header}>
                         <View style={styles.iconContainer}>
                             <Image
@@ -228,8 +223,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                             </TouchableOpacity>
                         </View>
                     </View>
-                </ScrollView>
-            </KeyboardAvoidingView>
+                
+            </KeyboardScreen>
             </View>
         </View>
     );
@@ -245,12 +240,21 @@ const styles = StyleSheet.create({
     backdropSpacer: {
         height: SCREEN_HEIGHT * 0.2,
     },
+
+     backdropSpacerLandscape: {
+        height: '10%', 
+    },
+
     container: {
         flex: 1,
         backgroundColor: '#FFFFFF',
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
         overflow: 'hidden',
+    },
+    containerLandscape: {
+        borderTopLeftRadius: 16, // slightly smaller radius for landscape
+        borderTopRightRadius: 16,
     },
     handleContainer: {
         alignItems: 'center',
@@ -264,7 +268,7 @@ const styles = StyleSheet.create({
     },
     scrollContent: {
         paddingHorizontal: 24,
-        paddingBottom: 80, // Increased for keyboard clearance
+        paddingBottom: 60, // reduced since KeyboardScreen handles safe area better
     },
     header: {
         alignItems: 'center',
@@ -334,7 +338,7 @@ const styles = StyleSheet.create({
         borderColor: '#E0E0E0',
         borderRadius: 12,
         paddingHorizontal: 16,
-        height: 56,
+        height: moderateScale(56),
         backgroundColor: '#FAFAFA',
     },
     inputIcon: {
@@ -356,7 +360,7 @@ const styles = StyleSheet.create({
     },
     signInButton: {
         backgroundColor: '#1972ca',
-        height: 56,
+        height: moderateScale(56),
         borderRadius: 12,
         justifyContent: 'center',
         alignItems: 'center',
