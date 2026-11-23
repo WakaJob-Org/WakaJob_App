@@ -8,6 +8,8 @@ import {
     Dimensions,
     ActivityIndicator,
     Platform,
+    KeyboardAvoidingView,
+    ScrollView,
     Image,
     Pressable,
 } from 'react-native';
@@ -122,7 +124,11 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
     };
 
     return (
-        <View style={styles.modalWrapper}>
+        <KeyboardAvoidingView 
+            style={styles.modalWrapper}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        >
             {/* Tapping the dimmed area above the sheet dismisses it, same as swiping down */}
             <Pressable style={[styles.backdropSpacer, isLandscape() && styles.backdropSpacerLandscape]} onPress={() => navigation.goBack()} />
 
@@ -131,8 +137,11 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                 <View style={styles.handle} />
             </View>
 
-            <KeyboardScreen
+            <ScrollView
                 contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                bounces={false}
             >
 
                     <View style={styles.header}>
@@ -224,9 +233,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                         </View>
                     </View>
                 
-            </KeyboardScreen>
+            </ScrollView>
             </View>
-        </View>
+        </KeyboardAvoidingView>
     );
 };
 
@@ -242,7 +251,7 @@ const styles = StyleSheet.create({
     },
 
      backdropSpacerLandscape: {
-        height: '10%', 
+        height: '5%', 
     },
 
     container: {
@@ -255,6 +264,7 @@ const styles = StyleSheet.create({
     containerLandscape: {
         borderTopLeftRadius: 16, // slightly smaller radius for landscape
         borderTopRightRadius: 16,
+        maxHeight: '90%', // to prevent sheet taking full height in landscape
     },
     handleContainer: {
         alignItems: 'center',
@@ -269,10 +279,11 @@ const styles = StyleSheet.create({
     scrollContent: {
         paddingHorizontal: 24,
         paddingBottom: 60, // reduced since KeyboardScreen handles safe area better
+        flexGrow: 1     // so ScrollView can expand/shrink properly
     },
     header: {
         alignItems: 'center',
-        marginBottom: 24,
+        marginBottom: isLandscape() ? 12 : 24,
     },
     iconContainer: {
         width: 60,

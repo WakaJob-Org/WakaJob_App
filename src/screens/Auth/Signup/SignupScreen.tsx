@@ -1,5 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { Alert, ActivityIndicator, View, Text, TextInput, TouchableOpacity, Dimensions, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Image, Pressable } from 'react-native';
+import {
+  Alert,
+  ActivityIndicator,
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Dimensions,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Image,
+  Pressable,
+} from "react-native";
 import SocialAuthButtons from '../../../components/SocialAuthButtons';
 import Animated from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
@@ -121,7 +135,11 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
     };
 
     return (
-        <View style={styles.modalWrapper}>
+        <KeyboardAvoidingView 
+            style={styles.modalWrapper}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        >
             {/* Tapping the dimmed area above the sheet dismisses it, same as swiping down */}
             <Pressable style={[styles.backdropSpacer, isLandscape() && styles.backdropSpacerLandscape ]} onPress={() => navigation.goBack()} />
 
@@ -130,8 +148,11 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
                 <View style={styles.handle} />
             </View>
 
-            <KeyboardScreen
+            <ScrollView
                 contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                bounces={false}
             >
                 
                     <View style={styles.header}>
@@ -257,9 +278,9 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
                         </View>
                     </View>
                 
-            </KeyboardScreen>
+            </ScrollView>
             </View>
-        </View>
+        </KeyboardAvoidingView>
     );
 };
 
@@ -274,7 +295,7 @@ const styles = StyleSheet.create({
         height: SCREEN_HEIGHT * 0.2,
     },
      backdropSpacerLandscape: {
-        height: '10%', 
+        height: '5%', 
     },
     container: {
         flex: 1,
@@ -286,6 +307,7 @@ const styles = StyleSheet.create({
     containerLandscape: {
         borderTopLeftRadius: 16,
         borderTopRightRadius: 16,
+        maxHeight: '90%',
     },
     handleContainer: {
         alignItems: 'center',
@@ -301,10 +323,11 @@ const styles = StyleSheet.create({
         paddingHorizontal: 24,
         // paddingBottom: 100, // Extra padding to ensure everything is scrollable above keyboard
         paddingBottom: 60, 
+        flexGrow: 1,
     },
     header: {
         alignItems: 'center',
-        marginBottom: 32,
+        marginBottom: isLandscape() ? 16 : 32,
     },
     iconContainer: {
         width: 60,
